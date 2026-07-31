@@ -1,0 +1,182 @@
+{
+  "marca": {
+    "iniciales": "EM",
+    "nombre": "[EMPRESA]",
+    "sufijo": "· Ayuda"
+  },
+  "general": {
+    "saltarContenido": "Saltar al contenido principal",
+    "irAlInicio": "Ir al inicio del centro de ayuda",
+    "articulos_one": "{{count}} artículo",
+    "articulos_other": "{{count}} artículos"
+  },
+  "nav": {
+    "etiqueta": "Pantallas del prototipo",
+    "inicio": "Inicio",
+    "panel": "Panel interno"
+  },
+  "idioma": {
+    "etiqueta": "Idioma",
+    "es": "Español",
+    "pt": "Português",
+    "cambiarA": "Cambiar idioma a {{idioma}}",
+    "actual": "Idioma actual: {{idioma}}"
+  },
+  "inicio": {
+    "titulo": "Centro de ayuda de [EMPRESA]",
+    "subtitulo": "¿En qué podemos ayudarte hoy?",
+    "buscarEtiqueta": "Buscar en el centro de ayuda",
+    "buscarMarcador": "Escribe tu pregunta…",
+    "buscarPista": "Prueba: \"cómo devolver un pedido\", \"problema con mi factura\"…",
+    "categorias": "Explorar por categoría",
+    "categoriaAria": "Categoría {{nombre}} — {{count}} artículos",
+    "populares": "Artículos populares"
+  },
+  "busqueda": {
+    "resultados_one": "{{count}} resultado para «{{termino}}»",
+    "resultados_other": "{{count}} resultados para «{{termino}}»",
+    "sinResultados": "No encontramos artículos para «{{termino}}»",
+    "sinResultadosAyuda": "Revisa la ortografía o prueba con otras palabras. Si no encuentras lo que buscas, nuestro equipo puede ayudarte.",
+    "limpiar": "Limpiar búsqueda",
+    "regionEtiqueta": "Resultados de búsqueda"
+  },
+  "articulo": {
+    "rutaNavegacion": "Ruta de navegación",
+    "raiz": "Ayuda",
+    "actualizado": "Actualizado el",
+    "lectura": "Lectura estimada: {{minutos}} min",
+    "informacion": "Información:",
+    "faq": "Preguntas frecuentes",
+    "pasosAria": "Pasos: {{titulo}}",
+    "util": "¿Te resultó útil este artículo?",
+    "utilSi": "Sí, me ayudó",
+    "utilNo": "No del todo",
+    "graciasSi": "¡Gracias! Tu valoración nos ayuda a mejorar.",
+    "graciasNo": "Entendido. Considera contactar soporte si necesitas más ayuda.",
+    "relacionados": "Artículos relacionados",
+    "noEncontrado": "No encontramos este artículo",
+    "noEncontradoAyuda": "Puede que la dirección haya cambiado. Vuelve al inicio para explorar las categorías.",
+    "volverInicio": "Volver al inicio"
+  },
+  "escalamiento": {
+    "titulo": "¿No encontraste lo que buscabas?",
+    "horario": "Nuestro equipo está disponible de lunes a viernes, 9:00–18:00 h.",
+    "boton": "Contactar soporte"
+  },
+  "chat": {
+    "abrir": "Abrir asistente virtual",
+    "cerrar": "Cerrar asistente virtual",
+    "titulo": "Asistente virtual",
+    "subtitulo": "Responde 24/7 · Cita fuentes",
+    "conversacionAria": "Conversación con el asistente",
+    "fuentes": "Fuentes",
+    "fuenteAria": "Fuente {{n}}",
+    "entradaEtiqueta": "Escribe tu pregunta",
+    "entradaMarcador": "¿En qué puedo ayudarte?",
+    "enviar": "Enviar mensaje",
+    "nota": "Las respuestas se generan a partir de la base de conocimiento. Pueden contener errores.",
+    "prototipoAviso": "Este es un prototipo: la conversación es de ejemplo y el envío no genera respuestas nuevas."
+  },
+  "panel": {
+    "seccion": "Panel interno",
+    "titulo": "Preguntas sin resolver",
+    "subtitulo": "Ciclo KCS — candidatos a nuevo artículo de conocimiento",
+    "actualizacion": "Última actualización: hoy, 09:41 h",
+    "metricasAria": "Métricas del ciclo KCS",
+    "metricas": {
+      "sinResolver": "Preguntas sin resolver",
+      "sinResolverSub": "+5 esta semana",
+      "conCita": "Respuestas con cita",
+      "conCitaSub": "de las últimas 500",
+      "creados": "Artículos creados desde preguntas",
+      "creadosSub": "este mes (ciclo KCS)"
+    },
+    "filtrar": "Filtrar por estado:",
+    "filtroTodas": "Todas",
+    "tablaAria": "Preguntas sin resolver — ciclo KCS",
+    "tablaTitulo": "Tabla de preguntas sin resolver",
+    "columnas": {
+      "pregunta": "Pregunta",
+      "veces": "Veces preguntada",
+      "similitud": "Similitud máx.",
+      "fecha": "Fecha",
+      "estado": "Estado",
+      "accion": "Acción"
+    },
+    "similitudAria": "Similitud {{porcentaje}} por ciento",
+    "crearArticulo": "Crear artículo",
+    "crearArticuloAria": "Crear artículo para: {{pregunta}}",
+    "articuloExistente": "Artículo existente",
+    "creado": "Anotado. En un sistema real, esto abriría el borrador del artículo.",
+    "mostrando": "Mostrando {{visibles}} de {{total}} preguntas",
+    "anterior": "Página anterior",
+    "siguiente": "Página siguiente",
+    "cerrarSesion": "Cerrar sesión"
+  },
+  "login": {
+    "titulo": "Iniciar sesión",
+    "subtitulo": "Acceso para administradores del centro de ayuda",
+    "correo": "Correo electrónico",
+    "contrasena": "Contraseña",
+    "entrar": "Entrar",
+    "entrando": "Entrando…",
+    "errorCredenciales": "Correo o contraseña incorrectos",
+    "errorRed": "No se pudo conectar. Inténtalo de nuevo."
+  },
+  "estado": {
+    "cargando": "Cargando contenido…",
+    "errorTitulo": "No se pudo cargar el contenido",
+    "errorAyuda": "Comprueba tu conexión o que el servidor esté disponible, y vuelve a intentarlo.",
+    "reintentar": "Reintentar"
+  },
+  "panelGestion": {
+    "titulo": "Gestión de artículos",
+    "nuevo": "Nuevo artículo",
+    "editar": "Editar",
+    "eliminar": "Eliminar",
+    "editarAria": "Editar el artículo: {{titulo}}",
+    "eliminarAria": "Eliminar el artículo: {{titulo}}",
+    "crearDesdePregunta": "Crear artículo desde la pregunta",
+    "guardar": "Guardar",
+    "cancelar": "Cancelar",
+    "guardado": "Cambios guardados.",
+    "eliminado": "Artículo eliminado.",
+    "confirmarEliminar": "¿Eliminar el artículo «{{titulo}}»? Esta acción no se puede deshacer.",
+    "errorGuardar": "No se pudo guardar. Revisa los campos e inténtalo de nuevo.",
+    "errorIdDuplicado": "Ya existe un artículo con ese identificador.",
+    "errorRed": "No se pudo conectar con el servidor.",
+    "errorCargar": "No se pudo cargar el artículo para editar.",
+    "id": "Identificador",
+    "idAyuda": "Único y estable entre idiomas (por ejemplo: cambiar-contrasena).",
+    "categoria": "Categoría",
+    "actualizado": "Fecha de actualización",
+    "minutos": "Minutos de lectura",
+    "relacionados": "Artículos relacionados",
+    "relacionadosAyuda": "Identificadores separados por comas.",
+    "destacado": "Destacado en la página de inicio",
+    "slug": "Segmento de dirección (slug)",
+    "tituloArticulo": "Título",
+    "parrafos": "Párrafos",
+    "parrafosAyuda": "Un párrafo por línea.",
+    "nota": "Nota (opcional)",
+    "howToTitulo": "Título del bloque de pasos",
+    "pasos": "Pasos",
+    "agregarPaso": "Añadir paso",
+    "pasoTitulo": "Título del paso {{n}}",
+    "pasoTituloMarcador": "Título del paso",
+    "pasoDescripcion": "Descripción del paso {{n}}",
+    "pasoDescripcionMarcador": "Descripción",
+    "faq": "Preguntas frecuentes",
+    "agregarFaq": "Añadir pregunta",
+    "faqPregunta": "Pregunta {{n}}",
+    "faqPreguntaMarcador": "Pregunta",
+    "faqRespuesta": "Respuesta {{n}}",
+    "faqRespuestaMarcador": "Respuesta",
+    "quitarFila": "Quitar fila {{n}}"
+  },
+  "kcs": {
+    "nueva": "Nueva",
+    "revision": "En revisión",
+    "cubierta": "Cubierta"
+  }
+}
