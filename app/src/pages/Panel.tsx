@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useRevalidator } from 'react-router-dom'
-import type { EstadoKcs, Idioma } from '@/types'
+import type { Idioma } from '@/types'
+import {
+  eliminarArticulo,
+  listarPreguntas,
+  obtenerArticulo,
+  type ArticuloAdmin,
+  type PreguntaAdmin,
+} from '@/data/admin'
 import { useContenido } from '@/data/contexto'
-import { authFetch, borrarToken } from '@/auth/sesion'
+import { borrarToken } from '@/auth/sesion'
+import { fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
 import { KcsChip } from '@/components/KcsChip'
-import { ArticuloForm, type ArticuloAdmin } from '@/components/ArticuloForm'
+import { ArticuloForm } from '@/components/ArticuloForm'
 
 const ICONO_METRICA = {
   sinResolver: { icono: <Ic.HelpCircle size={22} className="text-indigo-700" />, fondo: 'bg-indigo-50' },
@@ -16,16 +24,6 @@ const ICONO_METRICA = {
 } as const
 
 const FILTROS = ['todas', 'nueva', 'revision', 'cubierta'] as const
-
-interface PreguntaAdmin {
-  id: number
-  idioma: string
-  pregunta: string
-  veces: number
-  similitud: number
-  fecha: string
-  estado: EstadoKcs
-}
 
 type FormState = { modo: 'crear' | 'editar'; inicial?: ArticuloAdmin; preguntaId?: number }
 
@@ -41,7 +39,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
   const [aviso, setAviso] = useState<string | null>(null)
 
   async function cargarPreguntas() {
-    const resp = await authFetch(`/api/admin/preguntas-sin-resolver?idioma=${idioma}`)
+    const resp = await listarPreguntas(idioma)
     if (resp.ok) setPreguntas((await resp.json()) as PreguntaAdmin[])
     else if (resp.status === 401) navigate(rutas.login(idioma))
   }
@@ -62,7 +60,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
   }
 
   async function abrirEditar(id: string) {
-    const resp = await authFetch(`/api/admin/articulos/${id}`)
+    const resp = await obtenerArticulo(id)
     if (resp.ok) {
       setFormulario({ modo: 'editar', inicial: (await resp.json()) as ArticuloAdmin })
       setAviso(null)
@@ -73,7 +71,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
 
   async function eliminar(id: string, titulo: string) {
     if (!window.confirm(t('panelGestion.confirmarEliminar', { titulo }))) return
-    const resp = await authFetch(`/api/admin/articulos/${id}`, { method: 'DELETE' })
+    const resp = await eliminarArticulo(id)
     if (resp.ok) {
       setAviso(t('panelGestion.eliminado'))
       await recargarTodo()
@@ -204,7 +202,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
                 <tbody className="divide-y divide-slate-200">
                   {filas.map(fila => {
                     const porcentaje = Math.round(fila.similitud * 100)
-                    const fechaLegible = new Date(`${fila.fecha}T00:00:00`).toLocaleDateString(i18n.language)
+                    const fecha = fechaLegible(fila.fecha, i18n.language)
                     return (
                       <tr key={fila.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3.5 text-slate-800 font-medium max-w-[280px]">
@@ -224,7 +222,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap text-xs">
-                          <time dateTime={fila.fecha}>{fechaLegible}</time>
+                          <time dateTime={fila.fecha}>{fecha}</time>
                         </td>
                         <td className="px-4 py-3.5">
                           <KcsChip estado={fila.estado} />

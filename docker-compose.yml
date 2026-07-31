@@ -6,10 +6,15 @@ services:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: helpcenter
-      POSTGRES_PASSWORD: helpcenter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-helpcenter}
       POSTGRES_DB: helpcenter
     ports:
-      - "5432:5432"
+      # Solo loopback. Con "5432:5432" el contenedor escucha en 0.0.0.0 y queda
+      # accesible desde toda la red local con credenciales de desarrollo.
+      # Consecuencia: publica únicamente en IPv4, así que la cadena de conexión
+      # debe usar 127.0.0.1 y no localhost (en Windows, localhost prueba ::1
+      # primero y la conexión tarda más de dos minutos en caer a IPv4).
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

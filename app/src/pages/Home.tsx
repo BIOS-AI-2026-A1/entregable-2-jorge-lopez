@@ -81,7 +81,7 @@ export function Home({ idioma }: { idioma: Idioma }) {
                           <Ic.ChevronRight size={15} className="shrink-0 text-indigo-400" />
                           <span className="text-sm font-medium">{articulo.titulo}</span>
                           {categoria && (
-                            <span className="ml-auto shrink-0 text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                            <span className="ml-auto shrink-0 text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
                               {categoria.nombre}
                             </span>
                           )}

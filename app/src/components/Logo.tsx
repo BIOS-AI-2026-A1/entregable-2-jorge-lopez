@@ -13,7 +13,7 @@ export function Logo() {
       </div>
       <div className="leading-none">
         <span className="font-bold text-[17px] text-slate-900">{t('marca.nombre')}</span>
-        <span className="text-slate-400 font-normal ml-2 text-[15px]">{t('marca.sufijo')}</span>
+        <span className="text-slate-600 font-normal ml-2 text-[15px]">{t('marca.sufijo')}</span>
       </div>
     </div>
   )

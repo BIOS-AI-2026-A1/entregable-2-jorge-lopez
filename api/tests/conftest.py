@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
-from datetime import date
+import os
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+# Configuración de test, fijada ANTES de importar `app.*`: `jwt_secret` y
+# `admin_password` ya no tienen valor por defecto, y la variable de entorno tiene
+# prioridad sobre el .env. Así los tests no dependen del .env de cada máquina.
+# El secreto pasa de 32 bytes: por debajo, PyJWT avisa en cada firma (RFC 7518 §3.2).
+os.environ.setdefault("JWT_SECRET", "secreto-de-pruebas-largo-y-sin-ningun-valor-real")
+os.environ.setdefault("ADMIN_PASSWORD", "contrasena-solo-para-los-tests")
 
-from app import models  # noqa: F401  (registra las tablas en Base.metadata)
-from app.database import Base, get_db
-from app.main import app
-from app.models import (
+from datetime import date  # noqa: E402
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app import models  # noqa: F401,E402  (registra las tablas en Base.metadata)
+from app.database import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import (  # noqa: E402
     AdminUser,
     Categoria,
     CategoriaTraduccion,
@@ -21,7 +30,7 @@ from app.models import (
     Metrica,
     PreguntaSinResolver,
 )
-from app.security import hash_password
+from app.security import hash_password  # noqa: E402
 
 ADMIN_EMAIL = "admin@test.local"
 ADMIN_PASSWORD = "secreto-de-prueba"

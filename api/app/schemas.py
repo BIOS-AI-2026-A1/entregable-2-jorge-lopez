@@ -1,7 +1,7 @@
 """Esquemas Pydantic. Reproducen el contrato `app/src/types.ts` campo a campo.
 
-Los nombres usan camelCase (minusLectura, howTo, preguntasSinResolver) para que el JSON
-coincida exactamente con lo que el frontend ya consume.
+Los nombres usan camelCase (minutosLectura, howTo) para que el JSON coincida
+exactamente con lo que el frontend ya consume.
 """
 
 from __future__ import annotations
@@ -54,24 +54,21 @@ class ArticuloOut(BaseModel):
     relacionados: list[str]
 
 
-class PreguntaSinResolverOut(BaseModel):
-    pregunta: str
-    veces: int
-    similitud: float
-    fecha: str
-    estado: str
-
-
 class MetricaOut(BaseModel):
     clave: str
     valor: str
 
 
 class ContenidoIdiomaOut(BaseModel):
+    """Contenido público de un idioma.
+
+    No incluye las preguntas sin resolver: son texto escrito por las personas
+    usuarias y solo se sirven por el router de administración, autenticado.
+    """
+
     categorias: list[CategoriaOut]
     articulos: list[ArticuloOut]
     conversacion: list[dict[str, Any]]
-    preguntasSinResolver: list[PreguntaSinResolverOut]
     metricas: list[MetricaOut]
 
 
