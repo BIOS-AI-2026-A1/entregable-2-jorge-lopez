@@ -1,88 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { IDIOMAS, type Categoria, type Idioma } from '@/types'
-import { authFetch } from '@/auth/sesion'
+import { guardarArticulo, type ArticuloAdmin, type DestinoArticulo } from '@/data/admin'
+import { aPayload, draftInicial, type Draft, type TradDraft } from '@/data/articuloBorrador'
 import { Ic } from './iconos'
-
-/** Forma del artículo con sus dos idiomas que devuelve/acepta la API admin. */
-export interface TraduccionAdmin {
-  slug: string
-  titulo: string
-  parrafos: string[]
-  howTo: { titulo: string; pasos: { titulo: string; descripcion: string }[] }
-  nota: string | null
-  faq: { pregunta: string; respuesta: string }[]
-}
-export interface ArticuloAdmin {
-  id: string
-  categoria: string
-  actualizado: string
-  minutosLectura: number
-  destacado: boolean
-  relacionados: string[]
-  es: TraduccionAdmin
-  pt: TraduccionAdmin
-}
-
-type TradDraft = {
-  slug: string
-  titulo: string
-  parrafos: string
-  nota: string
-  howToTitulo: string
-  pasos: { titulo: string; descripcion: string }[]
-  faq: { pregunta: string; respuesta: string }[]
-}
-type Draft = {
-  id: string
-  categoria: string
-  actualizado: string
-  minutosLectura: number
-  destacado: boolean
-  relacionados: string
-  es: TradDraft
-  pt: TradDraft
-}
-
-const tradVacia: TradDraft = { slug: '', titulo: '', parrafos: '', nota: '', howToTitulo: '', pasos: [], faq: [] }
-
-function draftInicial(inicial: ArticuloAdmin | undefined, categoriaPorDefecto: string): Draft {
-  if (!inicial) {
-    return {
-      id: '', categoria: categoriaPorDefecto, actualizado: new Date().toISOString().slice(0, 10),
-      minutosLectura: 3, destacado: false, relacionados: '', es: { ...tradVacia }, pt: { ...tradVacia },
-    }
-  }
-  const trad = (t: TraduccionAdmin): TradDraft => ({
-    slug: t.slug, titulo: t.titulo, parrafos: t.parrafos.join('\n'), nota: t.nota ?? '',
-    howToTitulo: t.howTo.titulo, pasos: t.howTo.pasos.map(p => ({ ...p })), faq: t.faq.map(f => ({ ...f })),
-  })
-  return {
-    id: inicial.id, categoria: inicial.categoria, actualizado: inicial.actualizado,
-    minutosLectura: inicial.minutosLectura, destacado: inicial.destacado,
-    relacionados: inicial.relacionados.join(', '), es: trad(inicial.es), pt: trad(inicial.pt),
-  }
-}
-
-function tradPayload(t: TradDraft): TraduccionAdmin {
-  return {
-    slug: t.slug.trim(),
-    titulo: t.titulo.trim(),
-    parrafos: t.parrafos.split('\n').map(s => s.trim()).filter(Boolean),
-    howTo: { titulo: t.howToTitulo.trim(), pasos: t.pasos.filter(p => p.titulo.trim() || p.descripcion.trim()) },
-    nota: t.nota.trim() || null,
-    faq: t.faq.filter(f => f.pregunta.trim() || f.respuesta.trim()),
-  }
-}
-
-function aPayload(d: Draft): ArticuloAdmin {
-  return {
-    id: d.id.trim(), categoria: d.categoria, actualizado: d.actualizado,
-    minutosLectura: d.minutosLectura, destacado: d.destacado,
-    relacionados: d.relacionados.split(',').map(s => s.trim()).filter(Boolean),
-    es: tradPayload(d.es), pt: tradPayload(d.pt),
-  }
-}
 
 type Props = {
   categorias: Categoria[]
@@ -117,32 +38,14 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
     setError(null)
     setEnviando(true)
     try {
-      const payload = aPayload(draft)
-      let url: string
-      let metodo: string
-      let cuerpo: unknown
+      const destino: DestinoArticulo =
+        preguntaId !== undefined
+          ? { tipo: 'desdePregunta', preguntaId }
+          : modo === 'crear'
+            ? { tipo: 'crear' }
+            : { tipo: 'editar', articuloId: inicial!.id }
 
-      if (preguntaId !== undefined) {
-        url = `/api/admin/preguntas-sin-resolver/${preguntaId}/crear-articulo`
-        metodo = 'POST'
-        cuerpo = payload
-      } else if (modo === 'crear') {
-        url = '/api/admin/articulos'
-        metodo = 'POST'
-        cuerpo = payload
-      } else {
-        url = `/api/admin/articulos/${inicial!.id}`
-        metodo = 'PUT'
-        // El id va en la dirección; la API de actualización lo rechaza en el cuerpo.
-        const sinId: Omit<ArticuloAdmin, 'id'> = (() => {
-          const copia = { ...payload }
-          delete (copia as Partial<ArticuloAdmin>).id
-          return copia
-        })()
-        cuerpo = sinId
-      }
-
-      const resp = await authFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
+      const resp = await guardarArticulo(aPayload(draft), destino)
       if (!resp.ok) {
         setError(resp.status === 409 ? t('panelGestion.errorIdDuplicado') : t('panelGestion.errorGuardar'))
         return

@@ -59,27 +59,18 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
     conv = db.query(Conversacion).filter(Conversacion.idioma == idioma).first()
     conversacion = conv.mensajes if conv else []
 
-    preguntas = (
-        db.query(PreguntaSinResolver)
-        .filter(PreguntaSinResolver.idioma == idioma)
-        .order_by(PreguntaSinResolver.orden)
-        .all()
-    )
-    preguntas_sin_resolver = [
-        {"pregunta": p.pregunta, "veces": p.veces, "similitud": p.similitud, "fecha": p.fecha.isoformat(), "estado": p.estado}
-        for p in preguntas
-    ]
-
     metricas = [
         {"clave": m.clave, "valor": m.valor}
         for m in db.query(Metrica).filter(Metrica.idioma == idioma).order_by(Metrica.orden).all()
     ]
 
+    # `preguntasSinResolver` NO viaja aquí: es el texto literal de lo que escriben
+    # las personas usuarias y puede contener datos personales. Se sirve solo por
+    # `/api/admin/preguntas-sin-resolver`, tras `Depends(admin_actual)`.
     return {
         "categorias": categorias,
         "articulos": articulos,
         "conversacion": conversacion,
-        "preguntasSinResolver": preguntas_sin_resolver,
         "metricas": metricas,
     }
 
@@ -107,6 +98,20 @@ def articulo_a_admin_dict(a: Articulo) -> dict:
         "relacionados": [r.relacionado_id for r in a.relacionados],
         "es": trad_dict("es"),
         "pt": trad_dict("pt"),
+    }
+
+
+def pregunta_a_dict(p: PreguntaSinResolver) -> dict:
+    """Serializa una pregunta sin resolver para el panel interno."""
+    return {
+        "id": p.id,
+        "idioma": p.idioma,
+        "pregunta": p.pregunta,
+        "veces": p.veces,
+        "similitud": p.similitud,
+        # ISO, para el atributo `datetime` de `<time>` en el panel.
+        "fecha": p.fecha.isoformat(),
+        "estado": p.estado,
     }
 
 

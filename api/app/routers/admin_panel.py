@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import admin_actual
 from app.models import Articulo, PreguntaSinResolver
+from app.routers.comun import exigir_id_disponible
 from app.schemas import ArticuloAdminOut, ArticuloIn, PreguntaAdminOut
-from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict
+from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict, pregunta_a_dict
 
 router = APIRouter(
     prefix="/api/admin/preguntas-sin-resolver",
@@ -24,18 +25,7 @@ def listar(idioma: str | None = None, db: Session = Depends(get_db)) -> list[dic
     if idioma is not None:
         consulta = consulta.filter(PreguntaSinResolver.idioma == idioma)
     filas = consulta.order_by(PreguntaSinResolver.orden).all()
-    return [
-        {
-            "id": p.id,
-            "idioma": p.idioma,
-            "pregunta": p.pregunta,
-            "veces": p.veces,
-            "similitud": p.similitud,
-            "fecha": p.fecha.isoformat(),
-            "estado": p.estado,
-        }
-        for p in filas
-    ]
+    return [pregunta_a_dict(p) for p in filas]
 
 
 @router.post(
@@ -49,8 +39,7 @@ def crear_articulo_desde_pregunta(
     pregunta = db.get(PreguntaSinResolver, pregunta_id)
     if pregunta is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pregunta no encontrada")
-    if db.get(Articulo, datos.id) is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un artículo con ese identificador")
+    exigir_id_disponible(db, datos.id)
 
     a = Articulo()
     aplicar_datos_articulo(a, datos, incluir_id=True)

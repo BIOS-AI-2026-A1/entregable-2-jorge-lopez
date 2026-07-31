@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import admin_actual
 from app.models import Articulo
+from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404
 from app.schemas import ArticuloAdminOut, ArticuloIn, ArticuloUpdateIn
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict
 
@@ -26,16 +27,12 @@ def listar(db: Session = Depends(get_db)) -> list[dict]:
 
 @router.get("/{articulo_id}", response_model=ArticuloAdminOut)
 def obtener(articulo_id: str, db: Session = Depends(get_db)) -> dict:
-    a = db.get(Articulo, articulo_id)
-    if a is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Artículo no encontrado")
-    return articulo_a_admin_dict(a)
+    return articulo_a_admin_dict(obtener_articulo_o_404(db, articulo_id))
 
 
 @router.post("", response_model=ArticuloAdminOut, status_code=status.HTTP_201_CREATED)
 def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
-    if db.get(Articulo, datos.id) is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un artículo con ese identificador")
+    exigir_id_disponible(db, datos.id)
     a = Articulo()
     aplicar_datos_articulo(a, datos, incluir_id=True)
     db.add(a)
@@ -46,9 +43,7 @@ def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
 
 @router.put("/{articulo_id}", response_model=ArticuloAdminOut)
 def actualizar(articulo_id: str, datos: ArticuloUpdateIn, db: Session = Depends(get_db)) -> dict:
-    a = db.get(Articulo, articulo_id)
-    if a is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Artículo no encontrado")
+    a = obtener_articulo_o_404(db, articulo_id)
     aplicar_datos_articulo(a, datos, incluir_id=False)
     db.commit()
     db.refresh(a)
@@ -57,8 +52,5 @@ def actualizar(articulo_id: str, datos: ArticuloUpdateIn, db: Session = Depends(
 
 @router.delete("/{articulo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar(articulo_id: str, db: Session = Depends(get_db)) -> None:
-    a = db.get(Articulo, articulo_id)
-    if a is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Artículo no encontrado")
-    db.delete(a)
+    db.delete(obtener_articulo_o_404(db, articulo_id))
     db.commit()

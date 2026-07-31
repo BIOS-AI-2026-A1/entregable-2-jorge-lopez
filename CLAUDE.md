@@ -98,14 +98,31 @@ los requisitos de accesibilidad. Consultarlo antes de proponer UI.
 Desde `app/`:
 
 ```bash
-npm install      # una sola vez
-npm run dev      # servidor de desarrollo en http://localhost:5173
-npm run build    # comprueba tipos (tsc --noEmit) y compila
-npm run preview  # sirve la compilación de producción
+npm install        # una sola vez
+npm run dev        # servidor de desarrollo en http://localhost:5173
+npm run build      # comprueba tipos (tsc --noEmit) y compila
+npm run preview    # sirve la compilación de producción
+npm test           # tests con Vitest (una pasada)
+npm run test:watch # tests en modo continuo
 ```
 
-Se usa **npm**, no pnpm: pnpm no está instalado en la máquina de desarrollo. No hay linter ni tests
-automatizados.
+Se usa **npm**, no pnpm: pnpm no está instalado en la máquina de desarrollo. No hay linter.
+
+**Tests del frontend: Vitest, solo lógica pura.** Corren en entorno `node`, sin DOM: cubren `src/data/`,
+`src/i18n/rutas.ts`, `src/i18n/config.ts`, `src/i18n/fechas.ts`, `src/types.ts` y `src/auth/sesion.ts`. Lo que necesita
+`localStorage`, `navigator` o `fetch` los sustituye por dobles en el propio test. Los componentes **no** se
+prueban: eso exigiría jsdom y Testing Library, y se decidió no introducirlos por ahora. Los archivos son
+`src/**/*.test.ts`, junto al código que prueban.
+
+`src/data/contenido.test.ts` es aparte: no prueba funciones sino **invariantes del contenido** de
+`src/data/{es,pt}` (enlaces de `relacionados`, citas del chat, fechas ISO, paridad es/pt). Ese contenido
+alimenta el seed del backend, así que un artículo en un solo idioma se propagaría a la API. Está escrito
+para que añadir o traducir artículos no lo rompa; olvidarse de un idioma sí.
+
+La configuración vive en **`vitest.config.ts`**, separada de `vite.config.ts` a propósito: Vitest trae
+anidada su propia copia de Vite (rollup) y el proyecto usa Vite 8 (rolldown), así que compartir archivo
+rompe los tipos de `Plugin`. El config de tests no carga los plugins de React ni de Tailwind porque no
+hacen falta para probar `.ts` sin JSX.
 
 Backend (desde `api/`, con la base de datos levantada por `docker compose up -d`):
 

@@ -45,6 +45,16 @@ def _cargar_idiomas() -> dict[str, dict]:
     return datos
 
 
+def _por_id(datos: dict[str, dict], clave: str) -> dict[str, dict]:
+    """Indexa por id la lista `clave` de cada idioma: `{idioma: {id: item}}`.
+
+    El JSON llega como listas paralelas por idioma. El español marca el orden y
+    el conjunto de ids; el resto se busca por id, que es lo único estable entre
+    idiomas (slug, título y textos cambian).
+    """
+    return {idioma: {item["id"]: item for item in datos[idioma][clave]} for idioma in IDIOMAS}
+
+
 def _vaciar(db) -> None:
     for modelo in (
         ArticuloRelacionado,
@@ -61,7 +71,7 @@ def _vaciar(db) -> None:
 
 def _sembrar_categorias(db, datos: dict[str, dict]) -> None:
     base = datos["es"]["categorias"]
-    por_id = {idioma: {c["id"]: c for c in datos[idioma]["categorias"]} for idioma in IDIOMAS}
+    por_id = _por_id(datos, "categorias")
     for orden, cat in enumerate(base):
         db.add(Categoria(id=cat["id"], icono=cat["icono"], fondo=cat["fondo"], texto=cat["texto"], orden=orden))
         for idioma in IDIOMAS:
@@ -71,7 +81,7 @@ def _sembrar_categorias(db, datos: dict[str, dict]) -> None:
 
 def _sembrar_articulos(db, datos: dict[str, dict]) -> None:
     base = datos["es"]["articulos"]
-    por_id = {idioma: {a["id"]: a for a in datos[idioma]["articulos"]} for idioma in IDIOMAS}
+    por_id = _por_id(datos, "articulos")
     for orden, art in enumerate(base):
         db.add(
             Articulo(
@@ -121,9 +131,23 @@ def _sembrar_panel(db, datos: dict[str, dict]) -> None:
             db.add(Metrica(idioma=idioma, clave=m["clave"], valor=m["valor"], orden=orden))
 
 
+LONGITUD_MINIMA_CONTRASENA = 12
+CONTRASENAS_PROHIBIDAS = {"admin", "password", "cambia-esta-contrasena", "contrasena"}
+
+
 def _sembrar_admin(db) -> None:
     s = get_settings()
+
+    # El seed es la única vía por la que entra la contraseña del administrador:
+    # si aquí pasa una trivial, queda para siempre en la base.
+    if s.admin_password.lower() in CONTRASENAS_PROHIBIDAS or len(s.admin_password) < LONGITUD_MINIMA_CONTRASENA:
+        raise SystemExit(
+            f"ADMIN_PASSWORD es demasiado débil (mínimo {LONGITUD_MINIMA_CONTRASENA} caracteres, "
+            'sin valores obvios). Generar una:  python -c "import secrets; print(secrets.token_urlsafe(32))"'
+        )
+
     if db.query(AdminUser).filter(AdminUser.email == s.admin_email).first() is not None:
+        # Ojo: no se recrea. Para rotar la contraseña hay que borrar la fila antes.
         print(f"Administrador {s.admin_email} ya existe; no se recrea.")
         return
     db.add(AdminUser(email=s.admin_email, password_hash=hash_password(s.admin_password)))

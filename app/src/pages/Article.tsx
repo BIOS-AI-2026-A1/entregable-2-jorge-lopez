@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import type { Idioma } from '@/types'
 import { articuloPorId, articuloPorSlug } from '@/data'
 import { useContenido } from '@/data/contexto'
+import { FECHA_LARGA, fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
 import { Accordion } from '@/components/Accordion'
@@ -25,11 +26,7 @@ export function Article({ idioma }: { idioma: Idioma }) {
     .map(id => articuloPorId(contenido, id))
     .filter((a): a is NonNullable<typeof a> => a !== undefined)
 
-  const fechaLegible = new Date(`${articulo.actualizado}T00:00:00`).toLocaleDateString(i18n.language, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const fechaActualizado = fechaLegible(articulo.actualizado, i18n.language, FECHA_LARGA)
 
   return (
     <main id="main-content" tabIndex={-1} className="focus:outline-none">
@@ -79,7 +76,7 @@ export function Article({ idioma }: { idioma: Idioma }) {
             <div className="flex items-center gap-1.5">
               <Ic.Clock size={13} />
               <span>
-                {t('articulo.actualizado')} <time dateTime={articulo.actualizado}>{fechaLegible}</time>
+                {t('articulo.actualizado')} <time dateTime={articulo.actualizado}>{fechaActualizado}</time>
               </span>
             </div>
             <span aria-hidden="true">·</span>

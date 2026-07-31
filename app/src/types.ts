@@ -99,6 +99,14 @@ export type MensajeChat =
   | { autor: 'asistente'; clase: 'citado'; fragmentos: Fragmento[]; citas: Cita[] }
   | { autor: 'asistente'; clase: 'sin-resultado'; aviso: string; texto: string }
 
+/**
+ * Pregunta sin resolver del ciclo KCS.
+ *
+ * No forma parte de `ContenidoIdioma`: es texto escrito por las personas usuarias
+ * y puede contener datos personales, así que solo se sirve por el endpoint
+ * autenticado `/api/admin/preguntas-sin-resolver`. Este tipo sigue describiendo
+ * los módulos de `src/data/{es,pt}` que alimentan el seed del backend.
+ */
 export interface PreguntaSinResolver {
   pregunta: string
   veces: number
@@ -114,11 +122,10 @@ export interface Metrica {
   valor: string
 }
 
-/** Todo el contenido de un idioma. Es la unidad que una API serviría. */
+/** Contenido público de un idioma. Es lo que sirve `GET /api/{idioma}/contenido`. */
 export interface ContenidoIdioma {
   categorias: Categoria[]
   articulos: Articulo[]
   conversacion: MensajeChat[]
-  preguntasSinResolver: PreguntaSinResolver[]
   metricas: Metrica[]
 }
