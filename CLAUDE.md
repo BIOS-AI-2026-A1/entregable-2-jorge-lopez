@@ -57,6 +57,14 @@ Lo establecido hasta ahora:
   se persiste un artículo en un solo idioma.
 - **Secretos fuera del repo:** cadena de conexión, secreto de firma JWT y credenciales de administrador van
   en variables de entorno (`.env` ignorado), con un `.env.example` sin valores reales.
+- **Licencia: Business Source License 1.1** (`LICENSE`, con `license: "BUSL-1.1"` en `app/package.json` y
+  `api/pyproject.toml`). Se eligió por el objetivo declarado de convertir esto en un producto/negocio
+  propio (SaaS con capa gratuita) sin renunciar al espíritu de código abierto: el código es visible y
+  autohosteable por cualquiera (chico o grande) para uso propio, pero no puede revenderse como servicio
+  hosteado competidor; a los cuatro años de cada versión pasa automáticamente a Apache License 2.0. La
+  segmentación comercial "empresa chica gratis / empresa grande paga" es una decisión de producto
+  (open-core, funciones de pago) y no está codificada en la licencia. Antes de lanzar cobros reales o
+  contratos comerciales, revisar el texto de la licencia con una persona abogada.
 
 Naming, formato, estrategia de tests y estructura de carpetas de código: _por definir._
 

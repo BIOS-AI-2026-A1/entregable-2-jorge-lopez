@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "centro-ayuda-api"
 version = "0.1.0"
 description = "Backend del Centro de Ayuda: API de contenido bilingüe, CRUD de artículos y autenticación del panel interno."
+license = "BUSL-1.1"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
