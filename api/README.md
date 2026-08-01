@@ -1,7 +1,7 @@
 # Backend — Centro de Ayuda API
 
 FastAPI + PostgreSQL (pgvector). Sirve el contenido bilingüe, el CRUD de artículos y la autenticación del
-panel interno. El RAG queda diseñado (ver `docs/rag.md`), no construido.
+panel interno. El RAG queda diseñado (ver `../docs/plans/rag-centro-ayuda-preliminar.md`), no construido.
 
 ## Arranque diario (cada sesión)
 
@@ -76,5 +76,4 @@ app/
 alembic/             Migraciones (0001: extensión vector + tablas)
 seed.py              Carga seed_data/*.json y siembra el admin
 tests/               pytest (contenido, auth, CRUD)
-docs/rag.md          Diseño del RAG futuro (no implementado)
 ```
