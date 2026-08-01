@@ -25,3 +25,6 @@ api/seed_data/*.json
 # Claude Code local: comandos opsx y skills de OpenSpec
 /.claude/commands/
 /.claude/skills/openspec-*/
+
+# Superpowers: Redundante con plans y openspec, no se versiona
+docs/superpowers/

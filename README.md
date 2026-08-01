@@ -42,6 +42,10 @@ El repositorio contiene además:
 - `prompts/prompt_diseno_centro_ayuda.md` — brief de diseño con las 4 pantallas, el sistema de diseño y los
   requisitos de accesibilidad.
 - `design/` — prototipo visual de alta fidelidad del que se portó la interfaz (referencia, no se edita).
-- `docs/architecture/` y `docs/plans/` — reservados para la documentación técnica.
+- `docs/architecture/` — diagramas C4 del sistema:
+  [contexto](docs/architecture/c4-level1-context.md) (quién usa el sistema y de qué depende) y
+  [contenedores](docs/architecture/c4-level2-container.md) (qué piezas lo forman, con qué tecnología
+  y por qué).
+- `docs/plans/` — planes de implementación del frontend, el backend, el RAG y la infraestructura.
 
 Ver `CLAUDE.md` para el stack, los comandos y las convenciones vigentes.

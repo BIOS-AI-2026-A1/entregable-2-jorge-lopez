@@ -74,8 +74,8 @@ docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
 .claude/agents/       Subagentes del proyecto (vacío, reservado)
 .claude/skills/       Skills del proyecto: crear-pr (flujo de PR) y los de OpenSpec
 design/               Prototipo visual de referencia (Figma Make, .zip)
-docs/architecture/    Documentos de arquitectura (vacío, reservado)
-docs/plans/           Planes de implementación (vacío, reservado)
+docs/architecture/    Diagramas C4: contexto (nivel 1) y contenedores (nivel 2)
+docs/plans/           Planes de implementación (frontend, backend, RAG, infraestructura)
 openspec/changes/     Cambios activos de OpenSpec (propuesta, diseño, specs, tareas)
 openspec/changes/archive/  Cambios ya implementados y archivados
 openspec/specs/       Especificaciones vigentes del sistema
