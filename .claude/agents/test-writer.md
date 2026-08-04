@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Escribe y ejecuta tests unitarios y de integración para código JavaScript y TypeScript. Úsalo de forma proactiva después de añadir nuevas funciones, módulos o correcciones de bugs, y siempre que se pida agregar tests, mejorar la cobertura o verificar que el código funciona.
+description: Escribe y ejecuta tests unitarios y de integración para código JavaScript, TypeScript y Python. Úsalo de forma proactiva después de añadir nuevas funciones, módulos o correcciones de bugs, y siempre que se pida agregar tests, mejorar la cobertura o verificar que el código funciona.
 tools: Read, Write, Edit, Bash, Grep, Glob
 metadata:
   author: jorgeelopezm
