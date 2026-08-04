@@ -130,8 +130,15 @@ def test_idioma_sin_nada_devuelve_los_cuatro_bloques_vacios(db_session):
     """
     contenido = ensamblar_contenido(db_session, "fr")
 
-    assert set(contenido) == {"categorias", "articulos", "conversacion", "metricas"}
-    assert contenido == {"categorias": [], "articulos": [], "conversacion": [], "metricas": []}
+    assert set(contenido) == {"empresa", "categorias", "articulos", "conversacion", "metricas"}
+    # `empresa` es global (no depende del idioma): sale con su valor aunque no haya contenido.
+    assert contenido == {
+        "empresa": "Acme",
+        "categorias": [],
+        "articulos": [],
+        "conversacion": [],
+        "metricas": [],
+    }
 
 
 # --- Ordenación --------------------------------------------------------------

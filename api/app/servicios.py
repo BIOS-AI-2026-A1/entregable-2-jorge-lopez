@@ -7,6 +7,8 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdminUser,
+    Ajustes,
     Articulo,
     ArticuloRelacionado,
     ArticuloTraduccion,
@@ -18,9 +20,20 @@ from app.models import (
 
 IDIOMAS = ("es", "pt")
 
+# Fila única de ajustes y valor de reserva del campo [Empresa] si aún no se sembró.
+AJUSTES_ID = 1
+EMPRESA_POR_DEFECTO = "[Empresa]"
+
 
 def _traduccion(entidad, idioma: str):
     return next((t for t in entidad.traducciones if t.idioma == idioma), None)
+
+
+def obtener_empresa(db: Session) -> str:
+    """Valor actual del campo [Empresa]. Reserva un valor por defecto si la fila
+    de ajustes todavía no existe (p. ej. antes del seed)."""
+    ajuste = db.get(Ajustes, AJUSTES_ID)
+    return ajuste.empresa if ajuste is not None else EMPRESA_POR_DEFECTO
 
 
 def ensamblar_contenido(db: Session, idioma: str) -> dict:
@@ -66,12 +79,25 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
 
     # `preguntasSinResolver` NO viaja aquí: es el texto literal de lo que escriben
     # las personas usuarias y puede contener datos personales. Se sirve solo por
-    # `/api/admin/preguntas-sin-resolver`, tras `Depends(admin_actual)`.
+    # `/api/admin/preguntas-sin-resolver`, tras la dependencia de nivel.
     return {
+        # El nombre de marca lo ve todo visitante anónimo: es contenido público.
+        "empresa": obtener_empresa(db),
         "categorias": categorias,
         "articulos": articulos,
         "conversacion": conversacion,
         "metricas": metricas,
+    }
+
+
+def usuario_a_dict(u: AdminUser) -> dict:
+    """Serializa un usuario para el panel Root. Nunca expone el hash."""
+    return {
+        "id": u.id,
+        "email": u.email,
+        "nivel": u.nivel,
+        "activo": u.activo,
+        "creado": u.created_at.isoformat() if u.created_at is not None else "",
     }
 
 

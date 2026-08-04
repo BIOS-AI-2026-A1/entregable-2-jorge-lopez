@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { peticionGuardado, type ArticuloAdmin } from './admin'
+import { peticionGuardado, peticionUsuario, type ArticuloAdmin } from './admin'
 
 function payload(): ArticuloAdmin {
   const trad = {
@@ -95,5 +95,46 @@ describe('peticionGuardado', () => {
     for (const destino of destinos) {
       expect(peticionGuardado(payload(), destino).url.startsWith('/api/admin/')).toBe(true)
     }
+  })
+})
+
+describe('peticionUsuario', () => {
+  it('crea con POST contra la colección de usuarios', () => {
+    const p = peticionUsuario({ email: 'a@b.co', nivel: 2, password: 'contrasena-larga' }, { tipo: 'crear' })
+    expect(p.metodo).toBe('POST')
+    expect(p.url).toBe('/api/admin/usuarios')
+    expect(p.cuerpo).toEqual({ email: 'a@b.co', nivel: 2, password: 'contrasena-larga' })
+  })
+
+  it('edita con PUT contra el usuario indicado por id', () => {
+    const p = peticionUsuario({ email: 'a@b.co', nivel: 3 }, { tipo: 'editar', usuarioId: 7 })
+    expect(p.metodo).toBe('PUT')
+    expect(p.url).toBe('/api/admin/usuarios/7')
+  })
+
+  it('al editar sin contraseña, no la manda: significa "no cambiarla"', () => {
+    const p = peticionUsuario({ email: 'a@b.co', nivel: 2 }, { tipo: 'editar', usuarioId: 7 })
+    expect(p.cuerpo).not.toHaveProperty('password')
+    expect(p.cuerpo).toEqual({ email: 'a@b.co', nivel: 2 })
+  })
+
+  it('al editar con contraseña nueva, sí la incluye', () => {
+    const p = peticionUsuario(
+      { email: 'a@b.co', nivel: 2, password: 'otra-contrasena-larga' },
+      { tipo: 'editar', usuarioId: 7 },
+    )
+    expect(p.cuerpo).toHaveProperty('password', 'otra-contrasena-larga')
+  })
+
+  it('una contraseña vacía al editar no viaja (equivale a no tocarla)', () => {
+    const p = peticionUsuario({ email: 'a@b.co', nivel: 2, password: '' }, { tipo: 'editar', usuarioId: 7 })
+    expect(p.cuerpo).not.toHaveProperty('password')
+  })
+
+  it('todas las direcciones cuelgan de /api/admin/usuarios', () => {
+    const crear = peticionUsuario({ email: 'a@b.co', nivel: 2, password: 'x' }, { tipo: 'crear' })
+    const editar = peticionUsuario({ email: 'a@b.co', nivel: 2 }, { tipo: 'editar', usuarioId: 1 })
+    expect(crear.url.startsWith('/api/admin/usuarios')).toBe(true)
+    expect(editar.url.startsWith('/api/admin/usuarios')).toBe(true)
   })
 })

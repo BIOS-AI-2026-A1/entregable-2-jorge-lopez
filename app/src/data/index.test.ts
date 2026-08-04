@@ -47,6 +47,7 @@ const articulos: Articulo[] = [
 ]
 
 const contenido: ContenidoIdioma = {
+  empresa: '[Empresa]',
   categorias,
   articulos,
   conversacion: [],

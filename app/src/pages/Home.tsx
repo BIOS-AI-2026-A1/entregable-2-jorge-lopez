@@ -24,7 +24,7 @@ export function Home({ idioma }: { idioma: Idioma }) {
   )
 
   return (
-    <main id="main-content" tabIndex={-1} className="focus:outline-none" aria-label={t('inicio.titulo')}>
+    <main id="main-content" tabIndex={-1} className="focus:outline-none" aria-label={t('inicio.titulo', { empresa: contenido.empresa })}>
       <section
         className="py-16 px-4 text-center"
         style={{ background: 'linear-gradient(160deg, #3730a3 0%, #4338ca 60%, #4f46e5 100%)' }}
@@ -35,7 +35,7 @@ export function Home({ idioma }: { idioma: Idioma }) {
           className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight"
           style={{ fontFamily: "'DM Serif Display', serif" }}
         >
-          {t('inicio.titulo')}
+          {t('inicio.titulo', { empresa: contenido.empresa })}
         </h1>
         <p className="text-indigo-100 text-lg mb-8">{t('inicio.subtitulo')}</p>
 

@@ -124,6 +124,8 @@ export interface Metrica {
 
 /** Contenido público de un idioma. Es lo que sirve `GET /api/{idioma}/contenido`. */
 export interface ContenidoIdioma {
+  /** Nombre de marca global (campo [Empresa]); reemplaza el placeholder [EMPRESA]. */
+  empresa: string
   categorias: Categoria[]
   articulos: Articulo[]
   conversacion: MensajeChat[]

@@ -1,7 +1,8 @@
 {
   "marca": {
     "iniciales": "EM",
-    "nombre": "[EMPRESA]",
+    "nombre": "{{empresa}}",
+    "reserva": "[Empresa]",
     "sufijo": "· Ajuda"
   },
   "general": {
@@ -23,7 +24,7 @@
     "actual": "Idioma atual: {{idioma}}"
   },
   "inicio": {
-    "titulo": "Central de ajuda da [EMPRESA]",
+    "titulo": "Central de ajuda da {{empresa}}",
     "subtitulo": "Como podemos ajudar você hoje?",
     "buscarEtiqueta": "Pesquisar na central de ajuda",
     "buscarMarcador": "Escreva sua pergunta…",
@@ -111,7 +112,8 @@
     "mostrando": "Mostrando {{visibles}} de {{total}} perguntas",
     "anterior": "Página anterior",
     "siguiente": "Próxima página",
-    "cerrarSesion": "Encerrar sessão"
+    "cerrarSesion": "Encerrar sessão",
+    "seccionRoot": "Administração"
   },
   "login": {
     "titulo": "Iniciar sessão",
@@ -178,5 +180,59 @@
     "nueva": "Nova",
     "revision": "Em revisão",
     "cubierta": "Coberta"
+  },
+  "ajustesEmpresa": {
+    "titulo": "Campo [Empresa]",
+    "etiqueta": "[Empresa]",
+    "ayuda": "Nome de marca que a central de ajuda exibe. Substitui o título e o logotipo.",
+    "guardar": "Salvar [Empresa]",
+    "guardado": "Campo [Empresa] atualizado.",
+    "error": "Não foi possível salvar o campo [Empresa]. Tente novamente."
+  },
+  "gestionUsuarios": {
+    "seccion": "Administração",
+    "titulo": "Gestão de usuários",
+    "subtitulo": "Crie e administre as contas e seu nível de acesso",
+    "volver": "Voltar ao painel",
+    "enlace": "Gerenciar usuários",
+    "lista": "Usuários",
+    "nuevo": "Novo usuário",
+    "editarTitulo": "Editar usuário",
+    "vacio": "Ainda não há usuários.",
+    "tablaAria": "Usuários e seu nível de acesso",
+    "columnas": {
+      "correo": "E-mail",
+      "nivel": "Nível",
+      "estado": "Estado",
+      "accion": "Ação"
+    },
+    "nivel": "Nível de acesso",
+    "nivelEstandar": "Standard",
+    "nivelRoot": "Root",
+    "estadoActivo": "Ativo",
+    "estadoInactivo": "Inativo",
+    "correo": "E-mail",
+    "contrasena": "Senha",
+    "contrasenaAyudaCrear": "Mínimo de 12 caracteres.",
+    "contrasenaAyudaEditar": "Deixe em branco para não alterá-la (mínimo de 12 caracteres).",
+    "editar": "Editar",
+    "editarAria": "Editar o usuário {{correo}}",
+    "activar": "Ativar",
+    "activarAria": "Ativar o usuário {{correo}}",
+    "desactivar": "Desativar",
+    "desactivarAria": "Desativar o usuário {{correo}}",
+    "confirmarDesactivar": "Desativar {{correo}}? Perderá o acesso até ser reativado.",
+    "guardar": "Salvar",
+    "guardando": "Salvando…",
+    "cancelar": "Cancelar",
+    "creado": "Usuário criado.",
+    "actualizado": "Alterações salvas.",
+    "activado": "Usuário ativado.",
+    "desactivado": "Usuário desativado.",
+    "errorCargar": "Não foi possível carregar a lista de usuários.",
+    "errorGuardar": "Não foi possível salvar. Revise os campos e tente novamente.",
+    "errorConflicto": "Não foi possível salvar: o e-mail já está em uso ou a operação deixaria o sistema sem um usuário Root ativo.",
+    "errorSalvaguarda": "Não foi possível alterar o estado: você não pode desativar sua própria conta nem deixar o sistema sem um usuário Root ativo.",
+    "errorRed": "Não foi possível conectar ao servidor."
   }
 }

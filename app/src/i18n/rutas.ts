@@ -9,5 +9,6 @@ export const rutas = {
   inicio: (idioma: Idioma) => `/${idioma}`,
   articulo: (idioma: Idioma, slug: string) => `/${idioma}/articulo/${slug}`,
   panel: (idioma: Idioma) => `/${idioma}/panel`,
+  usuarios: (idioma: Idioma) => `/${idioma}/panel/usuarios`,
   login: (idioma: Idioma) => `/${idioma}/login`,
 }

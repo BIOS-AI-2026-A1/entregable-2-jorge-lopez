@@ -27,8 +27,8 @@ import { articuloPorId, articuloPorSlug, articulosDestacados, buscarArticulos, c
  */
 
 const contenidos: Record<Idioma, ContenidoIdioma> = {
-  es: { categorias: categoriasEs, articulos: articulosEs, conversacion: conversacionEs, metricas: metricasEs },
-  pt: { categorias: categoriasPt, articulos: articulosPt, conversacion: conversacionPt, metricas: metricasPt },
+  es: { empresa: '[Empresa]', categorias: categoriasEs, articulos: articulosEs, conversacion: conversacionEs, metricas: metricasEs },
+  pt: { empresa: '[Empresa]', categorias: categoriasPt, articulos: articulosPt, conversacion: conversacionPt, metricas: metricasPt },
 }
 
 const preguntasPorIdioma: Record<Idioma, PreguntaSinResolver[]> = { es: preguntasEs, pt: preguntasPt }

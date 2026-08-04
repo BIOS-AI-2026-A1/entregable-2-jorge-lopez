@@ -6,16 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import admin_actual
-from app.models import Articulo, PreguntaSinResolver
+from app.deps import requiere_nivel
+from app.models import Articulo, NivelAcceso, PreguntaSinResolver
 from app.routers.comun import exigir_id_disponible
 from app.schemas import ArticuloAdminOut, ArticuloIn, PreguntaAdminOut
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict, pregunta_a_dict
 
+# El panel de preguntas sin resolver es una función de producto: Nivel 2 o superior.
 router = APIRouter(
     prefix="/api/admin/preguntas-sin-resolver",
     tags=["admin"],
-    dependencies=[Depends(admin_actual)],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.ESTANDAR))],
 )
 
 

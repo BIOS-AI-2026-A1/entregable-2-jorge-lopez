@@ -10,6 +10,16 @@ describe('rutas', () => {
     expect(rutas.panel('pt')).toBe('/pt/panel')
     expect(rutas.login('es')).toBe('/es/login')
     expect(rutas.login('pt')).toBe('/pt/login')
+    expect(rutas.usuarios('es')).toBe('/es/panel/usuarios')
+    expect(rutas.usuarios('pt')).toBe('/pt/panel/usuarios')
+  })
+
+  it('la gestión de usuarios cuelga del panel (ruta Root anidada)', () => {
+    // El router monta `panel/usuarios` bajo la guardia Root; la dirección
+    // construida tiene que coincidir con ese segmento.
+    for (const idioma of IDIOMAS) {
+      expect(rutas.usuarios(idioma)).toBe(`${rutas.panel(idioma)}/usuarios`)
+    }
   })
 
   it('construye la dirección de un artículo con su slug', () => {

@@ -3,10 +3,11 @@ import { esIdioma } from '@/types'
 import { Home } from './Home'
 import { Article } from './Article'
 import { Panel } from './Panel'
+import { Usuarios } from './Usuarios'
 import { Login } from './Login'
 import { NoEncontrado } from './NoEncontrado'
 
-type Pantalla = 'inicio' | 'articulo' | 'panel' | 'login' | 'noEncontrado'
+type Pantalla = 'inicio' | 'articulo' | 'panel' | 'usuarios' | 'login' | 'noEncontrado'
 
 /**
  * Resuelve el idioma del parámetro de ruta una sola vez y se lo entrega ya
@@ -23,6 +24,8 @@ export function PantallaConIdioma({ pantalla }: { pantalla: Pantalla }) {
       return <Article idioma={idioma} />
     case 'panel':
       return <Panel idioma={idioma} />
+    case 'usuarios':
+      return <Usuarios idioma={idioma} />
     case 'login':
       return <Login idioma={idioma} />
     default:

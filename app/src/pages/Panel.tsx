@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useRevalidator } from 'react-router-dom'
+import { Link, useNavigate, useRevalidator } from 'react-router-dom'
 import type { Idioma } from '@/types'
 import {
   eliminarArticulo,
+  guardarEmpresa,
   listarPreguntas,
   obtenerArticulo,
+  obtenerSesion,
   type ArticuloAdmin,
   type PreguntaAdmin,
+  type SesionAdmin,
 } from '@/data/admin'
 import { useContenido } from '@/data/contexto'
 import { borrarToken } from '@/auth/sesion'
+import { esRoot } from '@/auth/nivel'
 import { fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
@@ -37,6 +41,8 @@ export function Panel({ idioma }: { idioma: Idioma }) {
   const [preguntas, setPreguntas] = useState<PreguntaAdmin[]>([])
   const [formulario, setFormulario] = useState<FormState | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [nivel, setNivel] = useState<number | null>(null)
+  const [empresaInput, setEmpresaInput] = useState(contenido.empresa)
 
   async function cargarPreguntas() {
     const resp = await listarPreguntas(idioma)
@@ -44,10 +50,37 @@ export function Panel({ idioma }: { idioma: Idioma }) {
     else if (resp.status === 401) navigate(rutas.login(idioma))
   }
 
+  async function cargarSesion() {
+    const resp = await obtenerSesion()
+    if (resp.ok) setNivel(((await resp.json()) as SesionAdmin).nivel)
+    else if (resp.status === 401) navigate(rutas.login(idioma))
+  }
+
   useEffect(() => {
     void cargarPreguntas()
+    void cargarSesion()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idioma])
+
+  // El input del campo [Empresa] sigue al valor servido si cambia (p. ej. tras revalidar).
+  useEffect(() => {
+    setEmpresaInput(contenido.empresa)
+  }, [contenido.empresa])
+
+  const puedeRoot = esRoot(nivel)
+
+  async function guardarEmpresaHandler(evento: FormEvent) {
+    evento.preventDefault()
+    const resp = await guardarEmpresa(empresaInput.trim())
+    if (resp.ok) {
+      setAviso(t('ajustesEmpresa.guardado'))
+      revalidator.revalidate() // refresca el título y la marca con el nuevo valor
+    } else if (resp.status === 401) {
+      navigate(rutas.login(idioma))
+    } else {
+      setAviso(t('ajustesEmpresa.error'))
+    }
+  }
 
   async function recargarTodo() {
     await cargarPreguntas()
@@ -319,6 +352,58 @@ export function Panel({ idioma }: { idioma: Idioma }) {
             </ul>
           )}
         </section>
+
+        {/* ── Administración (solo Root) ───────────── */}
+        {puedeRoot && (
+          <section aria-labelledby="root-h2" className="space-y-4 pt-2 border-t border-slate-200">
+            <h2 id="root-h2" className="text-xl font-semibold text-slate-900 pt-4">
+              {t('panel.seccionRoot')}
+            </h2>
+
+            <form
+              onSubmit={guardarEmpresaHandler}
+              className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"
+              aria-labelledby="empresa-h3"
+            >
+              <h3 id="empresa-h3" className="text-sm font-semibold text-slate-900">
+                {t('ajustesEmpresa.titulo')}
+              </h3>
+              <label htmlFor="campo-empresa" className="block text-sm font-medium text-slate-700">
+                {t('ajustesEmpresa.etiqueta')}
+              </label>
+              <div className="flex items-end gap-2 flex-wrap">
+                <input
+                  id="campo-empresa"
+                  type="text"
+                  required
+                  value={empresaInput}
+                  onChange={e => setEmpresaInput(e.target.value)}
+                  aria-describedby="empresa-ayuda"
+                  className="flex-1 min-w-[16rem] px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+                  style={{ background: 'var(--acento)' }}
+                >
+                  <Ic.Save size={15} />
+                  {t('ajustesEmpresa.guardar')}
+                </button>
+              </div>
+              <p id="empresa-ayuda" className="text-xs text-slate-500">
+                {t('ajustesEmpresa.ayuda')}
+              </p>
+            </form>
+
+            <Link
+              to={rutas.usuarios(idioma)}
+              className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+            >
+              <Ic.User size={15} />
+              {t('gestionUsuarios.enlace')}
+            </Link>
+          </section>
+        )}
       </div>
     </main>
   )

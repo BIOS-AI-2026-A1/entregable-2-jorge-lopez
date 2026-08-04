@@ -27,9 +27,14 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60
 
     # Administrador inicial que crea el seed. La contraseña, por el mismo motivo
-    # que el secreto, es obligatoria y no tiene valor por defecto.
+    # que el secreto, es obligatoria y no tiene valor por defecto. El seed lo crea
+    # como Root (nivel 3): es el primer usuario y quien gestiona a los demás.
     admin_email: str = "admin@centro-ayuda.local"
     admin_password: str
+
+    # Valor inicial del campo [Empresa] (nombre de marca global). Editable después
+    # desde el panel por un usuario Root; el seed solo lo usa para la primera fila.
+    empresa_inicial: str = "[Empresa]"
 
 
 @lru_cache

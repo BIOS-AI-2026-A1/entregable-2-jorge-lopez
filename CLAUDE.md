@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ---
 
 Proyecto capstone: una aplicación de **Centro de Ayuda**. Hoy existe un **prototipo frontend funcional**
-en `app/` (las 4 pantallas, bilingüe, con datos ficticios). El **backend está planificado** —decisiones
-tomadas, sin implementar aún— en el cambio OpenSpec `backend-cms-autenticacion`. Varias secciones de este
-documento se irán completando a medida que se construya.
+en `app/` (las 4 pantallas, bilingüe) y el **backend del cambio OpenSpec `backend-cms-autenticacion`
+implementado y validado** en `api/` (incluye el control de acceso en tres niveles Anonymous / Standard /
+Root), pendiente solo de integrar por PR. Varias secciones de este documento se irán completando a medida
+que se construya.
 
 ## Stack
 
@@ -25,11 +26,11 @@ descartadas, está en `openspec/changes/archive/2026-07-28-prototipo-centro-ayud
 
 El `.zip` de `design/` sigue siendo **referencia visual**; no se edita ni se descomprime dentro del repo.
 
-### Backend (implementado en `api/`, pendiente de ejecutar y validar)
+### Backend (implementado y validado en `api/`, pendiente de integrar por PR)
 
-Backend del cambio OpenSpec `backend-cms-autenticacion`, ya escrito en `api/` (modelos, routers, auth, seed
-y tests) pero aún sin ejecutar ni integrar por PR. El razonamiento completo con alternativas está en el
-`design.md` de ese cambio.
+Backend del cambio OpenSpec `backend-cms-autenticacion`, escrito en `api/` (modelos, routers, auth, seed
+y tests) y **validado localmente**: migraciones (incluida `0002`), seed y `pytest` en verde. Pendiente solo
+de integrar por PR. El razonamiento completo con alternativas está en el `design.md` de ese cambio.
 
 - **FastAPI + Python** (Pydantic + SQLAlchemy + Alembic). Se eligió Python por el RAG futuro; los esquemas
   Pydantic reproducen `src/types.ts` campo a campo y Vite proxya `/api`.
@@ -38,9 +39,14 @@ y tests) pero aún sin ejecutar ni integrar por PR. El razonamiento completo con
   JSONB; métricas del panel derivadas por consulta.
 - **Autenticación de administrador:** correo + contraseña con hash **argon2** y sesión **JWT**. Protege
   `/api/admin/*` y restringe el Panel Interno (`/:idioma/panel`) a sesión válida.
+- **Control de acceso en tres niveles jerárquicos:** Anonymous (sin sesión, solo centro de ayuda),
+  Standard (panel + funciones de producto) y Root (además gestión de usuarios y campo `[Empresa]`). La
+  dependencia `requiere_nivel` aplica la autorización **en el servidor** (403 por nivel insuficiente),
+  leyendo nivel y estado `activo` de la base en cada petición (no del JWT), para revocar acceso al instante.
 - **Consumo desde el frontend** con **loaders de react-router-dom 7**: `src/data/index.ts` pasa a llamar a
   la API sin tocar componentes ni su ARIA.
-- **Alcance:** API de contenido + CRUD de artículos + auth ahora; **RAG solo diseñado**, no construido.
+- **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
+  usuarios (Root) y campo `[Empresa]` (valor de marca global) ahora; **RAG solo diseñado**, no construido.
 
 ## Convenciones
 
@@ -55,6 +61,11 @@ Lo establecido hasta ahora:
 - Color de acento expuesto como token `--acento` para poder recambiar la marca sin tocar componentes.
 - **CRUD de artículos bilingüe atómico:** crear o editar un artículo exige español y portugués juntos; nunca
   se persiste un artículo en un solo idioma.
+- **Acceso jerárquico estricto (`Root ⊃ Standard ⊃ Anonymous`):** la autorización se aplica **en el
+  servidor**, no solo ocultando controles en la interfaz; un usuario nunca alcanza un recurso por encima de
+  su nivel, ni por petición directa.
+- **`[Empresa]` es un nombre literal**, no un marcador de posición: se conserva tal cual como nombre del
+  campo y de su etiqueta en el código y la interfaz.
 - **Secretos fuera del repo:** cadena de conexión, secreto de firma JWT y credenciales de administrador van
   en variables de entorno (`.env` ignorado), con un `.env.example` sin valores reales.
 - **Licencia: Business Source License 1.1** (`LICENSE`, con `license: "BUSL-1.1"` en `app/package.json` y

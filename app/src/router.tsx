@@ -3,16 +3,34 @@ import { esIdioma } from '@/types'
 import { Layout, RedirigirAIdioma } from './App'
 import { PantallaConIdioma } from './pages/PantallaConIdioma'
 import { cargarContenidoLoader } from './data'
+import { obtenerSesion, type SesionAdmin } from './data/admin'
 import { CargandoContenido, ErrorContenido } from './components/EstadoContenido'
 import { haySesion } from './auth/sesion'
+import { NivelAcceso, tieneNivel } from './auth/nivel'
 import { detectarIdioma } from './i18n/config'
 
-/** Guardia del panel: sin sesión válida se redirige al inicio de sesión. */
+function idiomaDe(params: LoaderFunctionArgs['params']): string {
+  return esIdioma(params.idioma) ? params.idioma : detectarIdioma()
+}
+
+/** Guardia del panel: sin sesión válida (Nivel 2+) se redirige al inicio de sesión. */
 function guardiaPanel({ params }: LoaderFunctionArgs) {
-  if (!haySesion()) {
-    const idioma = esIdioma(params.idioma) ? params.idioma : detectarIdioma()
-    throw redirect(`/${idioma}/login`)
-  }
+  if (!haySesion()) throw redirect(`/${idiomaDe(params)}/login`)
+  return null
+}
+
+/**
+ * Guardia de la gestión de usuarios: exige Nivel 3 (Root). Sin sesión va a login;
+ * con sesión de nivel insuficiente vuelve al panel. El backend igual lo aplica:
+ * esta guardia solo evita mostrar una pantalla que el servidor rechazaría.
+ */
+async function guardiaRoot({ params }: LoaderFunctionArgs) {
+  const idioma = idiomaDe(params)
+  if (!haySesion()) throw redirect(`/${idioma}/login`)
+  const resp = await obtenerSesion()
+  if (!resp.ok) throw redirect(`/${idioma}/login`)
+  const sesion = (await resp.json()) as SesionAdmin
+  if (!tieneNivel(sesion.nivel, NivelAcceso.ROOT)) throw redirect(`/${idioma}/panel`)
   return null
 }
 
@@ -34,6 +52,7 @@ export const rutasApp = [
       { path: 'articulo/:slug', element: <PantallaConIdioma pantalla="articulo" /> },
       { path: 'login', element: <PantallaConIdioma pantalla="login" /> },
       { path: 'panel', element: <PantallaConIdioma pantalla="panel" />, loader: guardiaPanel },
+      { path: 'panel/usuarios', element: <PantallaConIdioma pantalla="usuarios" />, loader: guardiaRoot },
       { path: '*', element: <PantallaConIdioma pantalla="noEncontrado" /> },
     ],
   },
