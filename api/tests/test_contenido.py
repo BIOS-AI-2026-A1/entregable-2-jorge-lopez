@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from tests.conftest import articulo_valido
 
 
@@ -72,7 +74,9 @@ def test_el_articulo_cumple_el_contrato_de_types_ts(client, auth):
         "id", "slug", "titulo", "categoria", "actualizado", "minutosLectura",
         "destacado", "parrafos", "howTo", "faq", "relacionados",
     }
-    assert articulo["actualizado"] == "2026-07-25"  # ISO, para el atributo datetime
+    # La fecha la sella el servidor a hoy en cada guardado (ya no se confía en el
+    # valor enviado por el cliente, aquí "2026-07-25").
+    assert articulo["actualizado"] == date.today().isoformat()
     assert articulo["minutosLectura"] == 2
     assert articulo["destacado"] is True
 

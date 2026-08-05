@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from tests.conftest import articulo_valido
 
 
@@ -197,3 +199,39 @@ def test_editar_reemplaza_las_traducciones_sin_duplicarlas(client, auth):
     leido = client.get("/api/admin/articulos/nuevo-articulo", headers=auth).json()
     assert leido["es"]["titulo"] == "Otro título"
     assert leido["pt"]["titulo"] == "Outro título"
+
+
+# --- Campos que sella o normaliza el servidor -------------------------------
+
+def test_la_fecha_la_sella_el_servidor_a_hoy(client, auth):
+    payload = articulo_valido()
+    payload["actualizado"] = "2000-01-01"  # el cliente no manda la verdad
+    creado = client.post("/api/admin/articulos", json=payload, headers=auth).json()
+    assert creado["actualizado"] == date.today().isoformat()
+
+
+def test_editar_refresca_la_fecha_a_hoy(client, auth):
+    client.post("/api/admin/articulos", json=articulo_valido(), headers=auth)
+    cambio = articulo_valido()
+    del cambio["id"]
+    cambio["actualizado"] = "1999-12-31"
+    editado = client.put("/api/admin/articulos/nuevo-articulo", json=cambio, headers=auth).json()
+    assert editado["actualizado"] == date.today().isoformat()
+
+
+def test_el_id_se_normaliza_en_el_servidor(client, auth):
+    payload = articulo_valido()
+    payload["id"] = "Cómo Cambiar tu Contraseña"
+    creado = client.post("/api/admin/articulos", json=payload, headers=auth).json()
+    assert creado["id"] == "como-cambiar-tu-contrasena"
+    # Y es recuperable por su id normalizado.
+    assert client.get("/api/admin/articulos/como-cambiar-tu-contrasena", headers=auth).status_code == 200
+
+
+def test_los_slugs_se_normalizan_en_el_servidor(client, auth):
+    payload = articulo_valido()
+    payload["es"]["slug"] = "Café con Leche"
+    payload["pt"]["slug"] = "Café com Leite"
+    creado = client.post("/api/admin/articulos", json=payload, headers=auth).json()
+    assert creado["es"]["slug"] == "cafe-con-leche"
+    assert creado["pt"]["slug"] == "cafe-com-leite"

@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { IDIOMAS, type Categoria, type Idioma } from '@/types'
-import { guardarArticulo, type ArticuloAdmin, type DestinoArticulo } from '@/data/admin'
+import {
+  guardarArticulo,
+  traducirArticulo,
+  type ArticuloAdmin,
+  type DestinoArticulo,
+  type TraduccionAdmin,
+} from '@/data/admin'
 import { aPayload, draftInicial, type Draft, type TradDraft } from '@/data/articuloBorrador'
+import { derivarId, derivarSlug } from '@/data/slug'
+import { minutosDeArticulo } from '@/data/lecturaMinutos'
 import { Ic } from './iconos'
 
 type Props = {
@@ -15,23 +23,99 @@ type Props = {
 }
 
 const CAMPO =
-  'w-full px-3 py-2 rounded-lg border border-slate-500 bg-white text-slate-900 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:border-transparent'
+  'w-full min-h-[44px] px-3 py-2 rounded-lg border border-slate-500 bg-white text-slate-900 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:border-transparent'
+// Campo de solo lectura: mismo tamaño, aspecto atenuado y sin foco de edición.
+const CAMPO_RO =
+  'w-full min-h-[44px] px-3 py-2 rounded-lg border border-slate-300 bg-slate-100 text-slate-600 text-sm'
 const BOTON_SEC =
   'inline-flex items-center gap-1.5 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]'
+
+const HOY = () => new Date().toISOString().slice(0, 10)
+
+function tradAdminADraft(t: TraduccionAdmin, slug: string): TradDraft {
+  return {
+    slug,
+    titulo: t.titulo,
+    parrafos: t.parrafos.join('\n'),
+    nota: t.nota ?? '',
+    howToTitulo: t.howTo.titulo,
+    pasos: t.howTo.pasos.map(p => ({ ...p })),
+    faq: t.faq.map(f => ({ ...f })),
+  }
+}
 
 export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, onGuardado }: Props) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<Draft>(() => draftInicial(inicial, categorias[0]?.id ?? ''))
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
-  const tituloRef = useRef<HTMLHeadingElement>(null)
+  const [traduciendo, setTraduciendo] = useState<Idioma | null>(null)
+  // Aviso de que una traducción terminó: la rellena de forma silenciosa, así que
+  // un lector de pantalla necesita este mensaje para saber que el contenido cambió.
+  const [avisoTrad, setAvisoTrad] = useState<string | null>(null)
+  // El id y cada slug se autogeneran del título mientras no se editen a mano.
+  const [idEditado, setIdEditado] = useState(false)
+  const [slugEditado, setSlugEditado] = useState<Record<Idioma, boolean>>({ es: false, pt: false })
 
-  useEffect(() => {
-    tituloRef.current?.focus()
-  }, [])
+  // Campos que el sistema calcula, no la persona: fecha de hoy (la sella el
+  // servidor al guardar) y minutos de lectura por conteo de palabras.
+  const hoy = HOY()
+  const minutos = minutosDeArticulo(draft.es, draft.pt)
 
   const patchTrad = (idioma: Idioma, patch: Partial<TradDraft>) =>
     setDraft(d => ({ ...d, [idioma]: { ...d[idioma], ...patch } }))
+
+  function alCambiarTitulo(idioma: Idioma, valor: string) {
+    setDraft(d => {
+      const nd: Draft = { ...d, [idioma]: { ...d[idioma], titulo: valor } }
+      // El slug de este idioma sigue al título mientras no se haya tocado a mano.
+      if (!slugEditado[idioma]) nd[idioma] = { ...nd[idioma], slug: derivarSlug(valor) }
+      // El id (clave estable) se deriva del título en español, solo al crear.
+      if (idioma === 'es' && modo === 'crear' && !idEditado) nd.id = derivarId(valor)
+      return nd
+    })
+  }
+
+  function alCambiarSlug(idioma: Idioma, valor: string) {
+    setSlugEditado(s => ({ ...s, [idioma]: true }))
+    patchTrad(idioma, { slug: valor })
+  }
+
+  function alCambiarId(valor: string) {
+    setIdEditado(true)
+    setDraft(d => ({ ...d, id: valor }))
+  }
+
+  async function traducirDesde(origen: Idioma) {
+    if (traduciendo !== null) return // ya hay una traducción en curso: no reentrar
+    setError(null)
+    setAvisoTrad(null)
+    setTraduciendo(origen)
+    try {
+      const contenido = aPayload(draft)[origen] // TraduccionAdmin del idioma origen
+      const resp = await traducirArticulo(origen, contenido)
+      if (!resp.ok) {
+        setError(
+          resp.status === 409
+            ? t('panelGestion.traduccionSinProveedor')
+            : t('panelGestion.traduccionError'),
+        )
+        return
+      }
+      const tr = (await resp.json()) as TraduccionAdmin
+      const destino: Idioma = origen === 'es' ? 'pt' : 'es'
+      setDraft(d => ({
+        ...d,
+        // El slug destino se deriva del título traducido salvo que se haya editado.
+        [destino]: tradAdminADraft(tr, slugEditado[destino] ? d[destino].slug : derivarSlug(tr.titulo)),
+      }))
+      setAvisoTrad(t('panelGestion.traduccionLista', { idioma: t(`idioma.${destino}`) }))
+    } catch {
+      setError(t('panelGestion.errorRed'))
+    } finally {
+      setTraduciendo(null)
+    }
+  }
 
   async function alEnviar(e: FormEvent) {
     e.preventDefault()
@@ -45,7 +129,9 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
             ? { tipo: 'crear' }
             : { tipo: 'editar', articuloId: inicial!.id }
 
-      const resp = await guardarArticulo(aPayload(draft), destino)
+      // Los minutos y la fecha los fija el sistema, no el formulario.
+      const payload = aPayload({ ...draft, minutosLectura: minutos, actualizado: hoy })
+      const resp = await guardarArticulo(payload, destino)
       if (!resp.ok) {
         setError(resp.status === 409 ? t('panelGestion.errorIdDuplicado') : t('panelGestion.errorGuardar'))
         return
@@ -66,10 +152,20 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
         : t('panelGestion.editar')
 
   return (
-    <section aria-labelledby="form-articulo-h" className="rounded-2xl border border-indigo-200 bg-white p-5 sm:p-6">
-      <h2 id="form-articulo-h" tabIndex={-1} className="text-lg font-bold text-slate-900 mb-4 focus:outline-none">
-        {titulo}
-      </h2>
+    <section aria-labelledby="form-articulo-h" className="rounded-2xl border border-indigo-200 bg-white p-5 sm:p-6 shadow-xl">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <h2 id="form-articulo-h" className="text-lg font-bold text-slate-900">
+          {titulo}
+        </h2>
+        <button
+          type="button"
+          onClick={onCerrar}
+          aria-label={t('panelGestion.cerrar')}
+          className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-500 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1"
+        >
+          <Ic.X size={18} />
+        </button>
+      </div>
 
       <form onSubmit={alEnviar} noValidate className="space-y-5">
         <div role="alert" aria-live="assertive" className="min-h-[1.25rem]">
@@ -81,6 +177,15 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
           )}
         </div>
 
+        <div role="status" aria-live="polite" className="empty:hidden">
+          {avisoTrad && (
+            <p className="flex items-center gap-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg">
+              <Ic.CheckCircle size={15} className="text-emerald-700 shrink-0" />
+              {avisoTrad}
+            </p>
+          )}
+        </div>
+
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="af-id" className="block text-sm font-medium text-slate-700 mb-1">
@@ -88,15 +193,15 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
             </label>
             <input
               id="af-id"
-              className={CAMPO}
+              className={modo === 'editar' ? CAMPO_RO : CAMPO}
               value={draft.id}
-              onChange={e => setDraft(d => ({ ...d, id: e.target.value }))}
+              onChange={e => alCambiarId(e.target.value)}
               disabled={modo === 'editar'}
               required
               aria-describedby="af-id-ayuda"
             />
             <p id="af-id-ayuda" className="text-xs text-slate-500 mt-1">
-              {t('panelGestion.idAyuda')}
+              {modo === 'editar' ? t('panelGestion.idBloqueadoAyuda') : t('panelGestion.idAutoAyuda')}
             </p>
           </div>
           <div>
@@ -123,11 +228,14 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
             <input
               id="af-fecha"
               type="date"
-              className={CAMPO}
-              value={draft.actualizado}
-              onChange={e => setDraft(d => ({ ...d, actualizado: e.target.value }))}
-              required
+              className={CAMPO_RO}
+              value={hoy}
+              readOnly
+              aria-describedby="af-fecha-ayuda"
             />
+            <p id="af-fecha-ayuda" className="text-xs text-slate-500 mt-1">
+              {t('panelGestion.actualizadoAyuda')}
+            </p>
           </div>
           <div>
             <label htmlFor="af-minutos" className="block text-sm font-medium text-slate-700 mb-1">
@@ -136,11 +244,14 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
             <input
               id="af-minutos"
               type="number"
-              min={0}
-              className={CAMPO}
-              value={draft.minutosLectura}
-              onChange={e => setDraft(d => ({ ...d, minutosLectura: Number(e.target.value) }))}
+              className={CAMPO_RO}
+              value={minutos}
+              readOnly
+              aria-describedby="af-minutos-ayuda"
             />
+            <p id="af-minutos-ayuda" className="text-xs text-slate-500 mt-1">
+              {t('panelGestion.minutosAyuda')}
+            </p>
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="af-relacionados" className="block text-sm font-medium text-slate-700 mb-1">
@@ -171,7 +282,16 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
         </div>
 
         {IDIOMAS.map(idioma => (
-          <SeccionIdioma key={idioma} idioma={idioma} trad={draft[idioma]} onPatch={patch => patchTrad(idioma, patch)} />
+          <SeccionIdioma
+            key={idioma}
+            idioma={idioma}
+            trad={draft[idioma]}
+            traduciendo={traduciendo}
+            onPatch={patch => patchTrad(idioma, patch)}
+            onTitulo={valor => alCambiarTitulo(idioma, valor)}
+            onSlug={valor => alCambiarSlug(idioma, valor)}
+            onTraducir={() => traducirDesde(idioma)}
+          />
         ))}
 
         <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-slate-200">
@@ -197,14 +317,25 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
 function SeccionIdioma({
   idioma,
   trad,
+  traduciendo,
   onPatch,
+  onTitulo,
+  onSlug,
+  onTraducir,
 }: {
   idioma: Idioma
   trad: TradDraft
+  traduciendo: Idioma | null
   onPatch: (patch: Partial<TradDraft>) => void
+  onTitulo: (valor: string) => void
+  onSlug: (valor: string) => void
+  onTraducir: () => void
 }) {
   const { t } = useTranslation()
   const p = (s: string) => `${idioma}-${s}`
+  const destino: Idioma = idioma === 'es' ? 'pt' : 'es'
+  const traduciendoEste = traduciendo === idioma
+  const ocupado = traduciendo !== null
 
   const setPaso = (i: number, campo: 'titulo' | 'descripcion', valor: string) =>
     onPatch({ pasos: trad.pasos.map((paso, j) => (j === i ? { ...paso, [campo]: valor } : paso)) })
@@ -215,18 +346,49 @@ function SeccionIdioma({
     <fieldset className="rounded-xl border border-slate-200 p-4">
       <legend className="px-2 text-sm font-bold text-indigo-800 uppercase tracking-wide">{t(`idioma.${idioma}`)}</legend>
       <div className="space-y-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={onTraducir}
+            aria-disabled={ocupado}
+            aria-busy={traduciendoEste}
+            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-800 bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px] ${
+              ocupado ? 'opacity-60 cursor-not-allowed' : 'hover:bg-indigo-100 hover:border-indigo-300'
+            }`}
+          >
+            {traduciendoEste ? (
+              <Ic.Loader size={14} className="animate-spin motion-reduce:animate-none" />
+            ) : (
+              <Ic.Sparkles size={14} />
+            )}
+            {traduciendoEste
+              ? t('panelGestion.traduciendo')
+              : t('panelGestion.traducirA', { idioma: t(`idioma.${destino}`) })}
+          </button>
+        </div>
+
         <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor={p('slug')} className="block text-sm font-medium text-slate-700 mb-1">
-              {t('panelGestion.slug')}
-            </label>
-            <input id={p('slug')} className={CAMPO} value={trad.slug} onChange={e => onPatch({ slug: e.target.value })} required />
-          </div>
           <div>
             <label htmlFor={p('titulo')} className="block text-sm font-medium text-slate-700 mb-1">
               {t('panelGestion.tituloArticulo')}
             </label>
-            <input id={p('titulo')} className={CAMPO} value={trad.titulo} onChange={e => onPatch({ titulo: e.target.value })} required />
+            <input id={p('titulo')} className={CAMPO} value={trad.titulo} onChange={e => onTitulo(e.target.value)} required />
+          </div>
+          <div>
+            <label htmlFor={p('slug')} className="block text-sm font-medium text-slate-700 mb-1">
+              {t('panelGestion.slug')}
+            </label>
+            <input
+              id={p('slug')}
+              className={CAMPO}
+              value={trad.slug}
+              onChange={e => onSlug(e.target.value)}
+              required
+              aria-describedby={p('slug-ayuda')}
+            />
+            <p id={p('slug-ayuda')} className="text-xs text-slate-500 mt-1">
+              {t('panelGestion.slugAutoAyuda')}
+            </p>
           </div>
         </div>
         <div>

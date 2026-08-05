@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # desde el panel por un usuario Root; el seed solo lo usa para la primera fila.
     empresa_inicial: str = "[Empresa]"
 
+    # Clave simétrica (Fernet) con la que se cifran en reposo las claves de API de
+    # los proveedores de IA que introduce Root. Opcional a propósito: sin ella la
+    # API arranca igual y todo funciona salvo guardar/usar claves de IA (traducción),
+    # que avisa de que falta configurarla. Generar una propia:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    clave_cifrado_ia: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

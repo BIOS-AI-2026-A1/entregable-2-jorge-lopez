@@ -174,7 +174,18 @@
     "faqPreguntaMarcador": "Pregunta",
     "faqRespuesta": "Respuesta {{n}}",
     "faqRespuestaMarcador": "Respuesta",
-    "quitarFila": "Quitar fila {{n}}"
+    "quitarFila": "Quitar fila {{n}}",
+    "cerrar": "Cerrar",
+    "idAutoAyuda": "Se genera a partir del título en español. Puedes ajustarlo antes de crear; luego queda fijo.",
+    "idBloqueadoAyuda": "El identificador no se puede cambiar una vez creado el artículo.",
+    "actualizadoAyuda": "Se fija automáticamente a la fecha de hoy al guardar.",
+    "minutosAyuda": "Se calcula por el número de palabras del contenido.",
+    "slugAutoAyuda": "Se genera a partir del título. Puedes ajustarlo.",
+    "traducirA": "Traducir al {{idioma}}",
+    "traduciendo": "Traduciendo…",
+    "traduccionSinProveedor": "No hay proveedor de IA configurado. Pide a un usuario Root que lo configure.",
+    "traduccionError": "No se pudo traducir. Inténtalo de nuevo.",
+    "traduccionLista": "Traducción al {{idioma}} completada. Revísala antes de guardar."
   },
   "kcs": {
     "nueva": "Nueva",
@@ -182,12 +193,11 @@
     "cubierta": "Cubierta"
   },
   "ajustesEmpresa": {
-    "titulo": "Campo [Empresa]",
-    "etiqueta": "[Empresa]",
+    "titulo": "Nombre de empresa",
     "ayuda": "Nombre de marca que ve el centro de ayuda. Reemplaza el título y el logotipo.",
-    "guardar": "Guardar [Empresa]",
-    "guardado": "Campo [Empresa] actualizado.",
-    "error": "No se pudo guardar el campo [Empresa]. Inténtalo de nuevo."
+    "guardar": "Guardar",
+    "guardado": "Nombre de empresa actualizado a «{{empresa}}».",
+    "error": "No se pudo guardar «{{empresa}}». Inténtalo de nuevo."
   },
   "gestionUsuarios": {
     "seccion": "Administración",
@@ -234,5 +244,23 @@
     "errorConflicto": "No se pudo guardar: el correo ya está en uso o la operación dejaría al sistema sin un usuario Root activo.",
     "errorSalvaguarda": "No se pudo cambiar el estado: no puedes desactivar tu propia cuenta ni dejar al sistema sin un usuario Root activo.",
     "errorRed": "No se pudo conectar con el servidor."
+  },
+  "configIA": {
+    "titulo": "Proveedor de IA",
+    "proveedor": "Proveedor",
+    "clave": "Clave de API",
+    "clavePlaceholder": "Escribe una clave nueva para cambiarla",
+    "claveConfigurada": "configurada",
+    "claveSinConfigurar": "sin configurar",
+    "cargando": "Cargando configuración…",
+    "guardar": "Guardar",
+    "guardado": "Configuración de IA actualizada.",
+    "error": "No se pudo guardar la configuración de IA. Inténtalo de nuevo.",
+    "errorCifrado": "Falta la clave de cifrado en el servidor (CLAVE_CIFRADO_IA). No se pudo guardar la clave.",
+    "ayuda": "La clave se guarda cifrada en el servidor y nunca se muestra. Déjala vacía para conservar la actual. Por defecto se usa Claude (Anthropic).",
+    "proveedores": {
+      "anthropic": "Claude (Anthropic)",
+      "google": "Google Translate"
+    }
   }
 }

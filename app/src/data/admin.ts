@@ -170,3 +170,50 @@ export function guardarEmpresa(empresa: string): Promise<Response> {
     body: JSON.stringify({ empresa }),
   })
 }
+
+// ── Traducción asistida por IA ──────────────────────────────────────────────
+
+/**
+ * Pide al backend traducir el contenido de un idioma al otro. Devuelve la
+ * `Response` sin interpretar: el formulario distingue el 409 (proveedor sin
+ * configurar) del resto de errores. No persiste nada; el resultado es un borrador.
+ */
+export function traducirArticulo(origen: Idioma, contenido: TraduccionAdmin): Promise<Response> {
+  return authFetch('/api/admin/articulos/traducir', {
+    method: 'POST',
+    body: JSON.stringify({ origen, contenido }),
+  })
+}
+
+// ── Configuración de proveedor de IA (solo Root) ────────────────────────────
+
+/** Estado de un proveedor: si tiene clave configurada. Nunca incluye la clave. */
+export interface ProveedorEstado {
+  id: string
+  configurada: boolean
+}
+
+/** Configuración de IA que devuelve `GET /api/admin/config-ia`. Sin claves. */
+export interface ConfigIAAdmin {
+  proveedorActivo: string
+  proveedores: ProveedorEstado[]
+}
+
+/**
+ * Datos que se envían al guardar la configuración. `clave` vacía/ausente =
+ * «no cambiar»; `proveedor` indica a qué proveedor aplica la clave (por defecto,
+ * el activo). La clave es de solo escritura: nunca vuelve del servidor.
+ */
+export interface ConfigIAPayload {
+  proveedorActivo: string
+  proveedor?: string
+  clave?: string
+}
+
+export function obtenerConfigIA(): Promise<Response> {
+  return authFetch('/api/admin/config-ia')
+}
+
+export function guardarConfigIA(payload: ConfigIAPayload): Promise<Response> {
+  return authFetch('/api/admin/config-ia', { method: 'PUT', body: JSON.stringify(payload) })
+}

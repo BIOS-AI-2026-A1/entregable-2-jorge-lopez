@@ -207,3 +207,51 @@ class EmpresaIn(BaseModel):
 
 class EmpresaOut(BaseModel):
     empresa: str
+
+
+# --- Configuración de proveedor de IA (solo Root) ---------------------------
+
+# Proveedores admitidos. Anthropic (Claude) es el de por defecto; Google Translate
+# queda como alternativa enchufable (ver design.md, Decisión 4.1).
+ProveedorIA = Literal["anthropic", "google"]
+
+
+class ProveedorEstado(BaseModel):
+    """Estado de un proveedor: si tiene clave configurada. Nunca incluye la clave."""
+
+    id: ProveedorIA
+    configurada: bool
+
+
+class ConfigIAOut(BaseModel):
+    """Configuración de IA para el panel: proveedor activo y qué proveedores tienen
+    clave. NUNCA devuelve las claves en claro (solo el booleano `configurada`)."""
+
+    proveedorActivo: ProveedorIA
+    proveedores: list[ProveedorEstado]
+
+
+class ConfigIAIn(BaseModel):
+    """Cambia el proveedor activo y, opcionalmente, la clave de un proveedor.
+
+    `clave` vacía o ausente significa «no cambiar la clave» (espeja el patrón de la
+    contraseña opcional al editar usuarios). `proveedor` indica a qué proveedor
+    aplica la clave; por defecto, el proveedor activo.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    proveedorActivo: ProveedorIA
+    proveedor: ProveedorIA | None = None
+    clave: str | None = None
+
+
+# --- Traducción asistida por IA ---------------------------------------------
+
+class TraduccionPeticionIn(BaseModel):
+    """Pide traducir el contenido de un idioma al otro. No persiste nada."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origen: Idioma
+    contenido: TraduccionArticuloIn
