@@ -66,6 +66,7 @@ class ContenidoIdiomaOut(BaseModel):
     usuarias y solo se sirven por el router de administración, autenticado.
     """
 
+    empresa: str
     categorias: list[CategoriaOut]
     articulos: list[ArticuloOut]
     conversacion: list[dict[str, Any]]
@@ -147,3 +148,62 @@ class PreguntaAdminOut(BaseModel):
     similitud: float
     fecha: str
     estado: str
+
+
+# --- Sesión y niveles -------------------------------------------------------
+
+# Nivel asignable a un usuario: Standard (2) o Root (3). Anonymous (1) no se
+# asigna nunca (es la ausencia de sesión), así que se excluye del contrato.
+NivelAsignable = Literal[2, 3]
+
+# Contraseña mínima para cuentas creadas por la API, alineada con el seed.
+LONGITUD_MINIMA_CONTRASENA = 12
+
+
+class MeOut(BaseModel):
+    """Identidad de la sesión actual: el frontend la usa para ajustar la UI a su nivel."""
+
+    email: str
+    nivel: int
+
+
+# --- Gestión de usuarios (solo Root) ----------------------------------------
+
+class UsuarioOut(BaseModel):
+    """Usuario administrable. Nunca incluye el hash de la contraseña."""
+
+    id: int
+    email: str
+    nivel: int
+    activo: bool
+    creado: str
+
+
+class UsuarioCrearIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=LONGITUD_MINIMA_CONTRASENA)
+    nivel: NivelAsignable
+
+
+class UsuarioActualizarIn(BaseModel):
+    """Edita correo y nivel; la contraseña es opcional (reset)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3)
+    nivel: NivelAsignable
+    password: str | None = Field(default=None, min_length=LONGITUD_MINIMA_CONTRASENA)
+
+
+# --- Ajustes: campo [Empresa] -----------------------------------------------
+
+class EmpresaIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    empresa: str = Field(min_length=1)
+
+
+class EmpresaOut(BaseModel):
+    empresa: str

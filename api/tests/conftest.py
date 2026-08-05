@@ -24,23 +24,49 @@ from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     AdminUser,
+    Ajustes,
     Categoria,
     CategoriaTraduccion,
     Conversacion,
     Metrica,
+    NivelAcceso,
     PreguntaSinResolver,
 )
 from app.security import hash_password  # noqa: E402
+from app.servicios import AJUSTES_ID  # noqa: E402
 
+# El administrador principal es Root (como el que siembra el seed): puede todo.
 ADMIN_EMAIL = "admin@test.local"
 ADMIN_PASSWORD = "secreto-de-prueba"
+
+# Un segundo usuario, de Nivel 2 (Standard), para las pruebas de autorización.
+STANDARD_EMAIL = "standard@test.local"
+STANDARD_PASSWORD = "secreto-de-prueba-2"
+
+EMPRESA_INICIAL = "Acme"
 
 
 def _sembrar_minimo(db) -> None:
     db.add(Categoria(id="cuenta", icono="usuario", fondo="bg-indigo-50", texto="text-indigo-700", orden=0))
     db.add(CategoriaTraduccion(categoria_id="cuenta", idioma="es", slug="cuenta", nombre="Cuenta"))
     db.add(CategoriaTraduccion(categoria_id="cuenta", idioma="pt", slug="conta", nombre="Conta"))
-    db.add(AdminUser(email=ADMIN_EMAIL, password_hash=hash_password(ADMIN_PASSWORD)))
+    db.add(
+        AdminUser(
+            email=ADMIN_EMAIL,
+            password_hash=hash_password(ADMIN_PASSWORD),
+            nivel=NivelAcceso.ROOT.value,
+            activo=True,
+        )
+    )
+    db.add(
+        AdminUser(
+            email=STANDARD_EMAIL,
+            password_hash=hash_password(STANDARD_PASSWORD),
+            nivel=NivelAcceso.ESTANDAR.value,
+            activo=True,
+        )
+    )
+    db.add(Ajustes(id=AJUSTES_ID, empresa=EMPRESA_INICIAL))
     db.add(
         PreguntaSinResolver(
             idioma="es", pregunta="¿Cómo cambio mi contraseña?", veces=10,
@@ -91,6 +117,18 @@ def token(client) -> str:
 @pytest.fixture
 def auth(token) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def standard_token(client) -> str:
+    r = client.post("/api/auth/login", json={"email": STANDARD_EMAIL, "password": STANDARD_PASSWORD})
+    assert r.status_code == 200, r.text
+    return r.json()["access_token"]
+
+
+@pytest.fixture
+def standard_auth(standard_token) -> dict:
+    return {"Authorization": f"Bearer {standard_token}"}
 
 
 def articulo_valido(articulo_id: str = "nuevo-articulo") -> dict:

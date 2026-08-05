@@ -6,6 +6,7 @@ JSONB en PostgreSQL (producción) y JSON en SQLite (tests en memoria).
 
 from __future__ import annotations
 
+import enum
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -26,6 +27,19 @@ from app.database import Base
 
 # JSONB en Postgres, JSON en el resto (permite testear en SQLite sin pgvector).
 JsonType = JSON().with_variant(JSONB(), "postgresql")
+
+
+class NivelAcceso(enum.IntEnum):
+    """Niveles de acceso jerárquicos. El valor entero ordena la herencia de
+    permisos: autorizar es comparar `nivel_actual >= nivel_requerido`.
+
+    ANONIMO nunca se persiste (es la ausencia de sesión); solo ESTANDAR y ROOT
+    viven como `nivel` en `admin_users`.
+    """
+
+    ANONIMO = 1
+    ESTANDAR = 2
+    ROOT = 3
 
 
 class Categoria(Base):
@@ -139,4 +153,21 @@ class AdminUser(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
+    # Nivel de acceso: 2 (Standard) o 3 (Root). Se guarda el entero de NivelAcceso.
+    nivel: Mapped[int] = mapped_column(Integer, nullable=False, default=NivelAcceso.ESTANDAR.value)
+    # Permite revocar el acceso sin borrar la fila (conserva la traza).
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Ajustes(Base):
+    """Ajustes globales de la instalación. Fila única (`id=1`).
+
+    Hoy solo guarda el campo **[Empresa]** (nombre de marca global editable por
+    Root). Es un singleton a propósito: no es multi-tenant.
+    """
+
+    __tablename__ = "ajustes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    empresa: Mapped[str] = mapped_column(String, nullable=False)

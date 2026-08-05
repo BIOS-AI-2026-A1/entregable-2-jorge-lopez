@@ -88,3 +88,85 @@ export function guardarArticulo(payload: ArticuloAdmin, destino: DestinoArticulo
   const { url, metodo, cuerpo } = peticionGuardado(payload, destino)
   return authFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
 }
+
+// ── Sesión: identidad y nivel de acceso ─────────────────────────────────────
+
+/** Identidad de la sesión actual, que devuelve `GET /api/auth/me`. */
+export interface SesionAdmin {
+  email: string
+  nivel: number
+}
+
+export function obtenerSesion(): Promise<Response> {
+  return authFetch('/api/auth/me')
+}
+
+// ── Gestión de usuarios (solo Root) ─────────────────────────────────────────
+
+/** Usuario administrable que devuelve `/api/admin/usuarios`. Sin el hash. */
+export interface UsuarioAdmin {
+  id: number
+  email: string
+  nivel: number
+  activo: boolean
+  creado: string
+}
+
+/** Datos de un usuario que se crean o editan desde el formulario. */
+export interface UsuarioPayload {
+  email: string
+  nivel: number
+  /** Obligatoria al crear; opcional al editar (vacía = no cambiar). */
+  password?: string
+}
+
+export function listarUsuarios(): Promise<Response> {
+  return authFetch('/api/admin/usuarios')
+}
+
+/** A dónde va un guardado de usuario: alta o edición. */
+export type DestinoUsuario = { tipo: 'crear' } | { tipo: 'editar'; usuarioId: number }
+
+/**
+ * Dirección, método y cuerpo de un guardado de usuario. Función pura (no toca la
+ * red): al crear, la contraseña es obligatoria; al editar, solo viaja si se
+ * escribió una nueva. Espeja `peticionGuardado` para artículos.
+ */
+export function peticionUsuario(
+  payload: UsuarioPayload,
+  destino: DestinoUsuario,
+): { url: string; metodo: string; cuerpo: unknown } {
+  if (destino.tipo === 'crear') {
+    return {
+      url: '/api/admin/usuarios',
+      metodo: 'POST',
+      cuerpo: { email: payload.email, nivel: payload.nivel, password: payload.password },
+    }
+  }
+  // Al editar, una contraseña vacía no viaja: significa "no cambiarla".
+  const cuerpo: Record<string, unknown> = { email: payload.email, nivel: payload.nivel }
+  if (payload.password) cuerpo.password = payload.password
+  return { url: `/api/admin/usuarios/${destino.usuarioId}`, metodo: 'PUT', cuerpo }
+}
+
+export function guardarUsuario(payload: UsuarioPayload, destino: DestinoUsuario): Promise<Response> {
+  const { url, metodo, cuerpo } = peticionUsuario(payload, destino)
+  return authFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
+}
+
+export function activarUsuario(id: number): Promise<Response> {
+  return authFetch(`/api/admin/usuarios/${id}/activar`, { method: 'POST' })
+}
+
+export function desactivarUsuario(id: number): Promise<Response> {
+  return authFetch(`/api/admin/usuarios/${id}/desactivar`, { method: 'POST' })
+}
+
+// ── Campo [Empresa] (solo Root) ─────────────────────────────────────────────
+
+export function guardarEmpresa(empresa: string): Promise<Response> {
+  return authFetch('/api/admin/ajustes/empresa', {
+    method: 'PUT',
+    body: JSON.stringify({ empresa }),
+  })
+}

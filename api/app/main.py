@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from app.routers import admin_articulos, admin_panel, auth, contenido
+from app.routers import (
+    admin_ajustes,
+    admin_articulos,
+    admin_panel,
+    admin_usuarios,
+    auth,
+    contenido,
+)
 
 app = FastAPI(
     title="Centro de Ayuda API",
@@ -16,6 +23,8 @@ app.include_router(contenido.router)
 app.include_router(auth.router)
 app.include_router(admin_articulos.router)
 app.include_router(admin_panel.router)
+app.include_router(admin_usuarios.router)
+app.include_router(admin_ajustes.router)
 
 
 @app.get("/api/salud", tags=["salud"])

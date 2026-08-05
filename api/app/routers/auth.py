@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import admin_actual
 from app.models import AdminUser
-from app.schemas import LoginIn, TokenOut
+from app.schemas import LoginIn, MeOut, TokenOut
 from app.security import crear_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -37,3 +37,10 @@ def logout(_: AdminUser = Depends(admin_actual)) -> dict:
     # JWT en cliente: el logout lo realiza el cliente descartando el token.
     # El endpoint existe por simetría y para poder revocar en el futuro.
     return {"detail": "Sesión cerrada"}
+
+
+@router.get("/me", response_model=MeOut)
+def yo(admin: AdminUser = Depends(admin_actual)) -> MeOut:
+    # El frontend lo consulta para ajustar la interfaz al nivel de la sesión
+    # (ocultar los controles Root). La autoridad sigue siendo el backend.
+    return MeOut(email=admin.email, nivel=admin.nivel)

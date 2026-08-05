@@ -2,11 +2,13 @@ import { useTranslation } from 'react-i18next'
 import { NavLink, Link } from 'react-router-dom'
 import type { Idioma } from '@/types'
 import { rutas } from '@/i18n/rutas'
+import { useContenido } from '@/data/contexto'
 import { Logo } from './Logo'
 import { SelectorIdioma } from './SelectorIdioma'
 
 export function AppHeader({ idioma }: { idioma: Idioma }) {
   const { t } = useTranslation()
+  const contenido = useContenido(idioma)
 
   const clasesEnlace = (activo: boolean) =>
     `px-3 py-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 inline-flex items-center min-h-[44px] ${
@@ -21,7 +23,7 @@ export function AppHeader({ idioma }: { idioma: Idioma }) {
           className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-2 rounded-lg"
           aria-label={t('general.irAlInicio')}
         >
-          <Logo />
+          <Logo empresa={contenido.empresa} />
         </Link>
 
         <div className="flex items-center gap-2 flex-wrap">

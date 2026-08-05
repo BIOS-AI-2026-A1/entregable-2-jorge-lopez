@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models import (
     AdminUser,
+    Ajustes,
     Articulo,
     ArticuloRelacionado,
     ArticuloTraduccion,
@@ -25,8 +26,10 @@ from app.models import (
     CategoriaTraduccion,
     Conversacion,
     Metrica,
+    NivelAcceso,
     PreguntaSinResolver,
 )
+from app.servicios import AJUSTES_ID
 from app.security import hash_password
 from app.servicios import IDIOMAS
 
@@ -150,8 +153,29 @@ def _sembrar_admin(db) -> None:
         # Ojo: no se recrea. Para rotar la contraseña hay que borrar la fila antes.
         print(f"Administrador {s.admin_email} ya existe; no se recrea.")
         return
-    db.add(AdminUser(email=s.admin_email, password_hash=hash_password(s.admin_password)))
-    print(f"Administrador {s.admin_email} creado.")
+    # El administrador inicial es Root: es el primer usuario y quien gestiona a los demás.
+    db.add(
+        AdminUser(
+            email=s.admin_email,
+            password_hash=hash_password(s.admin_password),
+            nivel=NivelAcceso.ROOT.value,
+            activo=True,
+        )
+    )
+    print(f"Administrador {s.admin_email} creado (Root).")
+
+
+def _sembrar_ajustes(db) -> None:
+    """Crea la fila única de ajustes con el valor inicial del campo [Empresa].
+
+    Idempotente: si ya existe, no la pisa (para no revertir un cambio hecho desde
+    el panel al re-ejecutar el seed)."""
+    if db.get(Ajustes, AJUSTES_ID) is not None:
+        print("Ajustes ya existen; no se recrean.")
+        return
+    s = get_settings()
+    db.add(Ajustes(id=AJUSTES_ID, empresa=s.empresa_inicial))
+    print(f"Ajustes creados: empresa = {s.empresa_inicial!r}.")
 
 
 def main() -> None:
@@ -167,6 +191,7 @@ def main() -> None:
         _sembrar_articulos(db, datos)
         _sembrar_panel(db, datos)
         _sembrar_admin(db)
+        _sembrar_ajustes(db)
         db.commit()
         n = len(datos["es"]["articulos"])
         print(f"Seed completado: {n} artículos en {', '.join(IDIOMAS)}.")

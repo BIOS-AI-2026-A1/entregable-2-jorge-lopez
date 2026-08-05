@@ -6,16 +6,18 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import admin_actual
-from app.models import Articulo
+from app.deps import requiere_nivel
+from app.models import Articulo, NivelAcceso
 from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404
 from app.schemas import ArticuloAdminOut, ArticuloIn, ArticuloUpdateIn
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict
 
+# El CRUD de artículos es una función de producto: la usa cualquier sesión válida
+# (Nivel 2, Standard, o superior).
 router = APIRouter(
     prefix="/api/admin/articulos",
     tags=["admin"],
-    dependencies=[Depends(admin_actual)],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.ESTANDAR))],
 )
 
 
