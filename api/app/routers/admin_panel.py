@@ -11,6 +11,7 @@ from app.models import Articulo, NivelAcceso, PreguntaSinResolver
 from app.routers.comun import exigir_id_disponible
 from app.schemas import ArticuloAdminOut, ArticuloIn, PreguntaAdminOut
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict, pregunta_a_dict
+from app.texto import normalizar_slug
 
 # El panel de preguntas sin resolver es una función de producto: Nivel 2 o superior.
 router = APIRouter(
@@ -40,7 +41,7 @@ def crear_articulo_desde_pregunta(
     pregunta = db.get(PreguntaSinResolver, pregunta_id)
     if pregunta is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pregunta no encontrada")
-    exigir_id_disponible(db, datos.id)
+    exigir_id_disponible(db, normalizar_slug(datos.id))
 
     a = Articulo()
     aplicar_datos_articulo(a, datos, incluir_id=True)

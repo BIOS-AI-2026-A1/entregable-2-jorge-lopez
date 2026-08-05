@@ -174,7 +174,18 @@
     "faqPreguntaMarcador": "Pergunta",
     "faqRespuesta": "Resposta {{n}}",
     "faqRespuestaMarcador": "Resposta",
-    "quitarFila": "Remover linha {{n}}"
+    "quitarFila": "Remover linha {{n}}",
+    "cerrar": "Fechar",
+    "idAutoAyuda": "É gerado a partir do título em espanhol. Você pode ajustá-lo antes de criar; depois fica fixo.",
+    "idBloqueadoAyuda": "O identificador não pode ser alterado depois que o artigo é criado.",
+    "actualizadoAyuda": "É definido automaticamente para a data de hoje ao salvar.",
+    "minutosAyuda": "É calculado pelo número de palavras do conteúdo.",
+    "slugAutoAyuda": "É gerado a partir do título. Você pode ajustá-lo.",
+    "traducirA": "Traduzir para {{idioma}}",
+    "traduciendo": "Traduzindo…",
+    "traduccionSinProveedor": "Não há provedor de IA configurado. Peça a um usuário Root que configure.",
+    "traduccionError": "Não foi possível traduzir. Tente novamente.",
+    "traduccionLista": "Tradução para {{idioma}} concluída. Revise antes de salvar."
   },
   "kcs": {
     "nueva": "Nova",
@@ -182,12 +193,11 @@
     "cubierta": "Coberta"
   },
   "ajustesEmpresa": {
-    "titulo": "Campo [Empresa]",
-    "etiqueta": "[Empresa]",
+    "titulo": "Nome da empresa",
     "ayuda": "Nome de marca que a central de ajuda exibe. Substitui o título e o logotipo.",
-    "guardar": "Salvar [Empresa]",
-    "guardado": "Campo [Empresa] atualizado.",
-    "error": "Não foi possível salvar o campo [Empresa]. Tente novamente."
+    "guardar": "Salvar",
+    "guardado": "Nome da empresa atualizado para «{{empresa}}».",
+    "error": "Não foi possível salvar «{{empresa}}». Tente novamente."
   },
   "gestionUsuarios": {
     "seccion": "Administração",
@@ -234,5 +244,23 @@
     "errorConflicto": "Não foi possível salvar: o e-mail já está em uso ou a operação deixaria o sistema sem um usuário Root ativo.",
     "errorSalvaguarda": "Não foi possível alterar o estado: você não pode desativar sua própria conta nem deixar o sistema sem um usuário Root ativo.",
     "errorRed": "Não foi possível conectar ao servidor."
+  },
+  "configIA": {
+    "titulo": "Provedor de IA",
+    "proveedor": "Provedor",
+    "clave": "Chave de API",
+    "clavePlaceholder": "Escreva uma nova chave para alterá-la",
+    "claveConfigurada": "configurada",
+    "claveSinConfigurar": "sem configurar",
+    "cargando": "Carregando configuração…",
+    "guardar": "Salvar",
+    "guardado": "Configuração de IA atualizada.",
+    "error": "Não foi possível salvar a configuração de IA. Tente novamente.",
+    "errorCifrado": "Falta a chave de criptografia no servidor (CLAVE_CIFRADO_IA). Não foi possível salvar a chave.",
+    "ayuda": "A chave é salva criptografada no servidor e nunca é exibida. Deixe em branco para manter a atual. Por padrão usa-se o Claude (Anthropic).",
+    "proveedores": {
+      "anthropic": "Claude (Anthropic)",
+      "google": "Google Translate"
+    }
   }
 }

@@ -11,6 +11,12 @@ import os
 os.environ.setdefault("JWT_SECRET", "secreto-de-pruebas-largo-y-sin-ningun-valor-real")
 os.environ.setdefault("ADMIN_PASSWORD", "contrasena-solo-para-los-tests")
 
+# Clave de cifrado válida (Fernet) para los tests de configuración de IA. Se genera
+# al vuelo: no es un secreto real y cada corrida usa una distinta.
+from cryptography.fernet import Fernet  # noqa: E402
+
+os.environ.setdefault("CLAVE_CIFRADO_IA", Fernet.generate_key().decode())
+
 from datetime import date  # noqa: E402
 
 import pytest  # noqa: E402

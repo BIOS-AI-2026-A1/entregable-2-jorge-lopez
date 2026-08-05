@@ -9,8 +9,16 @@ from app.database import get_db
 from app.deps import requiere_nivel
 from app.models import Articulo, NivelAcceso
 from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404
-from app.schemas import ArticuloAdminOut, ArticuloIn, ArticuloUpdateIn
+from app.schemas import (
+    ArticuloAdminOut,
+    ArticuloIn,
+    ArticuloUpdateIn,
+    TraduccionArticuloIn,
+    TraduccionPeticionIn,
+)
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict
+from app.servicios_ia import ProveedorTraduccion, obtener_traductor, traducir_contenido
+from app.texto import normalizar_slug
 
 # El CRUD de artículos es una función de producto: la usa cualquier sesión válida
 # (Nivel 2, Standard, o superior).
@@ -32,9 +40,25 @@ def obtener(articulo_id: str, db: Session = Depends(get_db)) -> dict:
     return articulo_a_admin_dict(obtener_articulo_o_404(db, articulo_id))
 
 
+@router.post("/traducir", response_model=TraduccionArticuloIn)
+def traducir(
+    datos: TraduccionPeticionIn,
+    traductor: ProveedorTraduccion = Depends(obtener_traductor),
+) -> dict:
+    """Traduce el contenido de un idioma al otro con el proveedor configurado.
+
+    No persiste nada: el frontend vuelca el resultado como borrador editable. Los
+    errores del proveedor (sin configurar, fallo/límite) los mapean a HTTP los
+    manejadores de `ErrorTraduccion` en `app.main`, tanto si se lanzan al resolver
+    el proveedor (dependencia) como al traducir.
+    """
+    return traducir_contenido(traductor, datos.origen, datos.contenido)
+
+
 @router.post("", response_model=ArticuloAdminOut, status_code=status.HTTP_201_CREATED)
 def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
-    exigir_id_disponible(db, datos.id)
+    # Se comprueba la disponibilidad con el id ya normalizado (el mismo que persiste).
+    exigir_id_disponible(db, normalizar_slug(datos.id))
     a = Articulo()
     aplicar_datos_articulo(a, datos, incluir_id=True)
     db.add(a)
