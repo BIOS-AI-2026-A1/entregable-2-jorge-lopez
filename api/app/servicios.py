@@ -17,6 +17,7 @@ from app.models import (
     Metrica,
     PreguntaSinResolver,
 )
+from app.texto import normalizar_slug
 
 IDIOMAS = ("es", "pt")
 
@@ -144,9 +145,13 @@ def pregunta_a_dict(p: PreguntaSinResolver) -> dict:
 def aplicar_datos_articulo(a: Articulo, datos, *, incluir_id: bool) -> None:
     """Vuelca los campos de un `ArticuloIn`/`ArticuloUpdateIn` en la entidad ORM."""
     if incluir_id:
-        a.id = datos.id
+        # El id es la clave estable entre idiomas: se normaliza en el servidor
+        # (autoridad) igual que en el cliente, no se confía en el valor crudo.
+        a.id = normalizar_slug(datos.id)
     a.categoria_id = datos.categoria
-    a.actualizado = date.fromisoformat(datos.actualizado)
+    # La fecha de actualización la sella el servidor a hoy en cada guardado (crear o
+    # editar); no se confía en el valor del cliente, que solo lo muestra de lectura.
+    a.actualizado = date.today()
     a.minutos_lectura = datos.minutosLectura
     a.destacado = datos.destacado
 
@@ -160,7 +165,7 @@ def aplicar_datos_articulo(a: Articulo, datos, *, incluir_id: bool) -> None:
         a.traducciones.append(
             ArticuloTraduccion(
                 idioma=idioma,
-                slug=t.slug,
+                slug=normalizar_slug(t.slug),
                 titulo=t.titulo,
                 parrafos=t.parrafos,
                 how_to=t.howTo.model_dump(),

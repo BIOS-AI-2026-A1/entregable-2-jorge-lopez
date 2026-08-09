@@ -4,11 +4,14 @@ import { Link, useNavigate, useRevalidator } from 'react-router-dom'
 import type { Idioma } from '@/types'
 import {
   eliminarArticulo,
+  guardarConfigIA,
   guardarEmpresa,
   listarPreguntas,
   obtenerArticulo,
+  obtenerConfigIA,
   obtenerSesion,
   type ArticuloAdmin,
+  type ConfigIAAdmin,
   type PreguntaAdmin,
   type SesionAdmin,
 } from '@/data/admin'
@@ -20,6 +23,7 @@ import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
 import { KcsChip } from '@/components/KcsChip'
 import { ArticuloForm } from '@/components/ArticuloForm'
+import { Modal } from '@/components/Modal'
 
 const ICONO_METRICA = {
   sinResolver: { icono: <Ic.HelpCircle size={22} className="text-indigo-700" />, fondo: 'bg-indigo-50' },
@@ -40,9 +44,15 @@ export function Panel({ idioma }: { idioma: Idioma }) {
   const [filtro, setFiltro] = useState<(typeof FILTROS)[number]>('todas')
   const [preguntas, setPreguntas] = useState<PreguntaAdmin[]>([])
   const [formulario, setFormulario] = useState<FormState | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
+  // El aviso lleva su tono: un error nunca debe mostrarse con la señal de éxito.
+  const [aviso, setAviso] = useState<{ texto: string; tono: 'exito' | 'error' } | null>(null)
+  const avisoExito = (texto: string) => setAviso({ texto, tono: 'exito' })
+  const avisoError = (texto: string) => setAviso({ texto, tono: 'error' })
   const [nivel, setNivel] = useState<number | null>(null)
   const [empresaInput, setEmpresaInput] = useState(contenido.empresa)
+  const [configIA, setConfigIA] = useState<ConfigIAAdmin | null>(null)
+  const [proveedorInput, setProveedorInput] = useState('anthropic')
+  const [claveInput, setClaveInput] = useState('')
 
   async function cargarPreguntas() {
     const resp = await listarPreguntas(idioma)
@@ -56,11 +66,28 @@ export function Panel({ idioma }: { idioma: Idioma }) {
     else if (resp.status === 401) navigate(rutas.login(idioma))
   }
 
+  async function cargarConfigIA() {
+    const resp = await obtenerConfigIA()
+    if (resp.ok) {
+      const cfg = (await resp.json()) as ConfigIAAdmin
+      setConfigIA(cfg)
+      setProveedorInput(cfg.proveedorActivo)
+    } else if (resp.status === 401) {
+      navigate(rutas.login(idioma))
+    }
+  }
+
   useEffect(() => {
     void cargarPreguntas()
     void cargarSesion()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idioma])
+
+  // La configuración de IA solo la ve (y pide) Root; se carga al conocer el nivel.
+  useEffect(() => {
+    if (esRoot(nivel)) void cargarConfigIA()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivel])
 
   // El input del campo [Empresa] sigue al valor servido si cambia (p. ej. tras revalidar).
   useEffect(() => {
@@ -71,14 +98,36 @@ export function Panel({ idioma }: { idioma: Idioma }) {
 
   async function guardarEmpresaHandler(evento: FormEvent) {
     evento.preventDefault()
-    const resp = await guardarEmpresa(empresaInput.trim())
+    const nombre = empresaInput.trim()
+    const resp = await guardarEmpresa(nombre)
     if (resp.ok) {
-      setAviso(t('ajustesEmpresa.guardado'))
+      avisoExito(t('ajustesEmpresa.guardado', { empresa: nombre }))
       revalidator.revalidate() // refresca el título y la marca con el nuevo valor
     } else if (resp.status === 401) {
       navigate(rutas.login(idioma))
     } else {
-      setAviso(t('ajustesEmpresa.error'))
+      avisoError(t('ajustesEmpresa.error', { empresa: nombre }))
+    }
+  }
+
+  async function guardarConfigIAHandler(evento: FormEvent) {
+    evento.preventDefault()
+    const clave = claveInput.trim()
+    const resp = await guardarConfigIA({
+      proveedorActivo: proveedorInput,
+      // Clave vacía = «no cambiar»: solo viaja si se escribió una nueva.
+      ...(clave ? { clave } : {}),
+    })
+    if (resp.ok) {
+      setConfigIA((await resp.json()) as ConfigIAAdmin)
+      setClaveInput('') // la clave nunca se conserva en el cliente
+      avisoExito(t('configIA.guardado'))
+    } else if (resp.status === 401) {
+      navigate(rutas.login(idioma))
+    } else if (resp.status === 409) {
+      avisoError(t('configIA.errorCifrado'))
+    } else {
+      avisoError(t('configIA.error'))
     }
   }
 
@@ -98,7 +147,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
       setFormulario({ modo: 'editar', inicial: (await resp.json()) as ArticuloAdmin })
       setAviso(null)
     } else {
-      setAviso(t('panelGestion.errorCargar'))
+      avisoError(t('panelGestion.errorCargar'))
     }
   }
 
@@ -106,16 +155,16 @@ export function Panel({ idioma }: { idioma: Idioma }) {
     if (!window.confirm(t('panelGestion.confirmarEliminar', { titulo }))) return
     const resp = await eliminarArticulo(id)
     if (resp.ok) {
-      setAviso(t('panelGestion.eliminado'))
+      avisoExito(t('panelGestion.eliminado'))
       await recargarTodo()
     } else {
-      setAviso(t('panelGestion.errorGuardar'))
+      avisoError(t('panelGestion.errorGuardar'))
     }
   }
 
   function alGuardado() {
     setFormulario(null)
-    setAviso(t('panelGestion.guardado'))
+    avisoExito(t('panelGestion.guardado'))
     void recargarTodo()
   }
 
@@ -177,11 +226,25 @@ export function Panel({ idioma }: { idioma: Idioma }) {
           </dl>
         </section>
 
-        <div role="status" aria-live="polite" className="min-h-[1.5rem]">
+        <div
+          role={aviso?.tono === 'error' ? 'alert' : 'status'}
+          aria-live={aviso?.tono === 'error' ? 'assertive' : 'polite'}
+          className="min-h-[1.5rem]"
+        >
           {aviso && (
-            <p className="inline-flex items-center gap-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-lg">
-              <Ic.CheckCircle size={15} className="text-emerald-700 shrink-0" />
-              {aviso}
+            <p
+              className={`inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${
+                aviso.tono === 'error'
+                  ? 'text-red-800 bg-red-50 border-red-200'
+                  : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+              }`}
+            >
+              {aviso.tono === 'error' ? (
+                <Ic.AlertCircle size={15} className="text-red-700 shrink-0" />
+              ) : (
+                <Ic.CheckCircle size={15} className="text-emerald-700 shrink-0" />
+              )}
+              {aviso.texto}
             </p>
           )}
         </div>
@@ -297,59 +360,63 @@ export function Panel({ idioma }: { idioma: Idioma }) {
             <h2 id="gestion-h2" className="text-xl font-semibold text-slate-900">
               {t('panelGestion.titulo')}
             </h2>
-            {!formulario && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFormulario({ modo: 'crear' })
-                  setAviso(null)
-                }}
-                className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
-                style={{ background: 'var(--acento)' }}
-              >
-                <Ic.Plus size={15} />
-                {t('panelGestion.nuevo')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setFormulario({ modo: 'crear' })
+                setAviso(null)
+              }}
+              className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+              style={{ background: 'var(--acento)' }}
+            >
+              <Ic.Plus size={15} />
+              {t('panelGestion.nuevo')}
+            </button>
           </div>
 
-          {formulario ? (
-            <ArticuloForm
-              categorias={contenido.categorias}
-              modo={formulario.modo}
-              inicial={formulario.inicial}
-              preguntaId={formulario.preguntaId}
+          <ul className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-200 list-none p-0 m-0">
+            {contenido.articulos.map(articulo => (
+              <li key={articulo.id} className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
+                <span className="text-sm font-medium text-slate-800">{articulo.titulo}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => abrirEditar(articulo.id)}
+                    aria-label={t('panelGestion.editarAria', { titulo: articulo.titulo })}
+                    className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                  >
+                    <Ic.Edit size={14} />
+                    {t('panelGestion.editar')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => eliminar(articulo.id, articulo.titulo)}
+                    aria-label={t('panelGestion.eliminarAria', { titulo: articulo.titulo })}
+                    className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                  >
+                    <Ic.Trash size={14} />
+                    {t('panelGestion.eliminar')}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {formulario && (
+            <Modal
+              labelledBy="form-articulo-h"
               onCerrar={() => setFormulario(null)}
-              onGuardado={alGuardado}
-            />
-          ) : (
-            <ul className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-200 list-none p-0 m-0">
-              {contenido.articulos.map(articulo => (
-                <li key={articulo.id} className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
-                  <span className="text-sm font-medium text-slate-800">{articulo.titulo}</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => abrirEditar(articulo.id)}
-                      aria-label={t('panelGestion.editarAria', { titulo: articulo.titulo })}
-                      className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                    >
-                      <Ic.Edit size={14} />
-                      {t('panelGestion.editar')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => eliminar(articulo.id, articulo.titulo)}
-                      aria-label={t('panelGestion.eliminarAria', { titulo: articulo.titulo })}
-                      className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                    >
-                      <Ic.Trash size={14} />
-                      {t('panelGestion.eliminar')}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
+              cerrarAlClicarFondo={false}
+            >
+              <ArticuloForm
+                categorias={contenido.categorias}
+                modo={formulario.modo}
+                inicial={formulario.inicial}
+                preguntaId={formulario.preguntaId}
+                onCerrar={() => setFormulario(null)}
+                onGuardado={alGuardado}
+              />
+            </Modal>
           )}
         </section>
 
@@ -368,9 +435,6 @@ export function Panel({ idioma }: { idioma: Idioma }) {
               <h3 id="empresa-h3" className="text-sm font-semibold text-slate-900">
                 {t('ajustesEmpresa.titulo')}
               </h3>
-              <label htmlFor="campo-empresa" className="block text-sm font-medium text-slate-700">
-                {t('ajustesEmpresa.etiqueta')}
-              </label>
               <div className="flex items-end gap-2 flex-wrap">
                 <input
                   id="campo-empresa"
@@ -378,6 +442,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
                   required
                   value={empresaInput}
                   onChange={e => setEmpresaInput(e.target.value)}
+                  aria-labelledby="empresa-h3"
                   aria-describedby="empresa-ayuda"
                   className="flex-1 min-w-[16rem] px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
                 />
@@ -393,6 +458,71 @@ export function Panel({ idioma }: { idioma: Idioma }) {
               <p id="empresa-ayuda" className="text-xs text-slate-500">
                 {t('ajustesEmpresa.ayuda')}
               </p>
+            </form>
+
+            <form
+              onSubmit={guardarConfigIAHandler}
+              className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"
+              aria-labelledby="config-ia-h3"
+            >
+              <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
+                {t('configIA.titulo')}
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="config-ia-proveedor" className="block text-sm font-medium text-slate-700 mb-1">
+                    {t('configIA.proveedor')}
+                  </label>
+                  <select
+                    id="config-ia-proveedor"
+                    value={proveedorInput}
+                    onChange={e => setProveedorInput(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                  >
+                    <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
+                    <option value="google">{t('configIA.proveedores.google')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="config-ia-clave" className="block text-sm font-medium text-slate-700 mb-1">
+                    {t('configIA.clave')}
+                  </label>
+                  <input
+                    id="config-ia-clave"
+                    type="password"
+                    value={claveInput}
+                    onChange={e => setClaveInput(e.target.value)}
+                    autoComplete="off"
+                    placeholder={t('configIA.clavePlaceholder')}
+                    aria-describedby="config-ia-estado"
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                  />
+                </div>
+              </div>
+              <p id="config-ia-estado" className="text-xs text-slate-600">
+                {configIA
+                  ? configIA.proveedores.map(pr => (
+                      <span key={pr.id} className="inline-flex items-center gap-1 mr-3">
+                        {pr.configurada ? (
+                          <Ic.CheckCircle size={13} className="text-emerald-700" />
+                        ) : (
+                          <Ic.AlertCircle size={13} className="text-slate-500" />
+                        )}
+                        {t(`configIA.proveedores.${pr.id}`)}:{' '}
+                        {pr.configurada ? t('configIA.claveConfigurada') : t('configIA.claveSinConfigurar')}
+                      </span>
+                    ))
+                  : t('configIA.cargando')}
+              </p>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+                style={{ background: 'var(--acento)' }}
+              >
+                <Ic.Save size={15} />
+                {t('configIA.guardar')}
+              </button>
+              <p className="text-xs text-slate-500">{t('configIA.ayuda')}</p>
             </form>
 
             <Link

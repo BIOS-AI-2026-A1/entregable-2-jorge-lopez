@@ -64,8 +64,11 @@ Lo establecido hasta ahora:
 - **Acceso jerárquico estricto (`Root ⊃ Standard ⊃ Anonymous`):** la autorización se aplica **en el
   servidor**, no solo ocultando controles en la interfaz; un usuario nunca alcanza un recurso por encima de
   su nivel, ni por petición directa.
-- **`[Empresa]` es un nombre literal**, no un marcador de posición: se conserva tal cual como nombre del
-  campo y de su etiqueta en el código y la interfaz.
+- **`[Empresa]` es el identificador interno del campo de marca**, no un marcador de posición: se conserva
+  tal cual en el modelo de datos, la API y las claves de código (p. ej. `guardarEmpresa`, rutas y esquemas).
+  En la **interfaz de administración** ya no se muestra ese literal: el campo se rotula "Nombre de empresa"
+  (pt "Nome da empresa") y los avisos de guardado y error muestran el valor que el administrador guardó
+  (interpolado como `{{empresa}}`), no el texto `[Empresa]`.
 - **Secretos fuera del repo:** cadena de conexión, secreto de firma JWT y credenciales de administrador van
   en variables de entorno (`.env` ignorado), con un `.env.example` sin valores reales.
 - **Licencia: Business Source License 1.1** (`LICENSE`, con `license: "BUSL-1.1"` en `app/package.json` y

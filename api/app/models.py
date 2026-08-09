@@ -171,3 +171,20 @@ class Ajustes(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     empresa: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ConfigIA(Base):
+    """Configuración del proveedor de IA. Fila única (`id=1`), editable solo por Root.
+
+    `proveedor_activo` es el proveedor que se usa para las tareas de IA (traducción
+    hoy; RAG en el futuro). `claves` mapea proveedor -> clave de API **cifrada en
+    reposo** (ver `app.cifrado`); nunca guarda la clave en claro ni la expone al
+    cliente. Es un singleton: la configuración de IA es global a la instalación.
+    """
+
+    __tablename__ = "config_ia"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    proveedor_activo: Mapped[str] = mapped_column(String, nullable=False, default="anthropic")
+    # {proveedor: token_cifrado}. JSONB en Postgres, JSON en SQLite (tests).
+    claves: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
