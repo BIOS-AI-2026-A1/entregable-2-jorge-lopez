@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate, useRevalidator } from 'react-router-dom'
+import { Link, useNavigate, useRevalidator, useSearchParams } from 'react-router-dom'
 import type { Idioma } from '@/types'
 import {
   eliminarArticulo,
@@ -24,6 +24,8 @@ import { Ic } from '@/components/iconos'
 import { KcsChip } from '@/components/KcsChip'
 import { ArticuloForm } from '@/components/ArticuloForm'
 import { Modal } from '@/components/Modal'
+import { Tabs, type Pestana } from '@/components/Tabs'
+import { resolverPestana, type PestanaId } from './panelPestanas'
 
 const ICONO_METRICA = {
   sinResolver: { icono: <Ic.HelpCircle size={22} className="text-indigo-700" />, fondo: 'bg-indigo-50' },
@@ -40,6 +42,7 @@ export function Panel({ idioma }: { idioma: Idioma }) {
   const navigate = useNavigate()
   const revalidator = useRevalidator()
   const contenido = useContenido(idioma)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [filtro, setFiltro] = useState<(typeof FILTROS)[number]>('todas')
   const [preguntas, setPreguntas] = useState<PreguntaAdmin[]>([])
@@ -95,6 +98,16 @@ export function Panel({ idioma }: { idioma: Idioma }) {
   }, [contenido.empresa])
 
   const puedeRoot = esRoot(nivel)
+
+  // La pestaña activa vive en la dirección (?seccion=…); el helper impide llegar
+  // a la de administración por URL sin ser Root y cae al valor por defecto si el
+  // parámetro es desconocido.
+  const pestanaActiva = resolverPestana(searchParams.get('seccion'), puedeRoot)
+  function cambiarPestana(id: PestanaId) {
+    const proximo = new URLSearchParams(searchParams)
+    proximo.set('seccion', id)
+    setSearchParams(proximo, { replace: true }) // no ensucia el historial
+  }
 
   async function guardarEmpresaHandler(evento: FormEvent) {
     evento.preventDefault()
@@ -175,6 +188,335 @@ export function Panel({ idioma }: { idioma: Idioma }) {
     pregunta: 'text-left', veces: 'text-right', similitud: 'text-right', fecha: 'text-left', estado: 'text-left', accion: 'text-left',
   }
 
+  // ── Contenido de la pestaña «Preguntas sin resolver» ─────────────────────────
+  const contenidoSinResolver = (
+    <div className="space-y-8">
+      <p className="text-slate-600 text-sm">{t('panel.subtitulo')}</p>
+
+      <section aria-labelledby="metrics-h2">
+        <h2 id="metrics-h2" className="sr-only">
+          {t('panel.metricasAria')}
+        </h2>
+        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {contenido.metricas.map(metrica => {
+            const { icono, fondo } = ICONO_METRICA[metrica.clave]
+            const termino = t(`panel.metricas.${metrica.clave}`)
+            return (
+              <div key={metrica.clave} className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start gap-4">
+                <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${fondo}`}>{icono}</div>
+                <div>
+                  <dt className="text-xs font-semibold text-slate-600 uppercase tracking-wide leading-snug">{termino}</dt>
+                  <dd className="text-3xl font-bold text-slate-900 mt-1 leading-none">
+                    <span className="sr-only">{`${metrica.valor} — ${termino}`}</span>
+                    <span aria-hidden="true">{metrica.valor}</span>
+                  </dd>
+                  <p className="text-xs text-slate-500 mt-1">{t(`panel.metricas.${metrica.clave}Sub`)}</p>
+                </div>
+              </div>
+            )
+          })}
+        </dl>
+      </section>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <span id="filtro-etiqueta" className="text-sm font-medium text-slate-700">
+          {t('panel.filtrar')}
+        </span>
+        <div className="flex items-center gap-2 flex-wrap" role="group" aria-labelledby="filtro-etiqueta">
+          {FILTROS.map(valor => {
+            const activo = filtro === valor
+            return (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setFiltro(valor)}
+                aria-pressed={activo}
+                className={`px-3 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px] ${
+                  activo
+                    ? 'bg-indigo-700 text-white border-indigo-700'
+                    : 'bg-white text-slate-700 border-slate-500 hover:border-indigo-600 hover:text-indigo-800'
+                }`}
+              >
+                {valor === 'todas' ? t('panel.filtroTodas') : t(`kcs.${valor}`)}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <section aria-labelledby="table-h2">
+        <h2 id="table-h2" className="sr-only">
+          {t('panel.tablaTitulo')}
+        </h2>
+        <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" aria-label={t('panel.tablaAria')}>
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  {columnas.map(columna => (
+                    <th
+                      key={columna}
+                      scope="col"
+                      className={`px-4 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap ${alineacion[columna]}`}
+                    >
+                      {t(`panel.columnas.${columna}`)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filas.map(fila => {
+                  const porcentaje = Math.round(fila.similitud * 100)
+                  const fecha = fechaLegible(fila.fecha, i18n.language)
+                  return (
+                    <tr key={fila.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3.5 text-slate-800 font-medium max-w-[280px]">
+                        <span className="leading-snug">{fila.pregunta}</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        <span className="font-semibold text-slate-900">{fila.veces}</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right tabular-nums">
+                        <span
+                          className={`font-semibold ${
+                            fila.similitud >= 0.8 ? 'text-emerald-800' : fila.similitud >= 0.6 ? 'text-amber-800' : 'text-slate-600'
+                          }`}
+                        >
+                          <span className="sr-only">{t('panel.similitudAria', { porcentaje })}</span>
+                          <span aria-hidden="true">{porcentaje} %</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap text-xs">
+                        <time dateTime={fila.fecha}>{fecha}</time>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <KcsChip estado={fila.estado} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {fila.estado !== 'cubierta' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormulario({ modo: 'crear', preguntaId: fila.id })
+                              setAviso(null)
+                            }}
+                            aria-label={t('panel.crearArticuloAria', { pregunta: fila.pregunta })}
+                            className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-800 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px] whitespace-nowrap"
+                          >
+                            <Ic.Plus size={13} />
+                            {t('panel.crearArticulo')}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-600 italic">{t('panel.articuloExistente')}</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="px-4 py-3 border-t border-slate-200 text-xs text-slate-600 bg-slate-50/50">
+            {t('panel.mostrando', { visibles: filas.length, total: preguntas.length })}
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+
+  // ── Contenido de la pestaña «Gestión de artículos» ───────────────────────────
+  const contenidoGestion = (
+    <section aria-labelledby="gestion-h2" className="space-y-4">
+      <h2 id="gestion-h2" className="sr-only">
+        {t('panelGestion.titulo')}
+      </h2>
+      <div className="flex items-center justify-end gap-4 flex-wrap">
+        <button
+          type="button"
+          onClick={() => {
+            setFormulario({ modo: 'crear' })
+            setAviso(null)
+          }}
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+          style={{ background: 'var(--acento)' }}
+        >
+          <Ic.Plus size={15} />
+          {t('panelGestion.nuevo')}
+        </button>
+      </div>
+
+      <ul className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-200 list-none p-0 m-0">
+        {contenido.articulos.map(articulo => (
+          <li key={articulo.id} className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
+            <span className="text-sm font-medium text-slate-800">{articulo.titulo}</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => abrirEditar(articulo.id)}
+                aria-label={t('panelGestion.editarAria', { titulo: articulo.titulo })}
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+              >
+                <Ic.Edit size={14} />
+                {t('panelGestion.editar')}
+              </button>
+              <button
+                type="button"
+                onClick={() => eliminar(articulo.id, articulo.titulo)}
+                aria-label={t('panelGestion.eliminarAria', { titulo: articulo.titulo })}
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+              >
+                <Ic.Trash size={14} />
+                {t('panelGestion.eliminar')}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      {formulario && (
+        <Modal
+          labelledBy="form-articulo-h"
+          onCerrar={() => setFormulario(null)}
+          cerrarAlClicarFondo={false}
+        >
+          <ArticuloForm
+            categorias={contenido.categorias}
+            modo={formulario.modo}
+            inicial={formulario.inicial}
+            preguntaId={formulario.preguntaId}
+            onCerrar={() => setFormulario(null)}
+            onGuardado={alGuardado}
+          />
+        </Modal>
+      )}
+    </section>
+  )
+
+  // ── Contenido de la pestaña «Administración» (solo Root) ─────────────────────
+  const contenidoAdmin = (
+    <section aria-labelledby="root-h2" className="space-y-4">
+      <h2 id="root-h2" className="sr-only">
+        {t('panel.seccionRoot')}
+      </h2>
+
+      <form
+        onSubmit={guardarEmpresaHandler}
+        className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"
+        aria-labelledby="empresa-h3"
+      >
+        <h3 id="empresa-h3" className="text-sm font-semibold text-slate-900">
+          {t('ajustesEmpresa.titulo')}
+        </h3>
+        <div className="flex items-end gap-2 flex-wrap">
+          <input
+            id="campo-empresa"
+            type="text"
+            required
+            value={empresaInput}
+            onChange={e => setEmpresaInput(e.target.value)}
+            aria-labelledby="empresa-h3"
+            aria-describedby="empresa-ayuda"
+            className="flex-1 min-w-[16rem] px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+          />
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+            style={{ background: 'var(--acento)' }}
+          >
+            <Ic.Save size={15} />
+            {t('ajustesEmpresa.guardar')}
+          </button>
+        </div>
+        <p id="empresa-ayuda" className="text-xs text-slate-500">
+          {t('ajustesEmpresa.ayuda')}
+        </p>
+      </form>
+
+      <form
+        onSubmit={guardarConfigIAHandler}
+        className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"
+        aria-labelledby="config-ia-h3"
+      >
+        <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
+          {t('configIA.titulo')}
+        </h3>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="config-ia-proveedor" className="block text-sm font-medium text-slate-700 mb-1">
+              {t('configIA.proveedor')}
+            </label>
+            <select
+              id="config-ia-proveedor"
+              value={proveedorInput}
+              onChange={e => setProveedorInput(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+            >
+              <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
+              <option value="google">{t('configIA.proveedores.google')}</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="config-ia-clave" className="block text-sm font-medium text-slate-700 mb-1">
+              {t('configIA.clave')}
+            </label>
+            <input
+              id="config-ia-clave"
+              type="password"
+              value={claveInput}
+              onChange={e => setClaveInput(e.target.value)}
+              autoComplete="off"
+              placeholder={t('configIA.clavePlaceholder')}
+              aria-describedby="config-ia-estado"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+            />
+          </div>
+        </div>
+        <p id="config-ia-estado" className="text-xs text-slate-600">
+          {configIA
+            ? configIA.proveedores.map(pr => (
+                <span key={pr.id} className="inline-flex items-center gap-1 mr-3">
+                  {pr.configurada ? (
+                    <Ic.CheckCircle size={13} className="text-emerald-700" />
+                  ) : (
+                    <Ic.AlertCircle size={13} className="text-slate-500" />
+                  )}
+                  {t(`configIA.proveedores.${pr.id}`)}:{' '}
+                  {pr.configurada ? t('configIA.claveConfigurada') : t('configIA.claveSinConfigurar')}
+                </span>
+              ))
+            : t('configIA.cargando')}
+        </p>
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+          style={{ background: 'var(--acento)' }}
+        >
+          <Ic.Save size={15} />
+          {t('configIA.guardar')}
+        </button>
+        <p className="text-xs text-slate-500">{t('configIA.ayuda')}</p>
+      </form>
+
+      <Link
+        to={rutas.usuarios(idioma)}
+        className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+      >
+        <Ic.User size={15} />
+        {t('gestionUsuarios.enlace')}
+      </Link>
+    </section>
+  )
+
+  // La pestaña «Administración» solo se ofrece a Root; los demás niveles ven dos.
+  const pestanas: Pestana<PestanaId>[] = [
+    { id: 'sinResolver', etiqueta: t('panel.titulo'), contenido: contenidoSinResolver },
+    { id: 'gestion', etiqueta: t('panelGestion.titulo'), contenido: contenidoGestion },
+  ]
+  if (puedeRoot) {
+    pestanas.push({ id: 'admin', etiqueta: t('panel.seccionRoot'), contenido: contenidoAdmin })
+  }
+
   return (
     <main id="main-content" tabIndex={-1} className="focus:outline-none">
       <div className="border-b border-slate-200 bg-white">
@@ -185,9 +527,8 @@ export function Panel({ idioma }: { idioma: Idioma }) {
               {t('panel.seccion')}
             </div>
             <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: "'DM Serif Display', serif" }}>
-              {t('panel.titulo')}
+              {t('panel.tituloGeneral')}
             </h1>
-            <p className="text-slate-600 text-sm mt-1">{t('panel.subtitulo')}</p>
           </div>
           <button
             type="button"
@@ -200,36 +541,13 @@ export function Panel({ idioma }: { idioma: Idioma }) {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        <section aria-labelledby="metrics-h2">
-          <h2 id="metrics-h2" className="sr-only">
-            {t('panel.metricasAria')}
-          </h2>
-          <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {contenido.metricas.map(metrica => {
-              const { icono, fondo } = ICONO_METRICA[metrica.clave]
-              const termino = t(`panel.metricas.${metrica.clave}`)
-              return (
-                <div key={metrica.clave} className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start gap-4">
-                  <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${fondo}`}>{icono}</div>
-                  <div>
-                    <dt className="text-xs font-semibold text-slate-600 uppercase tracking-wide leading-snug">{termino}</dt>
-                    <dd className="text-3xl font-bold text-slate-900 mt-1 leading-none">
-                      <span className="sr-only">{`${metrica.valor} — ${termino}`}</span>
-                      <span aria-hidden="true">{metrica.valor}</span>
-                    </dd>
-                    <p className="text-xs text-slate-500 mt-1">{t(`panel.metricas.${metrica.clave}Sub`)}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </dl>
-        </section>
-
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        {/* Región de aviso compartida: vive fuera de las pestañas para anunciar
+            el resultado de cualquier sección sea cual sea la pestaña activa. */}
         <div
           role={aviso?.tono === 'error' ? 'alert' : 'status'}
           aria-live={aviso?.tono === 'error' ? 'assertive' : 'polite'}
-          className="min-h-[1.5rem]"
+          className="min-h-[1.5rem] mb-6"
         >
           {aviso && (
             <p
@@ -249,291 +567,12 @@ export function Panel({ idioma }: { idioma: Idioma }) {
           )}
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <span id="filtro-etiqueta" className="text-sm font-medium text-slate-700">
-            {t('panel.filtrar')}
-          </span>
-          <div className="flex items-center gap-2 flex-wrap" role="group" aria-labelledby="filtro-etiqueta">
-            {FILTROS.map(valor => {
-              const activo = filtro === valor
-              return (
-                <button
-                  key={valor}
-                  type="button"
-                  onClick={() => setFiltro(valor)}
-                  aria-pressed={activo}
-                  className={`px-3 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px] ${
-                    activo
-                      ? 'bg-indigo-700 text-white border-indigo-700'
-                      : 'bg-white text-slate-700 border-slate-500 hover:border-indigo-600 hover:text-indigo-800'
-                  }`}
-                >
-                  {valor === 'todas' ? t('panel.filtroTodas') : t(`kcs.${valor}`)}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <section aria-labelledby="table-h2">
-          <h2 id="table-h2" className="sr-only">
-            {t('panel.tablaTitulo')}
-          </h2>
-          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label={t('panel.tablaAria')}>
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    {columnas.map(columna => (
-                      <th
-                        key={columna}
-                        scope="col"
-                        className={`px-4 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap ${alineacion[columna]}`}
-                      >
-                        {t(`panel.columnas.${columna}`)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {filas.map(fila => {
-                    const porcentaje = Math.round(fila.similitud * 100)
-                    const fecha = fechaLegible(fila.fecha, i18n.language)
-                    return (
-                      <tr key={fila.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3.5 text-slate-800 font-medium max-w-[280px]">
-                          <span className="leading-snug">{fila.pregunta}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right tabular-nums">
-                          <span className="font-semibold text-slate-900">{fila.veces}</span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right tabular-nums">
-                          <span
-                            className={`font-semibold ${
-                              fila.similitud >= 0.8 ? 'text-emerald-800' : fila.similitud >= 0.6 ? 'text-amber-800' : 'text-slate-600'
-                            }`}
-                          >
-                            <span className="sr-only">{t('panel.similitudAria', { porcentaje })}</span>
-                            <span aria-hidden="true">{porcentaje} %</span>
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap text-xs">
-                          <time dateTime={fila.fecha}>{fecha}</time>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <KcsChip estado={fila.estado} />
-                        </td>
-                        <td className="px-4 py-3.5">
-                          {fila.estado !== 'cubierta' ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormulario({ modo: 'crear', preguntaId: fila.id })
-                                setAviso(null)
-                              }}
-                              aria-label={t('panel.crearArticuloAria', { pregunta: fila.pregunta })}
-                              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-800 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px] whitespace-nowrap"
-                            >
-                              <Ic.Plus size={13} />
-                              {t('panel.crearArticulo')}
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-600 italic">{t('panel.articuloExistente')}</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="px-4 py-3 border-t border-slate-200 text-xs text-slate-600 bg-slate-50/50">
-              {t('panel.mostrando', { visibles: filas.length, total: preguntas.length })}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Gestión de artículos ─────────────────── */}
-        <section aria-labelledby="gestion-h2" className="space-y-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h2 id="gestion-h2" className="text-xl font-semibold text-slate-900">
-              {t('panelGestion.titulo')}
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setFormulario({ modo: 'crear' })
-                setAviso(null)
-              }}
-              className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
-              style={{ background: 'var(--acento)' }}
-            >
-              <Ic.Plus size={15} />
-              {t('panelGestion.nuevo')}
-            </button>
-          </div>
-
-          <ul className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-200 list-none p-0 m-0">
-            {contenido.articulos.map(articulo => (
-              <li key={articulo.id} className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
-                <span className="text-sm font-medium text-slate-800">{articulo.titulo}</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => abrirEditar(articulo.id)}
-                    aria-label={t('panelGestion.editarAria', { titulo: articulo.titulo })}
-                    className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                  >
-                    <Ic.Edit size={14} />
-                    {t('panelGestion.editar')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => eliminar(articulo.id, articulo.titulo)}
-                    aria-label={t('panelGestion.eliminarAria', { titulo: articulo.titulo })}
-                    className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                  >
-                    <Ic.Trash size={14} />
-                    {t('panelGestion.eliminar')}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {formulario && (
-            <Modal
-              labelledBy="form-articulo-h"
-              onCerrar={() => setFormulario(null)}
-              cerrarAlClicarFondo={false}
-            >
-              <ArticuloForm
-                categorias={contenido.categorias}
-                modo={formulario.modo}
-                inicial={formulario.inicial}
-                preguntaId={formulario.preguntaId}
-                onCerrar={() => setFormulario(null)}
-                onGuardado={alGuardado}
-              />
-            </Modal>
-          )}
-        </section>
-
-        {/* ── Administración (solo Root) ───────────── */}
-        {puedeRoot && (
-          <section aria-labelledby="root-h2" className="space-y-4 pt-2 border-t border-slate-200">
-            <h2 id="root-h2" className="text-xl font-semibold text-slate-900 pt-4">
-              {t('panel.seccionRoot')}
-            </h2>
-
-            <form
-              onSubmit={guardarEmpresaHandler}
-              className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"
-              aria-labelledby="empresa-h3"
-            >
-              <h3 id="empresa-h3" className="text-sm font-semibold text-slate-900">
-                {t('ajustesEmpresa.titulo')}
-              </h3>
-              <div className="flex items-end gap-2 flex-wrap">
-                <input
-                  id="campo-empresa"
-                  type="text"
-                  required
-                  value={empresaInput}
-                  onChange={e => setEmpresaInput(e.target.value)}
-                  aria-labelledby="empresa-h3"
-                  aria-describedby="empresa-ayuda"
-                  className="flex-1 min-w-[16rem] px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                />
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
-                  style={{ background: 'var(--acento)' }}
-                >
-                  <Ic.Save size={15} />
-                  {t('ajustesEmpresa.guardar')}
-                </button>
-              </div>
-              <p id="empresa-ayuda" className="text-xs text-slate-500">
-                {t('ajustesEmpresa.ayuda')}
-              </p>
-            </form>
-
-            <form
-              onSubmit={guardarConfigIAHandler}
-              className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3"
-              aria-labelledby="config-ia-h3"
-            >
-              <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
-                {t('configIA.titulo')}
-              </h3>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="config-ia-proveedor" className="block text-sm font-medium text-slate-700 mb-1">
-                    {t('configIA.proveedor')}
-                  </label>
-                  <select
-                    id="config-ia-proveedor"
-                    value={proveedorInput}
-                    onChange={e => setProveedorInput(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                  >
-                    <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
-                    <option value="google">{t('configIA.proveedores.google')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="config-ia-clave" className="block text-sm font-medium text-slate-700 mb-1">
-                    {t('configIA.clave')}
-                  </label>
-                  <input
-                    id="config-ia-clave"
-                    type="password"
-                    value={claveInput}
-                    onChange={e => setClaveInput(e.target.value)}
-                    autoComplete="off"
-                    placeholder={t('configIA.clavePlaceholder')}
-                    aria-describedby="config-ia-estado"
-                    className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-                  />
-                </div>
-              </div>
-              <p id="config-ia-estado" className="text-xs text-slate-600">
-                {configIA
-                  ? configIA.proveedores.map(pr => (
-                      <span key={pr.id} className="inline-flex items-center gap-1 mr-3">
-                        {pr.configurada ? (
-                          <Ic.CheckCircle size={13} className="text-emerald-700" />
-                        ) : (
-                          <Ic.AlertCircle size={13} className="text-slate-500" />
-                        )}
-                        {t(`configIA.proveedores.${pr.id}`)}:{' '}
-                        {pr.configurada ? t('configIA.claveConfigurada') : t('configIA.claveSinConfigurar')}
-                      </span>
-                    ))
-                  : t('configIA.cargando')}
-              </p>
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
-                style={{ background: 'var(--acento)' }}
-              >
-                <Ic.Save size={15} />
-                {t('configIA.guardar')}
-              </button>
-              <p className="text-xs text-slate-500">{t('configIA.ayuda')}</p>
-            </form>
-
-            <Link
-              to={rutas.usuarios(idioma)}
-              className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-            >
-              <Ic.User size={15} />
-              {t('gestionUsuarios.enlace')}
-            </Link>
-          </section>
-        )}
+        <Tabs
+          pestanas={pestanas}
+          activa={pestanaActiva}
+          onCambio={cambiarPestana}
+          etiquetaLista={t('panel.tabsAria')}
+        />
       </div>
     </main>
   )
