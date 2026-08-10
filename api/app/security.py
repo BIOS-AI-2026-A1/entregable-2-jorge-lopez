@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -41,3 +43,21 @@ def decodificar_token(token: str) -> str | None:
         return None
     sub = payload.get("sub")
     return sub if isinstance(sub, str) else None
+
+
+# --- Refresh tokens opacos -------------------------------------------------
+#
+# El refresh token NO es un JWT: es un valor aleatorio opaco. Se entrega en claro
+# al cliente (cookie httpOnly) pero en la base solo se guarda su hash SHA-256, de
+# modo que una fuga de la base no permite reutilizar sesiones. Al ser de un solo
+# uso (rota en cada renovación), no necesita el coste de argon2.
+
+
+def generar_refresh_token() -> str:
+    """Devuelve un refresh token opaco de 256 bits, seguro para URL/cookie."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_refresh(token: str) -> str:
+    """Hash con el que se busca y almacena el refresh token (nunca el valor en claro)."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

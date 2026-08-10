@@ -80,6 +80,8 @@
   },
   "panel": {
     "seccion": "Panel interno",
+    "tituloGeneral": "Panel de administración",
+    "tabsAria": "Secciones del panel",
     "titulo": "Preguntas sin resolver",
     "subtitulo": "Ciclo KCS — candidatos a nuevo artículo de conocimiento",
     "actualizacion": "Última actualización: hoy, 09:41 h",

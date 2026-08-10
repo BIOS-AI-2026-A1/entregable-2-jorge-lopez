@@ -4,6 +4,11 @@
 node_modules/
 app/dist/
 
+# Frontend (Next.js)
+app/.next/
+app/next-env.d.ts
+app/*.tsbuildinfo
+
 # Backend (Python)
 __pycache__/
 *.py[cod]

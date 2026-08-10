@@ -4,25 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-Proyecto capstone: una aplicación de **Centro de Ayuda**. Hoy existe un **prototipo frontend funcional**
-en `app/` (las 4 pantallas, bilingüe) y el **backend del cambio OpenSpec `backend-cms-autenticacion`
-implementado y validado** en `api/` (incluye el control de acceso en tres niveles Anonymous / Standard /
-Root), pendiente solo de integrar por PR. Varias secciones de este documento se irán completando a medida
-que se construya.
+Proyecto capstone: una aplicación de **Centro de Ayuda**. El **frontend** vive en `app/` (las 4 pantallas,
+bilingüe), migrado a **Next.js (App Router) con renderizado en servidor y sesión en cookie httpOnly**
+(cambio OpenSpec `migrar-frontend-nextjs`), y el **backend** en `api/` (FastAPI) incluye el control de
+acceso en tres niveles Anonymous / Standard / Root. Varias secciones de este documento se irán completando
+a medida que se construya.
 
 ## Stack
 
-El prototipo funcional vive en `app/`:
+El frontend vive en `app/`:
 
-- **React 19 + TypeScript**, con **Vite 8** como servidor de desarrollo y empaquetador.
-- **Tailwind CSS v4** mediante `@tailwindcss/vite`, sin archivo de configuración ni PostCSS.
-- **react-router-dom 7** con el idioma en el primer segmento de la dirección (`/es/…`, `/pt/…`).
-- **react-i18next** para las etiquetas de interfaz; el contenido vive en módulos tipados por idioma.
-- Estado local con `useState`. El prototipo funciona **sin backend**: el contenido son módulos estáticos.
+- **Next.js 16 (App Router) + React 19 + TypeScript.** Enrutado por archivos con el idioma en el primer
+  segmento (`app/app/[idioma]/…` → `/es/…`, `/pt/…`); `next dev`/`next build` como servidor y empaquetador.
+- **Contenido público renderizado en servidor** (Server Components): inicio y artículo llegan en el HTML
+  inicial; solo son islas de cliente los componentes con estado.
+- **Sesión de administrador en cookies `httpOnly` (patrón BFF).** El token JWT nunca llega al navegador:
+  lo custodian los Route Handlers de `app/app/api/*`, que reenvían al backend con `Authorization: Bearer`.
+  Un refresh token opaco y rotatorio renueva el acceso. Las guardias del panel se resuelven en servidor
+  (`app/proxy.ts` en el borde + `sesionActual()` en las páginas).
+- **Traducción isomórfica** con i18next (`src/i18n/traducir.ts`, `getFixedT`), sin idioma global mutable;
+  funciona igual en Server y Client Components. react-i18next se conserva solo para los componentes
+  reutilizados del panel (`PanelI18n` fija el idioma antes de renderizarlos).
+- **Tailwind CSS v4** mediante `@tailwindcss/postcss`, sin archivo de configuración; el acento sigue
+  expuesto como token `--acento`.
+- El contenido lo sirve la API por idioma; las pantallas lo consumen por `src/data/` sin tocar su ARIA.
 
-Se eligió este stack porque el prototipo de `design/` ya era una aplicación React funcional con la
-accesibilidad resuelta: se portó en lugar de reescribirla. El razonamiento completo, con las alternativas
-descartadas, está en `openspec/changes/archive/2026-07-28-prototipo-centro-ayuda/design.md`.
+Se llegó aquí **migrando el prototipo SPA** (React + Vite + react-router, con el token en `localStorage`)
+a Next.js: cambio OpenSpec `migrar-frontend-nextjs` (SSR del contenido público, sesión en cookie httpOnly
+y guardias en servidor). El razonamiento del prototipo original, con las alternativas descartadas, está en
+`openspec/changes/archive/2026-07-28-prototipo-centro-ayuda/design.md`.
 
 El `.zip` de `design/` sigue siendo **referencia visual**; no se edita ni se descomprime dentro del repo.
 
@@ -33,7 +43,7 @@ y tests) y **validado localmente**: migraciones (incluida `0002`), seed y `pytes
 de integrar por PR. El razonamiento completo con alternativas está en el `design.md` de ese cambio.
 
 - **FastAPI + Python** (Pydantic + SQLAlchemy + Alembic). Se eligió Python por el RAG futuro; los esquemas
-  Pydantic reproducen `src/types.ts` campo a campo y Vite proxya `/api`.
+  Pydantic reproducen `src/types.ts` campo a campo y Next reescribe `/api/(es|pt)/*` al backend en desarrollo.
 - **PostgreSQL + pgvector** como única base de datos (RAG-ready desde la primera migración), levantada con
   Docker Compose. Modelo bilingüe entidad estable + traducciones por idioma; `parrafos`/`how_to`/`faq` en
   JSONB; métricas del panel derivadas por consulta.
@@ -43,8 +53,9 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
   Standard (panel + funciones de producto) y Root (además gestión de usuarios y campo `[Empresa]`). La
   dependencia `requiere_nivel` aplica la autorización **en el servidor** (403 por nivel insuficiente),
   leyendo nivel y estado `activo` de la base en cada petición (no del JWT), para revocar acceso al instante.
-- **Consumo desde el frontend** con **loaders de react-router-dom 7**: `src/data/index.ts` pasa a llamar a
-  la API sin tocar componentes ni su ARIA.
+- **Consumo desde el frontend** con **Server Components de Next**: el contenido público se carga en el
+  servidor (`src/data/servidor.ts`) y el panel usa el BFF por cookie (`src/bff/apiFetch.ts`), sin tocar
+  componentes ni su ARIA.
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
   usuarios (Root) y campo `[Empresa]` (valor de marca global) ahora; **RAG solo diseñado**, no construido.
 
@@ -85,11 +96,16 @@ Naming, formato, estrategia de tests y estructura de carpetas de código: _por d
 ## Estructura
 
 ```
-app/                  Prototipo funcional (React + Vite)
-  src/pages/          Inicio, artículo, panel interno y no encontrado
-  src/components/     Componentes compartidos y widget de chat
-  src/data/{es,pt}/   Contenido tipado por idioma (futuro contrato de la API)
-  src/i18n/           Configuración de i18next, traducciones y rutas
+app/                  Frontend Next.js (App Router)
+  app/[idioma]/       Rutas por idioma: inicio, artículo, login, panel, usuarios, error y 404
+  app/api/            Route Handlers del BFF (auth y proxy de /api/admin/* con la cookie)
+  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next
+  proxy.ts            Guardia del panel en el borde + CSP con nonce (antes middleware.ts)
+  src/components/     Componentes reutilizados (Tabs, Modal, formularios, chips, iconos, acordeón)
+  src/bff/            Cookies httpOnly y cliente del panel (apiFetch)
+  src/seguridad/      Construcción de la CSP
+  src/data/{es,pt}/   Contenido tipado por idioma (alimenta el seed y los tests de paridad)
+  src/i18n/           i18next: traductor isomórfico, traducciones y rutas
   src/types.ts        Contrato de datos
 api/                  Backend FastAPI (modelos, routers, auth, seed, tests; ver api/README.md)
 docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
@@ -104,9 +120,9 @@ openspec/specs/       Especificaciones vigentes del sistema
 prompts/              Prompts usados para generar entregables
 ```
 
-Las pantallas consumen el contenido siempre a través de `src/data/index.ts`. Ese es el punto por el que se
-sustituirá el contenido ficticio por la API sin tocar componentes (con loaders de router; ver el cambio
-`backend-cms-autenticacion`).
+Las pantallas consumen el contenido a través de `src/data/`: el público en servidor con
+`src/data/servidor.ts` (Server Components) y el panel con `src/bff/apiFetch.ts` (BFF por cookie). Ese es el
+punto por el que el contenido ficticio quedó sustituido por la API sin tocar componentes ni su ARIA.
 
 El flujo de integración es `/crear-pr`: prepara rama, commit y Pull Request, y espera aprobación antes de
 ejecutar nada.
@@ -121,30 +137,31 @@ Desde `app/`:
 
 ```bash
 npm install        # una sola vez
-npm run dev        # servidor de desarrollo en http://localhost:5173
-npm run build      # comprueba tipos (tsc --noEmit) y compila
-npm run preview    # sirve la compilación de producción
+npm run dev        # servidor de desarrollo Next en http://localhost:3000
+npm run build      # comprueba tipos y compila la app de producción (next build)
+npm start          # sirve la compilación de producción (next start)
 npm test           # tests con Vitest (una pasada)
 npm run test:watch # tests en modo continuo
 ```
 
-Se usa **npm**, no pnpm: pnpm no está instalado en la máquina de desarrollo. No hay linter.
+Se usa **npm**, no pnpm: pnpm no está instalado en la máquina de desarrollo. No hay linter. En desarrollo
+Next reescribe `/api/(es|pt)/*` al backend (`127.0.0.1:8000`); el panel usa los Route Handlers del BFF.
 
 **Tests del frontend: Vitest, solo lógica pura.** Corren en entorno `node`, sin DOM: cubren `src/data/`,
-`src/i18n/rutas.ts`, `src/i18n/config.ts`, `src/i18n/fechas.ts`, `src/types.ts` y `src/auth/sesion.ts`. Lo que necesita
-`localStorage`, `navigator` o `fetch` los sustituye por dobles en el propio test. Los componentes **no** se
-prueban: eso exigiría jsdom y Testing Library, y se decidió no introducirlos por ahora. Los archivos son
-`src/**/*.test.ts`, junto al código que prueban.
+`src/i18n/`, `src/types.ts`, `src/auth/nivel.ts`, `src/bff/cookies.ts`, `src/seguridad/csp.ts` y
+`src/panel/panelPestanas.ts`. Lo que necesita `fetch` lo sustituye por dobles en el propio test. Los
+componentes y los Route Handlers **no** se prueban con Vitest: eso exigiría jsdom/Testing Library (o el
+runtime de Next) y se decidió no introducirlos por ahora. Los archivos son `src/**/*.test.ts`, junto al
+código que prueban.
 
 `src/data/contenido.test.ts` es aparte: no prueba funciones sino **invariantes del contenido** de
 `src/data/{es,pt}` (enlaces de `relacionados`, citas del chat, fechas ISO, paridad es/pt). Ese contenido
 alimenta el seed del backend, así que un artículo en un solo idioma se propagaría a la API. Está escrito
 para que añadir o traducir artículos no lo rompa; olvidarse de un idioma sí.
 
-La configuración vive en **`vitest.config.ts`**, separada de `vite.config.ts` a propósito: Vitest trae
-anidada su propia copia de Vite (rollup) y el proyecto usa Vite 8 (rolldown), así que compartir archivo
-rompe los tipos de `Plugin`. El config de tests no carga los plugins de React ni de Tailwind porque no
-hacen falta para probar `.ts` sin JSX.
+La configuración vive en **`vitest.config.ts`**. Vitest necesita Vite instalado (por eso `vite` sigue en
+`devDependencies` aunque ya no haya empaquetado de Vite propio); corre en entorno `node` y solo resuelve el
+alias `@` → `src`, sin plugins de React ni Tailwind, porque prueba `.ts` sin JSX.
 
 Backend (desde `api/`, con la base de datos levantada por `docker compose up -d`):
 
@@ -157,7 +174,8 @@ uvicorn app.main:app --reload           # API en http://localhost:8000
 pytest                                  # pruebas del backend (SQLite en memoria)
 ```
 
-El detalle está en `api/README.md`. El frontend proxya `/api` al backend en desarrollo.
+El detalle está en `api/README.md`. En desarrollo hay que tener los tres procesos vivos: `docker compose
+up -d` (Postgres), `uvicorn` en `api/` y `npm run dev` en `app/`.
 
 ## Reglas
 

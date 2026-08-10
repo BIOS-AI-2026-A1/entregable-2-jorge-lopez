@@ -9,7 +9,7 @@
  * duplicado.
  */
 
-import { authFetch } from '@/auth/sesion'
+import { apiFetch } from '@/bff/apiFetch'
 import type { EstadoKcs, Idioma } from '@/types'
 
 /** Forma del artículo con sus dos idiomas que devuelve/acepta la API admin. */
@@ -44,15 +44,15 @@ export interface PreguntaAdmin {
 }
 
 export function listarPreguntas(idioma: Idioma): Promise<Response> {
-  return authFetch(`/api/admin/preguntas-sin-resolver?idioma=${idioma}`)
+  return apiFetch(`/api/admin/preguntas-sin-resolver?idioma=${idioma}`)
 }
 
 export function obtenerArticulo(id: string): Promise<Response> {
-  return authFetch(`/api/admin/articulos/${id}`)
+  return apiFetch(`/api/admin/articulos/${id}`)
 }
 
 export function eliminarArticulo(id: string): Promise<Response> {
-  return authFetch(`/api/admin/articulos/${id}`, { method: 'DELETE' })
+  return apiFetch(`/api/admin/articulos/${id}`, { method: 'DELETE' })
 }
 
 /** A dónde va un guardado: artículo nuevo, edición o alta desde una pregunta. */
@@ -86,7 +86,7 @@ export function peticionGuardado(
 
 export function guardarArticulo(payload: ArticuloAdmin, destino: DestinoArticulo): Promise<Response> {
   const { url, metodo, cuerpo } = peticionGuardado(payload, destino)
-  return authFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
+  return apiFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
 }
 
 // ── Sesión: identidad y nivel de acceso ─────────────────────────────────────
@@ -98,7 +98,7 @@ export interface SesionAdmin {
 }
 
 export function obtenerSesion(): Promise<Response> {
-  return authFetch('/api/auth/me')
+  return apiFetch('/api/auth/me')
 }
 
 // ── Gestión de usuarios (solo Root) ─────────────────────────────────────────
@@ -121,7 +121,7 @@ export interface UsuarioPayload {
 }
 
 export function listarUsuarios(): Promise<Response> {
-  return authFetch('/api/admin/usuarios')
+  return apiFetch('/api/admin/usuarios')
 }
 
 /** A dónde va un guardado de usuario: alta o edición. */
@@ -151,21 +151,21 @@ export function peticionUsuario(
 
 export function guardarUsuario(payload: UsuarioPayload, destino: DestinoUsuario): Promise<Response> {
   const { url, metodo, cuerpo } = peticionUsuario(payload, destino)
-  return authFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
+  return apiFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
 }
 
 export function activarUsuario(id: number): Promise<Response> {
-  return authFetch(`/api/admin/usuarios/${id}/activar`, { method: 'POST' })
+  return apiFetch(`/api/admin/usuarios/${id}/activar`, { method: 'POST' })
 }
 
 export function desactivarUsuario(id: number): Promise<Response> {
-  return authFetch(`/api/admin/usuarios/${id}/desactivar`, { method: 'POST' })
+  return apiFetch(`/api/admin/usuarios/${id}/desactivar`, { method: 'POST' })
 }
 
 // ── Campo [Empresa] (solo Root) ─────────────────────────────────────────────
 
 export function guardarEmpresa(empresa: string): Promise<Response> {
-  return authFetch('/api/admin/ajustes/empresa', {
+  return apiFetch('/api/admin/ajustes/empresa', {
     method: 'PUT',
     body: JSON.stringify({ empresa }),
   })
@@ -179,7 +179,7 @@ export function guardarEmpresa(empresa: string): Promise<Response> {
  * configurar) del resto de errores. No persiste nada; el resultado es un borrador.
  */
 export function traducirArticulo(origen: Idioma, contenido: TraduccionAdmin): Promise<Response> {
-  return authFetch('/api/admin/articulos/traducir', {
+  return apiFetch('/api/admin/articulos/traducir', {
     method: 'POST',
     body: JSON.stringify({ origen, contenido }),
   })
@@ -211,9 +211,9 @@ export interface ConfigIAPayload {
 }
 
 export function obtenerConfigIA(): Promise<Response> {
-  return authFetch('/api/admin/config-ia')
+  return apiFetch('/api/admin/config-ia')
 }
 
 export function guardarConfigIA(payload: ConfigIAPayload): Promise<Response> {
-  return authFetch('/api/admin/config-ia', { method: 'PUT', body: JSON.stringify(payload) })
+  return apiFetch('/api/admin/config-ia', { method: 'PUT', body: JSON.stringify(payload) })
 }

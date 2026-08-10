@@ -160,6 +160,34 @@ class AdminUser(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class RefreshToken(Base):
+    """Refresh token opaco de sesión, guardado **hasheado** (nunca en claro).
+
+    Modelo de rotación con detección de reutilización: cada renovación consume el
+    token (`usado=True`) y emite otro dentro de la misma `familia`. Si se presenta
+    un token ya consumido (replay tras robo), se revoca la familia entera. El
+    `logout` revoca la familia. La autoridad de la sesión sigue en la base: un
+    usuario desactivado no puede renovar (se comprueba en `app.sesiones`).
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    admin_id: Mapped[int] = mapped_column(
+        ForeignKey("admin_users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    # Cadena de rotación: todos los tokens emitidos por renovación comparten familia.
+    familia: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    # SHA-256 del valor opaco. Único: identifica el token sin guardarlo en claro.
+    token_hash: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    emitido: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expira: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Consumido por una renovación: volver a presentarlo es reutilización.
+    usado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Invalidado (logout o revocación de familia por reutilización).
+    revocado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
 class Ajustes(Base):
     """Ajustes globales de la instalación. Fila única (`id=1`).
 

@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import admin_actual
 from app.models import AdminUser
-from app.schemas import LoginIn, MeOut, TokenOut
+from app.schemas import LoginIn, LogoutIn, MeOut, RefreshIn, TokenOut
 from app.security import crear_token, hash_password, verify_password
+from app.sesiones import SesionInvalida, emitir_sesion, revocar_sesion, rotar_sesion
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -26,16 +27,38 @@ def login(datos: LoginIn, db: Session = Depends(get_db)) -> TokenOut:
     hash_a_verificar = admin.password_hash if admin is not None else _HASH_DESCARTE
     correcta = verify_password(hash_a_verificar, datos.password)
 
-    # Mensaje genérico: no revela si falló el correo o la contraseña.
-    if admin is None or not correcta:
+    # Mensaje genérico: no revela si falló el correo o la contraseña. Un usuario
+    # desactivado se rechaza igual (y con el mismo mensaje): sin esto obtendría un
+    # token que `admin_actual` rechazaría en la siguiente petición, un bucle
+    # confuso de "entro pero todo da 401". El argon2 ya se ejecutó arriba, así que
+    # comprobar `activo` aquí no añade una diferencia de tiempo aprovechable.
+    if admin is None or not correcta or not admin.activo:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Correo o contraseña incorrectos")
-    return TokenOut(access_token=crear_token(admin.email))
+    return TokenOut(
+        access_token=crear_token(admin.email),
+        refresh_token=emitir_sesion(db, admin),
+    )
+
+
+@router.post("/refresh", response_model=TokenOut)
+def refresh(datos: RefreshIn, db: Session = Depends(get_db)) -> TokenOut:
+    # El BFF llama aquí con el refresh token de la cookie cuando el access expira.
+    # Rota el refresh (uno de un solo uso) y emite un access nuevo. Un token
+    # inválido, expirado o reutilizado responde 401 uniforme.
+    try:
+        admin, nuevo_refresh = rotar_sesion(db, datos.refresh_token)
+    except SesionInvalida:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida o expirada")
+    return TokenOut(access_token=crear_token(admin.email), refresh_token=nuevo_refresh)
 
 
 @router.post("/logout")
-def logout(_: AdminUser = Depends(admin_actual)) -> dict:
-    # JWT en cliente: el logout lo realiza el cliente descartando el token.
-    # El endpoint existe por simetría y para poder revocar en el futuro.
+def logout(datos: LogoutIn | None = None, db: Session = Depends(get_db)) -> dict:
+    # No exige access token y el cuerpo es opcional: el logout siempre debe poder
+    # cerrar la sesión. Si llega el refresh token, se revoca su familia entera en
+    # el servidor; el BFF borra las cookies en cualquier caso.
+    if datos is not None and datos.refresh_token:
+        revocar_sesion(db, datos.refresh_token)
     return {"detail": "Sesión cerrada"}
 
 

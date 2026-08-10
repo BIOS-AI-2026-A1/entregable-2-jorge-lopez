@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 
 from app.config import get_settings
+from app.models import AdminUser
 from app.security import crear_token, decodificar_token
 from tests.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
@@ -40,6 +41,17 @@ def test_login_con_correo_inexistente_da_el_mismo_mensaje(client):
 
 def test_login_sin_campos_es_422(client):
     assert client.post("/api/auth/login", json={}).status_code == 422
+
+
+def test_login_de_usuario_desactivado_rechazado(client, db_session):
+    usuario = db_session.query(AdminUser).filter(AdminUser.email == ADMIN_EMAIL).one()
+    usuario.activo = False
+    db_session.commit()
+
+    r = client.post("/api/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+    assert r.status_code == 401
+    # Mismo mensaje genérico que una contraseña incorrecta: no revela el estado de la cuenta.
+    assert "contraseña" in r.json()["detail"].lower()
 
 
 def test_el_token_emitido_identifica_al_administrador(token):
@@ -85,12 +97,15 @@ def test_logout_con_sesion(client, auth):
     assert r.json() == {"detail": "Sesión cerrada"}
 
 
-def test_logout_sin_sesion_rechazado(client):
-    assert client.post("/api/auth/logout").status_code == 401
+def test_logout_sin_cuerpo_siempre_cierra(client):
+    # El logout no exige sesión: siempre debe poder cerrar (idempotente). El BFF
+    # borra las cookies aunque el refresh ya no sea válido.
+    assert client.post("/api/auth/logout").status_code == 200
 
 
-def test_logout_no_revoca_el_token_en_el_servidor(client, auth):
+def test_logout_no_revoca_el_access_token(client, auth):
     client.post("/api/auth/logout", headers=auth)
-    # JWT sin lista de revocación: el cierre de sesión lo hace el cliente
-    # descartando el token. Si algún día se revoca, este test debe cambiar.
+    # El logout revoca la familia del refresh token (ver test_refresh), pero el
+    # access token es un JWT corto sin lista de revocación: sigue válido hasta
+    # expirar. La sesión real se corta al no poder renovarlo.
     assert client.get("/api/admin/articulos", headers=auth).status_code == 200

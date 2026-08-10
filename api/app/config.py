@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     jwt_secret: str
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
+    # Vida del refresh token opaco (cookie httpOnly) con el que el BFF renueva el
+    # access token en silencio. Rota en cada uso; se revoca en logout y ante
+    # reutilización. Ver `app.sesiones`.
+    refresh_expire_days: int = 14
 
     # Administrador inicial que crea el seed. La contraseña, por el mismo motivo
     # que el secreto, es obligatoria y no tiene valor por defecto. El seed lo crea
