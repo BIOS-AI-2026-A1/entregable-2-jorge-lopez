@@ -14,7 +14,52 @@ def test_root_ve_anthropic_por_defecto(client, auth):
     assert cuerpo["proveedorActivo"] == "anthropic"
     # Sin claves configuradas todavía; ninguna clave viaja en la respuesta.
     por_id = {p["id"]: p["configurada"] for p in cuerpo["proveedores"]}
-    assert por_id == {"anthropic": False, "google": False}
+    assert por_id == {"anthropic": False, "google": False, "deepseek": False}
+
+
+def test_deepseek_es_proveedor_admitido(client, auth):
+    """DeepSeek aparece entre los proveedores seleccionables y se acepta como activo."""
+    r = client.get("/api/admin/config-ia", headers=auth)
+    ids = {p["id"] for p in r.json()["proveedores"]}
+    assert "deepseek" in ids
+
+    guardado = client.put(
+        "/api/admin/config-ia",
+        json={"proveedorActivo": "deepseek", "clave": "sk-deepseek-de-prueba"},
+        headers=auth,
+    )
+    assert guardado.status_code == 200
+    assert "sk-deepseek-de-prueba" not in guardado.text  # la clave nunca se serializa
+    cuerpo = guardado.json()
+    assert cuerpo["proveedorActivo"] == "deepseek"
+    por_id = {p["id"]: p["configurada"] for p in cuerpo["proveedores"]}
+    assert por_id["deepseek"] is True
+
+
+def test_pista_expone_solo_ultimos_caracteres(client, auth):
+    """La respuesta trae una pista (últimos caracteres) pero nunca la clave completa."""
+    client.put(
+        "/api/admin/config-ia",
+        json={"proveedorActivo": "deepseek", "clave": "sk-deepseek-1234ABCD"},
+        headers=auth,
+    )
+    cuerpo = client.get("/api/admin/config-ia", headers=auth).json()
+    por_id = {p["id"]: p for p in cuerpo["proveedores"]}
+    assert por_id["deepseek"]["pista"] == "ABCD"  # solo los últimos 4
+    assert "sk-deepseek-1234ABCD" not in str(cuerpo)  # nunca la clave completa
+
+
+def test_pista_none_si_clave_demasiado_corta(client, auth):
+    """Con una clave demasiado corta no se da pista: revelaría casi toda la clave."""
+    client.put(
+        "/api/admin/config-ia",
+        json={"proveedorActivo": "anthropic", "clave": "sk-123"},  # < 8 caracteres
+        headers=auth,
+    )
+    cuerpo = client.get("/api/admin/config-ia", headers=auth).json()
+    por_id = {p["id"]: p for p in cuerpo["proveedores"]}
+    assert por_id["anthropic"]["configurada"] is True
+    assert por_id["anthropic"]["pista"] is None
 
 
 def test_root_guarda_clave_y_no_vuelve_en_claro(client, auth):

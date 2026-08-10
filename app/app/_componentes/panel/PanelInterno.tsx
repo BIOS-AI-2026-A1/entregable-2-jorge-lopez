@@ -66,8 +66,25 @@ export function PanelInterno({
   const [configIA, setConfigIA] = useState<ConfigIAAdmin | null>(null)
   const [proveedorInput, setProveedorInput] = useState('anthropic')
   const [claveInput, setClaveInput] = useState('')
+  const [editandoClave, setEditandoClave] = useState(false)
 
   const puedeRoot = esRoot(nivel)
+
+  // Estado de la clave del proveedor seleccionado en el desplegable. Si tiene clave
+  // y no se está editando, el campo se muestra en solo lectura con la pista (últimos
+  // caracteres); «Editar» lo desbloquea para escribir una clave nueva.
+  const proveedorSeleccionado = configIA?.proveedores.find(p => p.id === proveedorInput) ?? null
+  const claveConfigurada = !!proveedorSeleccionado?.configurada
+  const editandoLaClave = editandoClave || !claveConfigurada
+  const pistaClave = proveedorSeleccionado?.pista ?? null
+
+  function seleccionarProveedor(id: string) {
+    setProveedorInput(id)
+    // Al cambiar de proveedor, volver a solo lectura y descartar lo tecleado: cada
+    // proveedor tiene su propia clave y no debe arrastrarse entre ellos.
+    setEditandoClave(false)
+    setClaveInput('')
+  }
 
   async function cargarPreguntas() {
     const resp = await listarPreguntas(idioma)
@@ -128,6 +145,7 @@ export function PanelInterno({
     if (resp.ok) {
       setConfigIA((await resp.json()) as ConfigIAAdmin)
       setClaveInput('')
+      setEditandoClave(false) // guardado: volver a solo lectura con la pista nueva
       avisoExito(t('configIA.guardado'))
     } else if (resp.status === 401) {
       router.replace(rutas.login(idioma))
@@ -432,10 +450,11 @@ export function PanelInterno({
             <select
               id="config-ia-proveedor"
               value={proveedorInput}
-              onChange={e => setProveedorInput(e.target.value)}
+              onChange={e => seleccionarProveedor(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
             >
               <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
+              <option value="deepseek">{t('configIA.proveedores.deepseek')}</option>
               <option value="google">{t('configIA.proveedores.google')}</option>
             </select>
           </div>
@@ -443,16 +462,34 @@ export function PanelInterno({
             <label htmlFor="config-ia-clave" className="block text-sm font-medium text-slate-700 mb-1">
               {t('configIA.clave')}
             </label>
-            <input
-              id="config-ia-clave"
-              type="password"
-              value={claveInput}
-              onChange={e => setClaveInput(e.target.value)}
-              autoComplete="off"
-              placeholder={t('configIA.clavePlaceholder')}
-              aria-describedby="config-ia-estado"
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
-            />
+            {editandoLaClave ? (
+              <input
+                id="config-ia-clave"
+                type="password"
+                value={claveInput}
+                onChange={e => setClaveInput(e.target.value)}
+                autoComplete="off"
+                placeholder={t('configIA.clavePlaceholder')}
+                aria-describedby="config-ia-estado"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+              />
+            ) : (
+              // Solo lectura: se muestra la pista (últimos caracteres) enmascarada,
+              // con etiqueta accesible explícita en lugar de leer los puntos.
+              <input
+                id="config-ia-clave"
+                type="text"
+                readOnly
+                value={pistaClave ? `••••${pistaClave}` : '••••••••'}
+                aria-label={
+                  pistaClave
+                    ? t('configIA.claveTerminaEn', { fin: pistaClave })
+                    : t('configIA.claveConfiguradaAria')
+                }
+                aria-describedby="config-ia-estado"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-600 font-mono tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+              />
+            )}
           </div>
         </div>
         <p id="config-ia-estado" className="text-xs text-slate-600">
@@ -470,14 +507,42 @@ export function PanelInterno({
               ))
             : t('configIA.cargando')}
         </p>
-        <button
-          type="submit"
-          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
-          style={{ background: 'var(--acento)' }}
-        >
-          <Ic.Save size={15} />
-          {t('configIA.guardar')}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+            style={{ background: 'var(--acento)' }}
+          >
+            <Ic.Save size={15} />
+            {t('configIA.guardar')}
+          </button>
+          {claveConfigurada &&
+            (editandoClave ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditandoClave(false)
+                  setClaveInput('')
+                }}
+                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+              >
+                <Ic.X size={15} />
+                {t('configIA.cancelar')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditandoClave(true)
+                  setClaveInput('')
+                }}
+                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+              >
+                <Ic.Edit size={15} />
+                {t('configIA.editar')}
+              </button>
+            ))}
+        </div>
         <p className="text-xs text-slate-500">{t('configIA.ayuda')}</p>
       </form>
 

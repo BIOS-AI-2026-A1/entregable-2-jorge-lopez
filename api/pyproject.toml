@@ -21,6 +21,7 @@ dependencies = [
     "pyjwt>=2.8",
     "cryptography>=43",
     "anthropic>=0.40",
+    "openai>=1.0",
 ]
 
 [project.optional-dependencies]
