@@ -1,0 +1,49 @@
+// Construcción de la cabecera Content-Security-Policy con nonce por petición.
+// Vive aparte del `middleware` (que solo la aplica) para poder probarla como
+// lógica pura con Vitest, sin Edge runtime ni `NextRequest`.
+
+const ES_PROD = process.env.NODE_ENV === 'production'
+
+/**
+ * Construye la cabecera `Content-Security-Policy` para una petición, insertando
+ * el `nonce` que Next propaga a sus `<script>`.
+ *
+ * Decisiones:
+ * - `script-src` con `'nonce-…'` + `'strict-dynamic'`: solo se ejecuta el script
+ *   raíz de Next (que lleva el nonce) y lo que él cargue; se ignora `'self'` y
+ *   cualquier host, así que no hay lista blanca de dominios que mantener. En
+ *   desarrollo se añade `'unsafe-eval'` porque el refresco en caliente lo exige.
+ * - `style-src 'unsafe-inline'`: Tailwind y varios componentes usan `style=""`
+ *   en línea (p. ej. `var(--acento)`); el riesgo de CSS en línea es mucho menor
+ *   que el de un script y evita reescribir la interfaz. No se permite en scripts.
+ * - `connect-src 'self'`: las llamadas del cliente van al BFF, mismo origen. En
+ *   desarrollo se añade `ws:` para el websocket de recarga en caliente.
+ * - `frame-ancestors 'none'` + `object-src 'none'` + `base-uri 'self'`: nadie
+ *   puede embeber la app, no hay plugins y no se puede reescribir la base de URLs.
+ * - `upgrade-insecure-requests` solo en producción (en local se sirve por http).
+ */
+export function construirCSP(nonce: string): string {
+  const directivas: Record<string, string[]> = {
+    'default-src': ["'self'"],
+    'script-src': [
+      "'self'",
+      `'nonce-${nonce}'`,
+      "'strict-dynamic'",
+      ...(ES_PROD ? [] : ["'unsafe-eval'"]),
+    ],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'img-src': ["'self'", 'data:', 'blob:'],
+    'font-src': ["'self'"],
+    'connect-src': ["'self'", ...(ES_PROD ? [] : ['ws:'])],
+    'object-src': ["'none'"],
+    'base-uri': ["'self'"],
+    'form-action': ["'self'"],
+    'frame-src': ["'none'"],
+    'frame-ancestors': ["'none'"],
+    'manifest-src': ["'self'"],
+  }
+
+  const partes = Object.entries(directivas).map(([clave, valores]) => `${clave} ${valores.join(' ')}`)
+  if (ES_PROD) partes.push('upgrade-insecure-requests')
+  return partes.join('; ')
+}

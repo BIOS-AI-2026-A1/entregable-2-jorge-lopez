@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display&display=swap');
+/* Las fuentes de marca (DM Sans / DM Serif Display) las autoaloja Next con
+   `next/font` en `app/[idioma]/layout.tsx` y las expone como `--font-sans` y
+   `--font-serif`; no se cargan desde Google Fonts (la CSP `font-src 'self'` lo
+   impediría). */
 @import 'tailwindcss';
 
 /* ── Design Token: accent color ─────────────────────────────
@@ -38,7 +41,7 @@ html {
 }
 
 body {
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   font-size: 16px;
   line-height: 1.6;
   color: #0f172a;

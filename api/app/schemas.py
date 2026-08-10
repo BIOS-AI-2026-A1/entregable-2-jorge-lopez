@@ -81,8 +81,21 @@ class LoginIn(BaseModel):
 
 
 class TokenOut(BaseModel):
+    # El BFF (servidor de frontend de confianza) recibe ambos tokens y los guarda
+    # en cookies httpOnly; nunca llegan al JavaScript del navegador.
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str
+
+
+class LogoutIn(BaseModel):
+    # Opcional: el logout siempre limpia la sesión del cliente; si llega el
+    # refresh token, además se revoca su familia en el servidor.
+    refresh_token: str | None = None
 
 
 # --- CRUD de artículos (entrada bilingüe) -----------------------------------

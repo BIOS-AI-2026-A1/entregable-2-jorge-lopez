@@ -16,9 +16,12 @@ export default defineConfig({
     },
   },
   test: {
-    // Sin DOM: lo que necesita `localStorage` o `fetch` los sustituye por
-    // dobles en el propio test.
+    // Sin DOM: lo que necesita `fetch` lo sustituye por dobles en el propio test.
     environment: 'node',
+    // Solo lógica pura de `src/` (data, i18n, types, auth/nivel, bff/cookies,
+    // seguridad/csp, panel/panelPestanas). El árbol de rutas de Next (`app/`)
+    // queda fuera: sus componentes y Route Handlers no se prueban con Vitest.
     include: ['src/**/*.test.ts'],
+    exclude: ['node_modules', 'dist', '.next', 'app/**'],
   },
 })

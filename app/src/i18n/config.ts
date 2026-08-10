@@ -1,13 +1,9 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import type { Idioma } from '@/types'
-import es from './locales/es/ui.json'
-import pt from './locales/pt/ui.json'
+import { recursos } from './recursos'
 
-export const recursos = {
-  es: { ui: es },
-  pt: { ui: pt },
-}
+export { recursos }
 
 void i18n.use(initReactI18next).init({
   resources: recursos,

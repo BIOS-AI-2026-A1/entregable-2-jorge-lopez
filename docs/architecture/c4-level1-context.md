@@ -36,12 +36,10 @@ C4Context
 
     System(centroAyuda, "Centro de Ayuda", "Base de conocimiento bilingüe es/pt. Sirve el contenido público sin autenticación y protege la administración con sesión JWT")
 
-    System_Ext(googleFonts, "Google Fonts", "CDN de tipografías: DM Sans y DM Serif Display")
     System_Ext(clienteCorreo, "Cliente de correo del dispositivo", "Recibe los enlaces mailto: de escalado a soporte humano")
 
     Rel(personaUsuaria, centroAyuda, "Busca y lee artículos de ayuda", "HTTPS")
     Rel(administrador, centroAyuda, "Inicia sesión y administra artículos y preguntas sin resolver", "HTTPS/REST + JWT Bearer")
-    Rel(centroAyuda, googleFonts, "Descarga las tipografías al cargar la interfaz", "HTTPS")
     Rel(centroAyuda, clienteCorreo, "Escala a soporte humano cuando no encuentra respuesta", "mailto:")
 
     %% TODO: confirmar - dirección de soporte. Ver la sección "Pendiente de confirmar"
@@ -79,9 +77,8 @@ Lo que no se puede deducir del código. No son suposiciones: son preguntas abier
 
 | Elemento | Origen |
 | --- | --- |
-| Sistema Centro de Ayuda | `app/` (SPA) + `api/` (FastAPI) + `docker-compose.yml` |
-| Personas usuarias / administradoras | `app/src/router.tsx` (rutas públicas y `guardiaPanel`), `api/app/deps.py` |
-| Google Fonts | `app/src/index.css:1` |
-| Enlaces `mailto:` | `app/src/components/EscalationBlock.tsx`, `app/src/components/ChatWidget.tsx`, `app/src/pages/Home.tsx` |
+| Sistema Centro de Ayuda | `app/` (Next.js) + `api/` (FastAPI) + `docker-compose.yml` |
+| Personas usuarias / administradoras | `app/app/[idioma]/` (rutas públicas), `app/proxy.ts` (guardia del panel), `api/app/deps.py` |
+| Enlaces `mailto:` | `app/app/_componentes/EscalacionBloque.tsx`, `app/app/_componentes/ChatWidget.tsx`, `app/app/_componentes/BuscadorAyuda.tsx` |
 
 Ver el detalle interno en [`c4-level2-container.md`](./c4-level2-container.md).
