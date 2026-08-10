@@ -3,8 +3,12 @@
 La traducción vive en el backend (no en el navegador) por tres razones: las claves
 de API nunca tocan el cliente, el proveedor se resuelve en un único lugar y se
 comparte con el RAG futuro. El proveedor se abstrae tras `ProveedorTraduccion` para
-que añadir otro (o el RAG) no toque los routers; hoy hay una implementación
-Anthropic (Claude), el proveedor por defecto.
+que añadir otro (o el RAG) no toque los routers; hoy hay dos motores de traducción
+reales, Anthropic (Claude, el proveedor por defecto) y DeepSeek. Ambos son
+proveedores tipo LLM, así que el mismo proveedor y clave ya configurados quedan
+reutilizables por el RAG del chat cuando se construya, sin una segunda
+configuración (aquí no se construye el RAG: solo se contempla el punto de
+extensión).
 
 `obtener_traductor` es una dependencia de FastAPI: en producción resuelve el
 proveedor desde `ConfigIA`; en los tests se sustituye con un doble para no llamar a
@@ -33,6 +37,11 @@ _NOMBRE_IDIOMA = {"es": "español", "pt": "portugués"}
 
 # Modelo de Claude por defecto para traducir (ver skill claude-api antes de subirlo).
 MODELO_ANTHROPIC = "claude-sonnet-5"
+
+# DeepSeek expone una API compatible con el esquema de chat de OpenAI: se usa el SDK
+# de OpenAI apuntando a esta `base_url`. `deepseek-chat` es el modelo por coste/latencia.
+MODELO_DEEPSEEK = "deepseek-chat"
+URL_BASE_DEEPSEEK = "https://api.deepseek.com"
 
 
 class ErrorTraduccion(RuntimeError):
@@ -104,6 +113,38 @@ class ProveedorAnthropic:
             raise ErrorProveedor("El proveedor no devolvió un JSON válido.") from exc
 
 
+class ProveedorDeepSeek:
+    """Traducción con DeepSeek a través de su API compatible con OpenAI. Importa el
+    SDK de forma perezosa (como Anthropic) para que el módulo se pueda importar
+    aunque el paquete no esté instalado (p. ej. en tests que sustituyen el proveedor)."""
+
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    def traducir(self, origen: str, destino: str, contenido: dict) -> dict:
+        try:
+            from openai import OpenAI
+        except ImportError as exc:  # pragma: no cover - depende del entorno
+            raise ErrorProveedor("El SDK de OpenAI (para DeepSeek) no está instalado.") from exc
+
+        cliente = OpenAI(api_key=self._api_key, base_url=URL_BASE_DEEPSEEK)
+        try:
+            respuesta = cliente.chat.completions.create(
+                model=MODELO_DEEPSEEK,
+                # DeepSeek `deepseek-chat` soporta forzar salida JSON; robustece el parseo.
+                response_format={"type": "json_object"},
+                messages=[{"role": "user", "content": _prompt(origen, destino, contenido)}],
+            )
+            texto = respuesta.choices[0].message.content or ""
+        except Exception as exc:  # error de red, autenticación o límite del proveedor
+            raise ErrorProveedor(str(exc)) from exc
+
+        try:
+            return json.loads(texto)
+        except json.JSONDecodeError as exc:
+            raise ErrorProveedor("El proveedor no devolvió un JSON válido.") from exc
+
+
 def _clave_del_proveedor(config: ConfigIA | None, proveedor: str) -> str:
     if config is None:
         raise ProveedorNoConfigurado(proveedor)
@@ -124,6 +165,8 @@ def crear_proveedor(db: Session) -> ProveedorTraduccion:
     clave = _clave_del_proveedor(config, proveedor)
     if proveedor == "anthropic":
         return ProveedorAnthropic(clave)
+    if proveedor == "deepseek":
+        return ProveedorDeepSeek(clave)
     # `google` u otros: aún no implementados como motor; se contempla el punto de
     # extensión (ver design.md). Hasta entonces, se trata como no disponible.
     raise ProveedorNoConfigurado(proveedor)

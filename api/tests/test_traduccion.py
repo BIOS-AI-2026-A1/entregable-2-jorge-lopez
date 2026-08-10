@@ -4,8 +4,19 @@ from __future__ import annotations
 
 import pytest
 
+from app.cifrado import cifrar
 from app.main import app
-from app.servicios_ia import ProveedorNoConfigurado, obtener_traductor
+from app.models import ConfigIA
+from app.schemas import TraduccionArticuloIn
+from app.servicios_ia import (
+    CONFIG_IA_ID,
+    ProveedorAnthropic,
+    ProveedorDeepSeek,
+    ProveedorNoConfigurado,
+    crear_proveedor,
+    obtener_traductor,
+    traducir_contenido,
+)
 
 
 class ProveedorFalso:
@@ -105,3 +116,53 @@ def test_sin_proveedor_configurado_da_409(client, auth):
         assert r.status_code == 409
     finally:
         app.dependency_overrides.pop(obtener_traductor, None)
+
+
+# --- Resolución del motor por proveedor (sin red) ---------------------------
+
+
+def _config_ia(db, proveedor: str, claves: dict[str, str]) -> None:
+    db.add(ConfigIA(id=CONFIG_IA_ID, proveedor_activo=proveedor, claves=claves))
+    db.commit()
+
+
+def test_crear_proveedor_deepseek_con_clave(db_session):
+    """Con DeepSeek activo y clave cifrada, se resuelve su motor (sin llamar a la red)."""
+    _config_ia(db_session, "deepseek", {"deepseek": cifrar("sk-deepseek")})
+    assert isinstance(crear_proveedor(db_session), ProveedorDeepSeek)
+
+
+def test_crear_proveedor_deepseek_sin_clave(db_session):
+    """DeepSeek activo pero sin clave: no disponible hasta que Root la configure."""
+    _config_ia(db_session, "deepseek", {})
+    with pytest.raises(ProveedorNoConfigurado):
+        crear_proveedor(db_session)
+
+
+def test_crear_proveedor_anthropic_sigue_resolviendo(db_session):
+    """El proveedor por defecto no se ve afectado por añadir DeepSeek."""
+    _config_ia(db_session, "anthropic", {"anthropic": cifrar("sk-anthropic")})
+    assert isinstance(crear_proveedor(db_session), ProveedorAnthropic)
+
+
+def test_google_sigue_sin_motor(db_session):
+    """Google queda como opción listada sin motor: se trata como no disponible."""
+    _config_ia(db_session, "google", {"google": cifrar("clave-google")})
+    with pytest.raises(ProveedorNoConfigurado):
+        crear_proveedor(db_session)
+
+
+class DeepSeekDoble:
+    """Doble de ProveedorDeepSeek: no llama a la red y devuelve un slug distinto
+    para comprobar que `traducir_contenido` conserva el slug de origen."""
+
+    def traducir(self, origen: str, destino: str, contenido: dict) -> dict:
+        return {**contenido, "slug": "slug-inventado-por-el-proveedor"}
+
+
+def test_traducir_contenido_conserva_slug_con_deepseek():
+    contenido = TraduccionArticuloIn(**CONTENIDO_ES)
+    resultado = traducir_contenido(DeepSeekDoble(), "es", contenido)
+    assert isinstance(resultado, dict)
+    # El slug no se traduce: se conserva el del contenido de origen.
+    assert resultado["slug"] == CONTENIDO_ES["slug"]

@@ -187,10 +187,15 @@ export function traducirArticulo(origen: Idioma, contenido: TraduccionAdmin): Pr
 
 // ── Configuración de proveedor de IA (solo Root) ────────────────────────────
 
-/** Estado de un proveedor: si tiene clave configurada. Nunca incluye la clave. */
+/**
+ * Estado de un proveedor: si tiene clave configurada y una pista (los últimos
+ * caracteres) para identificarla. Nunca incluye la clave completa.
+ */
 export interface ProveedorEstado {
   id: string
   configurada: boolean
+  /** Últimos caracteres de la clave (p. ej. "s7xq"), o null si no hay/es corta. */
+  pista?: string | null
 }
 
 /** Configuración de IA que devuelve `GET /api/admin/config-ia`. Sin claves. */

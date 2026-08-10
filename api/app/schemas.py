@@ -224,16 +224,22 @@ class EmpresaOut(BaseModel):
 
 # --- Configuración de proveedor de IA (solo Root) ---------------------------
 
-# Proveedores admitidos. Anthropic (Claude) es el de por defecto; Google Translate
-# queda como alternativa enchufable (ver design.md, Decisión 4.1).
-ProveedorIA = Literal["anthropic", "google"]
+# Proveedores admitidos. Anthropic (Claude) es el de por defecto. Anthropic y
+# DeepSeek tienen motor de traducción real; Google Translate queda como opción
+# listada sin motor (ver design.md del cambio `proveedor-deepseek-traduccion`).
+ProveedorIA = Literal["anthropic", "google", "deepseek"]
 
 
 class ProveedorEstado(BaseModel):
-    """Estado de un proveedor: si tiene clave configurada. Nunca incluye la clave."""
+    """Estado de un proveedor: si tiene clave configurada y una pista para
+    identificarla (los últimos caracteres). NUNCA incluye la clave completa."""
 
     id: ProveedorIA
     configurada: bool
+    # Últimos caracteres de la clave (p. ej. "s7xq") para que Root reconozca cuál
+    # está puesta, sin exponer el resto. `None` si no hay clave o es demasiado corta
+    # para revelar sin descubrir casi toda la clave.
+    pista: str | None = None
 
 
 class ConfigIAOut(BaseModel):

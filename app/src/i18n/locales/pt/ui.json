@@ -256,12 +256,17 @@
     "claveSinConfigurar": "sem configurar",
     "cargando": "Carregando configuração…",
     "guardar": "Salvar",
+    "editar": "Editar",
+    "cancelar": "Cancelar",
+    "claveTerminaEn": "Chave configurada, termina em {{fin}}",
+    "claveConfiguradaAria": "Chave configurada",
     "guardado": "Configuração de IA atualizada.",
     "error": "Não foi possível salvar a configuração de IA. Tente novamente.",
     "errorCifrado": "Falta a chave de criptografia no servidor (CLAVE_CIFRADO_IA). Não foi possível salvar a chave.",
-    "ayuda": "A chave é salva criptografada no servidor e nunca é exibida. Deixe em branco para manter a atual. Por padrão usa-se o Claude (Anthropic).",
+    "ayuda": "A chave é salva criptografada no servidor; apenas os últimos caracteres são exibidos para identificá-la. Toque em «Editar» para alterá-la; deixe em branco para manter a atual. Por padrão usa-se o Claude (Anthropic).",
     "proveedores": {
       "anthropic": "Claude (Anthropic)",
+      "deepseek": "DeepSeek",
       "google": "Google Translate"
     }
   }
