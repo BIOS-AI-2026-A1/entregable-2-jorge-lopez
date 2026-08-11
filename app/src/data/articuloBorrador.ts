@@ -8,6 +8,7 @@
  * El artículo siempre lleva los dos idiomas, nunca uno solo.
  */
 
+import { IDIOMAS, type Idioma } from '@/types'
 import type { ArticuloAdmin, TraduccionAdmin } from '@/data/admin'
 
 export type TradDraft = {
@@ -77,4 +78,47 @@ export function aPayload(d: Draft): ArticuloAdmin {
     relacionados: d.relacionados.split(',').map(s => s.trim()).filter(Boolean),
     es: tradPayload(d.es), pt: tradPayload(d.pt),
   }
+}
+
+/**
+ * Un campo obligatorio que falta. `clave` es la clave i18n de su etiqueta;
+ * `idioma` acota el aviso al idioma afectado (los campos por idioma van dos
+ * veces, es y pt); `n` numera la fila en pasos/FAQ.
+ */
+export type CampoFaltante = { clave: string; idioma?: Idioma; n?: number }
+
+/**
+ * Candado de guardado: enumera los campos obligatorios que faltan en el
+ * borrador, con las MISMAS reglas que el backend acepta (ver `schemas.py`:
+ * `TraduccionArticuloIn`/`BloqueHowTo`). Así el formulario nunca envía un
+ * artículo que la API vaya a rechazar (422) ni que, ya persistido, rompa el
+ * contenido público al serializarse (un `howTo.titulo` vacío devolvía un 500).
+ *
+ * Es lógica pura y espeja el recorte de `aPayload`: valida sobre el texto ya
+ * sin espacios, para que un valor de solo espacios cuente como ausente. Si
+ * devuelve una lista vacía, el borrador cumple los mínimos del backend.
+ */
+export function camposObligatoriosFaltantes(d: Draft): CampoFaltante[] {
+  const faltan: CampoFaltante[] = []
+  if (!d.id.trim()) faltan.push({ clave: 'panelGestion.id' })
+  if (!d.categoria.trim()) faltan.push({ clave: 'panelGestion.categoria' })
+
+  for (const idioma of IDIOMAS) {
+    const t = d[idioma]
+    if (!t.titulo.trim()) faltan.push({ clave: 'panelGestion.tituloArticulo', idioma })
+    if (!t.slug.trim()) faltan.push({ clave: 'panelGestion.slug', idioma })
+    if (!t.howToTitulo.trim()) faltan.push({ clave: 'panelGestion.howToTitulo', idioma })
+
+    // `aPayload` conserva un paso/FAQ si tiene título O descripción; el backend
+    // exige el título/pregunta. Se avisa solo de las filas que llegarían a la API.
+    t.pasos.forEach((p, i) => {
+      if ((p.titulo.trim() || p.descripcion.trim()) && !p.titulo.trim())
+        faltan.push({ clave: 'panelGestion.pasoTitulo', idioma, n: i + 1 })
+    })
+    t.faq.forEach((f, i) => {
+      if ((f.pregunta.trim() || f.respuesta.trim()) && !f.pregunta.trim())
+        faltan.push({ clave: 'panelGestion.faqPregunta', idioma, n: i + 1 })
+    })
+  }
+  return faltan
 }

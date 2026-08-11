@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aPayload, draftInicial, type Draft } from './articuloBorrador'
+import { aPayload, camposObligatoriosFaltantes, draftInicial, type Draft } from './articuloBorrador'
 import type { ArticuloAdmin } from './admin'
 
 function articulo(): ArticuloAdmin {
@@ -152,5 +152,61 @@ describe('aPayload', () => {
     const p = aPayload(draftInicial(undefined, 'cuenta') as Draft)
     expect(p).toHaveProperty('es')
     expect(p).toHaveProperty('pt')
+  })
+})
+
+describe('camposObligatoriosFaltantes', () => {
+  const claves = (d: Draft) => camposObligatoriosFaltantes(d).map(c => c.clave)
+
+  it('un artículo completo (ida y vuelta) no tiene campos que falten', () => {
+    expect(camposObligatoriosFaltantes(draftInicial(articulo(), 'cuenta'))).toEqual([])
+  })
+
+  it('un borrador en blanco reclama id y, por cada idioma, título, slug y título del how-to', () => {
+    const faltan = camposObligatoriosFaltantes(draftInicial(undefined, 'cuenta'))
+    // id (1) + titulo/slug/howToTitulo por es y pt (3 × 2). La categoría llega
+    // por defecto, así que no falta.
+    expect(faltan).toHaveLength(7)
+    expect(faltan.filter(c => c.clave === 'panelGestion.howToTitulo').map(c => c.idioma)).toEqual(['es', 'pt'])
+  })
+
+  it('exige el título del how-to: el vacío que devolvía un 500 en el contenido público', () => {
+    const d = draftInicial(articulo(), 'cuenta')
+    d.es.howToTitulo = '   '
+    const faltan = camposObligatoriosFaltantes(d)
+    expect(faltan).toEqual([{ clave: 'panelGestion.howToTitulo', idioma: 'es' }])
+  })
+
+  it('reclama el id vacío o de solo espacios', () => {
+    const d = draftInicial(articulo(), 'cuenta')
+    d.id = '  '
+    expect(claves(d)).toContain('panelGestion.id')
+  })
+
+  it('reclama la categoría cuando no hay ninguna', () => {
+    // Alta sin categorías cargadas: el select quedaría en cadena vacía.
+    const d = draftInicial(undefined, '')
+    expect(claves(d)).toContain('panelGestion.categoria')
+  })
+
+  it('exige el título de un paso a medio rellenar (que el backend rechazaría)', () => {
+    const d = draftInicial(articulo(), 'cuenta')
+    d.es.pasos = [{ titulo: '', descripcion: 'Solo descripción.' }]
+    const faltan = camposObligatoriosFaltantes(d)
+    expect(faltan).toEqual([{ clave: 'panelGestion.pasoTitulo', idioma: 'es', n: 1 }])
+  })
+
+  it('exige la pregunta de una FAQ a medio rellenar', () => {
+    const d = draftInicial(articulo(), 'cuenta')
+    d.pt.faq = [{ pregunta: '', respuesta: 'Solo respuesta.' }]
+    const faltan = camposObligatoriosFaltantes(d)
+    expect(faltan).toEqual([{ clave: 'panelGestion.faqPregunta', idioma: 'pt', n: 1 }])
+  })
+
+  it('no reclama filas del todo vacías: `aPayload` las descarta antes de enviar', () => {
+    const d = draftInicial(articulo(), 'cuenta')
+    d.es.pasos = [{ titulo: '', descripcion: '' }]
+    d.es.faq = [{ pregunta: '', respuesta: '' }]
+    expect(camposObligatoriosFaltantes(d)).toEqual([])
   })
 })
