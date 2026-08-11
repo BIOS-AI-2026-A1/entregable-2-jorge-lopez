@@ -27,11 +27,19 @@ Notas específicas de este repositorio (Centro de Ayuda):
 - La documentación, los commits y los comentarios del repositorio se escriben en **español**; reporta en
   español.
 - La aplicación es bilingüe: **español y portugués**. El contenido tipado vive en `src/data/{es,pt}`.
-- Hoy **no hay backend, ni base de datos, ni capa RAG**: la superficie de ataque es de cliente. Prioriza
-  XSS (`dangerouslySetInnerHTML`, `innerHTML`, salida sin escapar), redirecciones abiertas y URLs sin
-  validar, secretos filtrados en fuente o configuración, prototype pollution y dependencias vulnerables
-  (`npm audit` si hay lockfile). No inventes vectores de servidor (SQL, shell, sistema de archivos) que no
-  existan en el código; si un día aparece backend, entonces cúbrelos.
+- El repositorio tiene **frontend Next.js** en `app/` (Server Components, BFF con cookie httpOnly) y
+  **backend FastAPI + PostgreSQL/pgvector** en `api/` (auth argon2/JWT, control de acceso Anonymous /
+  Standard / Root). En el frontend prioriza XSS (`dangerouslySetInnerHTML`, `innerHTML`, salida sin
+  escapar), redirecciones abiertas y URLs sin validar, secretos filtrados en fuente o configuración,
+  prototype pollution y dependencias vulnerables (`npm audit` si hay lockfile). En el backend cubre también
+  los vectores de servidor cuando el código los toque: inyección SQL, fallos de autorización por nivel
+  (IDOR, comprobaciones de acceso ausentes), manejo de sesión/JWT y filtrado de secretos.
+- **La capa RAG está diseñada pero aún no construida** (`docs/plans/rag-centro-ayuda-preliminar.md`). Su
+  seguridad y, en general, la **inyección de prompts / seguridad de LLM** (composición del prompt del chat
+  con citas y de la traducción de artículos en `api/app/servicios_ia.py`, confianza instrucción/dato,
+  exfiltración a través del modelo) **no son tu ámbito**: los cubre el agente `prompt-injection-reviewer`.
+  Deriva a él esos riesgos en lugar de duplicarlos; tú te quedas con el appsec estático del código. En
+  «secretos» tu parte es la fuga en fuente o configuración; la exfiltración vía el modelo es de él.
 </contexto>
 
 <instrucciones>
