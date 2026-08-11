@@ -148,6 +148,8 @@
     "confirmarEliminar": "Excluir o artigo «{{titulo}}»? Esta ação não pode ser desfeita.",
     "errorGuardar": "Não foi possível salvar. Revise os campos e tente novamente.",
     "errorIdDuplicado": "Já existe um artigo com esse identificador.",
+    "faltanCampos": "Faltam campos obrigatórios: {{campos}}.",
+    "campoIdioma": "{{campo}} ({{idioma}})",
     "errorRed": "Não foi possível conectar ao servidor.",
     "errorCargar": "Não foi possível carregar o artigo para editar.",
     "id": "Identificador",

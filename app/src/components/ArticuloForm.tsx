@@ -8,7 +8,14 @@ import {
   type DestinoArticulo,
   type TraduccionAdmin,
 } from '@/data/admin'
-import { aPayload, draftInicial, type Draft, type TradDraft } from '@/data/articuloBorrador'
+import {
+  aPayload,
+  camposObligatoriosFaltantes,
+  draftInicial,
+  type CampoFaltante,
+  type Draft,
+  type TradDraft,
+} from '@/data/articuloBorrador'
 import { derivarId, derivarSlug } from '@/data/slug'
 import { minutosDeArticulo } from '@/data/lecturaMinutos'
 import { Ic } from './iconos'
@@ -31,6 +38,26 @@ const BOTON_SEC =
   'inline-flex items-center gap-1.5 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]'
 
 const HOY = () => new Date().toISOString().slice(0, 10)
+
+// Traduce un campo obligatorio que falta al `id` de su control en el DOM, para
+// poder enfocarlo. Los pasos/FAQ se editan con `aria-label` (sin `id`): no se
+// enfocan, pero el aviso de texto ya los nombra.
+function idDeCampo(cf: CampoFaltante): string | null {
+  switch (cf.clave) {
+    case 'panelGestion.id':
+      return 'af-id'
+    case 'panelGestion.categoria':
+      return 'af-categoria'
+    case 'panelGestion.tituloArticulo':
+      return cf.idioma ? `${cf.idioma}-titulo` : null
+    case 'panelGestion.slug':
+      return cf.idioma ? `${cf.idioma}-slug` : null
+    case 'panelGestion.howToTitulo':
+      return cf.idioma ? `${cf.idioma}-howto` : null
+    default:
+      return null
+  }
+}
 
 function tradAdminADraft(t: TraduccionAdmin, slug: string): TradDraft {
   return {
@@ -117,9 +144,29 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
     }
   }
 
+  // Etiqueta legible de un campo que falta: su nombre traducido, con el número
+  // de fila (pasos/FAQ) y el idioma afectado cuando aplica.
+  const etiquetaCampo = (cf: CampoFaltante): string => {
+    const nombre = t(cf.clave, cf.n !== undefined ? { n: cf.n } : undefined)
+    return cf.idioma
+      ? t('panelGestion.campoIdioma', { campo: nombre, idioma: t(`idioma.${cf.idioma}`) })
+      : nombre
+  }
+
   async function alEnviar(e: FormEvent) {
     e.preventDefault()
     setError(null)
+
+    // Candado: no se envía nada si faltan campos que el backend exige. El aviso
+    // nombra cada campo (y su idioma) y el foco salta al primero con control propio.
+    const faltan = camposObligatoriosFaltantes(draft)
+    if (faltan.length > 0) {
+      setError(t('panelGestion.faltanCampos', { campos: faltan.map(etiquetaCampo).join(', ') }))
+      const primero = faltan.map(idDeCampo).find((id): id is string => id !== null)
+      if (primero) document.getElementById(primero)?.focus()
+      return
+    }
+
     setEnviando(true)
     try {
       const destino: DestinoArticulo =
@@ -417,7 +464,7 @@ function SeccionIdioma({
           <label htmlFor={p('howto')} className="block text-sm font-medium text-slate-700 mb-1">
             {t('panelGestion.howToTitulo')}
           </label>
-          <input id={p('howto')} className={CAMPO} value={trad.howToTitulo} onChange={e => onPatch({ howToTitulo: e.target.value })} />
+          <input id={p('howto')} className={CAMPO} value={trad.howToTitulo} onChange={e => onPatch({ howToTitulo: e.target.value })} required />
         </div>
 
         <FilasDinamicas
