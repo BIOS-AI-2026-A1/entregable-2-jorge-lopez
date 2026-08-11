@@ -6,11 +6,23 @@ exactamente con lo que el frontend ya consume.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 Idioma = Literal["es", "pt"]
+
+# Cotas de tamaño para el contenido de artículo que entra por el panel (alta, edición
+# y traducción). Son holgadas frente al contenido real de `app/src/data/{es,pt}` (la
+# cadena más larga ronda los ~370 caracteres y ninguna lista pasa de unos pocos ítems),
+# pero cortan payloads desmesurados antes de gastar el proveedor de IA en la traducción
+# (defensa contra inyección de prompts y coste; ver cambio `guardarrailes-inyeccion-runtime`).
+MAX_TEXTO_CORTO = 300  # títulos y preguntas
+MAX_TEXTO_LARGO = 5000  # párrafos, notas, descripciones y respuestas
+MAX_ITEMS_LISTA = 50  # nº de párrafos, pasos o preguntas por artículo
+
+TextoCorto = Annotated[str, Field(min_length=1, max_length=MAX_TEXTO_CORTO)]
+TextoLargo = Annotated[str, Field(max_length=MAX_TEXTO_LARGO)]
 
 
 # --- Bloques de contenido ---------------------------------------------------
@@ -25,18 +37,18 @@ class CategoriaOut(BaseModel):
 
 
 class PasoHowTo(BaseModel):
-    titulo: str
-    descripcion: str
+    titulo: TextoCorto
+    descripcion: TextoLargo
 
 
 class BloqueHowTo(BaseModel):
-    titulo: str
-    pasos: list[PasoHowTo]
+    titulo: TextoCorto
+    pasos: list[PasoHowTo] = Field(max_length=MAX_ITEMS_LISTA)
 
 
 class PreguntaFrecuente(BaseModel):
-    pregunta: str
-    respuesta: str
+    pregunta: TextoCorto
+    respuesta: TextoLargo
 
 
 class ArticuloOut(BaseModel):
@@ -101,12 +113,12 @@ class LogoutIn(BaseModel):
 # --- CRUD de artículos (entrada bilingüe) -----------------------------------
 
 class TraduccionArticuloIn(BaseModel):
-    slug: str = Field(min_length=1)
-    titulo: str = Field(min_length=1)
-    parrafos: list[str]
+    slug: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    titulo: TextoCorto
+    parrafos: list[TextoLargo] = Field(max_length=MAX_ITEMS_LISTA)
     howTo: BloqueHowTo
-    nota: str | None = None
-    faq: list[PreguntaFrecuente]
+    nota: TextoLargo | None = None
+    faq: list[PreguntaFrecuente] = Field(max_length=MAX_ITEMS_LISTA)
 
 
 class ArticuloIn(BaseModel):
