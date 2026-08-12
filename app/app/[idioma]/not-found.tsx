@@ -28,7 +28,7 @@ export default function NoEncontrado() {
         <p className="text-slate-600 text-[15px] max-w-md mx-auto">{t('articulo.noEncontradoAyuda')}</p>
         <Link
           href={rutas.inicio(idioma)}
-          className="mt-6 inline-flex items-center gap-2 px-5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+          className="mt-6 inline-flex items-center gap-2 px-5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
           style={{ background: 'var(--acento)' }}
         >
           {t('articulo.volverInicio')}

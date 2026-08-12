@@ -11,7 +11,7 @@ def test_contenido_idioma_admitido(client):
     r = client.get("/api/es/contenido")
     assert r.status_code == 200
     cuerpo = r.json()
-    assert set(cuerpo) == {"empresa", "categorias", "articulos", "conversacion", "metricas"}
+    assert set(cuerpo) == {"empresa", "acento", "bannerDesde", "bannerMedio", "bannerHasta", "logo", "categorias", "articulos", "conversacion", "metricas"}
     assert cuerpo["categorias"][0]["id"] == "cuenta"
 
 
@@ -31,7 +31,7 @@ def test_articulo_creado_aparece_en_contenido(client, auth):
 def test_portugues_tiene_la_misma_forma_que_espanol(client):
     r = client.get("/api/pt/contenido")
     assert r.status_code == 200
-    assert set(r.json()) == {"empresa", "categorias", "articulos", "conversacion", "metricas"}
+    assert set(r.json()) == {"empresa", "acento", "bannerDesde", "bannerMedio", "bannerHasta", "logo", "categorias", "articulos", "conversacion", "metricas"}
 
 
 def test_el_contenido_publico_incluye_el_campo_empresa(client):

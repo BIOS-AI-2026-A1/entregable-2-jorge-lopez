@@ -27,8 +27,8 @@ import { articuloPorId, articuloPorSlug, articulosDestacados, buscarArticulos, c
  */
 
 const contenidos: Record<Idioma, ContenidoIdioma> = {
-  es: { empresa: '[Empresa]', categorias: categoriasEs, articulos: articulosEs, conversacion: conversacionEs, metricas: metricasEs },
-  pt: { empresa: '[Empresa]', categorias: categoriasPt, articulos: articulosPt, conversacion: conversacionPt, metricas: metricasPt },
+  es: { empresa: '[Empresa]', acento: '#4338ca', bannerDesde: '#3730a3', bannerMedio: '#4338ca', bannerHasta: '#4f46e5', logo: false, categorias: categoriasEs, articulos: articulosEs, conversacion: conversacionEs, metricas: metricasEs },
+  pt: { empresa: '[Empresa]', acento: '#4338ca', bannerDesde: '#3730a3', bannerMedio: '#4338ca', bannerHasta: '#4f46e5', logo: false, categorias: categoriasPt, articulos: articulosPt, conversacion: conversacionPt, metricas: metricasPt },
 }
 
 const preguntasPorIdioma: Record<Idioma, PreguntaSinResolver[]> = { es: preguntasEs, pt: preguntasPt }

@@ -137,6 +137,19 @@ def standard_auth(standard_token) -> dict:
     return {"Authorization": f"Bearer {standard_token}"}
 
 
+def categoria_valida(categoria_id: str = "facturacion") -> dict:
+    """Payload de categoría bilingüe completo para los tests."""
+    return {
+        "id": categoria_id,
+        "icono": "recibo",
+        "fondo": "bg-emerald-50",
+        "texto": "text-emerald-700",
+        "orden": 3,
+        "es": {"slug": "facturacion", "nombre": "Facturación"},
+        "pt": {"slug": "faturacao", "nombre": "Faturação"},
+    }
+
+
 def articulo_valido(articulo_id: str = "nuevo-articulo") -> dict:
     """Payload de artículo bilingüe completo para los tests."""
     trad = lambda slug, titulo: {

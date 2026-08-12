@@ -45,7 +45,7 @@ export default async function PaginaArticulo({
               <li>
                 <Link
                   href={rutas.inicio(idioma)}
-                  className="text-indigo-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 rounded"
+                  className="text-[var(--acento)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 rounded"
                 >
                   {t('articulo.raiz')}
                 </Link>
@@ -56,7 +56,7 @@ export default async function PaginaArticulo({
                   <li>
                     <Link
                       href={`${rutas.inicio(idioma)}?categoria=${categoria.slug}`}
-                      className="text-indigo-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 rounded"
+                      className="text-[var(--acento)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 rounded"
                     >
                       {categoria.nombre}
                     </Link>
@@ -97,9 +97,9 @@ export default async function PaginaArticulo({
             <p key={i}>{parrafo}</p>
           ))}
 
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 sm:p-6">
+          <div className="rounded-2xl border border-[var(--acento-claro)] bg-[var(--acento-claro)] p-5 sm:p-6">
             <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-lg bg-indigo-700 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-[var(--acento)] flex items-center justify-center shrink-0">
                 <Ic.FileText size={14} className="text-white" />
               </div>
               <h2 className="font-bold text-slate-900 text-base">{articulo.howTo.titulo}</h2>
@@ -109,7 +109,7 @@ export default async function PaginaArticulo({
                 <li key={i} className="flex items-start gap-4">
                   <span
                     aria-hidden="true"
-                    className="shrink-0 w-8 h-8 rounded-full bg-indigo-700 text-white text-sm font-bold flex items-center justify-center mt-0.5"
+                    className="shrink-0 w-8 h-8 rounded-full bg-[var(--acento)] text-white text-sm font-bold flex items-center justify-center mt-0.5"
                   >
                     {i + 1}
                   </span>
@@ -133,7 +133,7 @@ export default async function PaginaArticulo({
 
           <div>
             <h2 className="font-bold text-slate-900 text-lg mb-4 flex items-center gap-2">
-              <Ic.HelpCircle size={18} className="text-indigo-700" />
+              <Ic.HelpCircle size={18} className="text-[var(--acento)]" />
               {t('articulo.faq')}
             </h2>
             <div className="space-y-3">
@@ -154,9 +154,9 @@ export default async function PaginaArticulo({
                 <li key={rel.id}>
                   <Link
                     href={rutas.articulo(idioma, rel.slug)}
-                    className="inline-flex items-center gap-2.5 text-sm text-indigo-700 hover:text-indigo-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 rounded min-h-[44px]"
+                    className="inline-flex items-center gap-2.5 text-sm text-[var(--acento)] hover:text-[var(--acento-hover)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 rounded min-h-[44px]"
                   >
-                    <Ic.ChevronRight size={14} className="text-indigo-500 shrink-0" />
+                    <Ic.ChevronRight size={14} className="text-[var(--acento)] shrink-0" />
                     {rel.titulo}
                   </Link>
                 </li>

@@ -34,7 +34,7 @@ export function PanelI18n({ idioma, children }: { idioma: Idioma; children: Reac
         aria-live="polite"
         className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-slate-700"
       >
-        <Ic.Loader size={28} className="animate-spin text-indigo-700 motion-reduce:animate-none" />
+        <Ic.Loader size={28} className="animate-spin text-[var(--acento)] motion-reduce:animate-none" />
         <p className="text-sm font-medium">{t('estado.cargando')}</p>
       </div>
     )

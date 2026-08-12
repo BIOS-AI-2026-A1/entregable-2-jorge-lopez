@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata } from 'next'
 import { DM_Sans, DM_Serif_Display } from 'next/font/google'
 import { redirect } from 'next/navigation'
 import { esIdioma, type ContenidoIdioma } from '@/types'
 import { cargarContenidoServidor } from '@/data/servidor'
+import { derivarTokensAcento } from '@/seguridad/contraste'
 import '../globals.css'
 import { SkipLink } from '../_componentes/SkipLink'
 import { AppHeader } from '../_componentes/AppHeader'
@@ -21,13 +22,54 @@ const fuenteSerif = DM_Serif_Display({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
-  title: 'Centro de Ayuda',
-}
-
 /** Prerenderiza los idiomas soportados en la compilación. */
 export function generateStaticParams() {
   return [{ idioma: 'es' }, { idioma: 'pt' }]
+}
+
+/**
+ * Favicon dinámico: si hay logotipo subido, apunta a `/api/marca/logo` (mismo
+ * origen, compatible con la CSP `img-src 'self'`). Sin logo, se omite y el
+ * navegador cae al favicon por defecto.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ idioma: string }>
+}): Promise<Metadata> {
+  const { idioma } = await params
+  let hayLogo = false
+  try {
+    const contenido = await cargarContenidoServidor(esIdioma(idioma) ? idioma : 'es')
+    hayLogo = contenido.logo
+  } catch {
+    hayLogo = false
+  }
+  return {
+    title: 'Centro de Ayuda',
+    icons: hayLogo ? { icon: '/api/marca/logo' } : undefined,
+  }
+}
+
+/**
+ * Tokens de acento y banner inyectados inline desde la paleta servida, para que
+ * lleguen en el HTML inicial (sin parpadeo) y sobrescriban los valores por defecto
+ * de `index.css`. Se usa un atributo `style` (no un `<style>`): la CSP lo permite
+ * sin `nonce`. Los tokens derivados (hover/claro/foco) se calculan igual que en el
+ * servidor de la API, garantizando la misma escala que se validó por contraste.
+ */
+function estiloMarca(contenido: ContenidoIdioma | null): CSSProperties | undefined {
+  if (!contenido) return undefined
+  const tokens = derivarTokensAcento(contenido.acento)
+  return {
+    '--acento': contenido.acento,
+    '--acento-hover': tokens.hover,
+    '--acento-claro': tokens.claro,
+    '--acento-foco': tokens.foco,
+    '--banner-desde': contenido.bannerDesde,
+    '--banner-medio': contenido.bannerMedio,
+    '--banner-hasta': contenido.bannerHasta,
+  } as CSSProperties
 }
 
 /**
@@ -57,13 +99,17 @@ export default async function LayoutIdioma({
   }
 
   return (
-    <html lang={idioma} className={`${fuenteSans.variable} ${fuenteSerif.variable}`}>
+    <html
+      lang={idioma}
+      className={`${fuenteSans.variable} ${fuenteSerif.variable}`}
+      style={estiloMarca(contenido)}
+    >
       <body>
         {/* id="root": el `Modal` del panel marca este contenedor como inert
             mientras está abierto (el diálogo vive fuera, en un portal a body). */}
         <div id="root" className="min-h-screen bg-slate-50">
           <SkipLink idioma={idioma} />
-          <AppHeader idioma={idioma} empresa={contenido?.empresa} />
+          <AppHeader idioma={idioma} empresa={contenido?.empresa} logo={contenido?.logo} />
           {children}
           {contenido && <ChatLanzador idioma={idioma} contenido={contenido} />}
         </div>

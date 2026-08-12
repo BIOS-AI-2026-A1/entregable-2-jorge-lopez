@@ -89,6 +89,57 @@ export function guardarArticulo(payload: ArticuloAdmin, destino: DestinoArticulo
   return apiFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
 }
 
+// ── Gestión de categorías (Standard + Root) ─────────────────────────────────
+
+/** Traducción de una categoría (nombre + slug por idioma). */
+export interface TraduccionCategoriaAdmin {
+  slug: string
+  nombre: string
+}
+
+/** Categoría con sus dos idiomas que devuelve/acepta la API admin. */
+export interface CategoriaAdmin {
+  id: string
+  icono: string
+  fondo: string
+  texto: string
+  orden: number
+  es: TraduccionCategoriaAdmin
+  pt: TraduccionCategoriaAdmin
+}
+
+export function listarCategorias(): Promise<Response> {
+  return apiFetch('/api/admin/categorias')
+}
+
+/** A dónde va un guardado de categoría: alta o edición. */
+export type DestinoCategoria = { tipo: 'crear' } | { tipo: 'editar'; categoriaId: string }
+
+/**
+ * Dirección, método y cuerpo de un guardado de categoría. Función pura (no toca
+ * la red): al crear va el payload completo; al editar, el id viaja en la
+ * dirección y la API lo rechaza en el cuerpo. Espeja `peticionGuardado`.
+ */
+export function peticionCategoria(
+  payload: CategoriaAdmin,
+  destino: DestinoCategoria,
+): { url: string; metodo: string; cuerpo: unknown } {
+  if (destino.tipo === 'crear') {
+    return { url: '/api/admin/categorias', metodo: 'POST', cuerpo: payload }
+  }
+  const { id: _id, ...sinId } = payload
+  return { url: `/api/admin/categorias/${destino.categoriaId}`, metodo: 'PUT', cuerpo: sinId }
+}
+
+export function guardarCategoria(payload: CategoriaAdmin, destino: DestinoCategoria): Promise<Response> {
+  const { url, metodo, cuerpo } = peticionCategoria(payload, destino)
+  return apiFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
+}
+
+export function eliminarCategoria(id: string): Promise<Response> {
+  return apiFetch(`/api/admin/categorias/${id}`, { method: 'DELETE' })
+}
+
 // ── Sesión: identidad y nivel de acceso ─────────────────────────────────────
 
 /** Identidad de la sesión actual, que devuelve `GET /api/auth/me`. */
@@ -168,6 +219,37 @@ export function guardarEmpresa(empresa: string): Promise<Response> {
   return apiFetch('/api/admin/ajustes/empresa', {
     method: 'PUT',
     body: JSON.stringify({ empresa }),
+  })
+}
+
+// ── Marca visual: paleta y logotipo (solo Root) ─────────────────────────────
+
+/** Paleta editable: acento + tres paradas del degradado del banner (hex). */
+export interface MarcaPayload {
+  acento: string
+  bannerDesde: string
+  bannerMedio: string
+  bannerHasta: string
+}
+
+/**
+ * Guarda la paleta. El servidor valida el contraste WCAG y responde 422 con el par
+ * que falla si no cumple; la pantalla distingue ese código para avisar sin persistir.
+ */
+export function guardarMarca(payload: MarcaPayload): Promise<Response> {
+  return apiFetch('/api/admin/ajustes/marca', { method: 'PUT', body: JSON.stringify(payload) })
+}
+
+/**
+ * Sube el logotipo como cuerpo binario crudo (PNG/ICO). Se fija el `Content-Type`
+ * explícito para que `apiFetch` no lo trate como JSON; el servidor decide el tipo
+ * real por magic bytes, no por esta cabecera.
+ */
+export function subirLogo(archivo: File): Promise<Response> {
+  return apiFetch('/api/admin/ajustes/logo', {
+    method: 'POST',
+    body: archivo,
+    headers: { 'Content-Type': archivo.type || 'application/octet-stream' },
   })
 }
 

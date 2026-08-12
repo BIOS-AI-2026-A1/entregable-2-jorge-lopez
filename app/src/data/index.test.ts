@@ -48,6 +48,11 @@ const articulos: Articulo[] = [
 
 const contenido: ContenidoIdioma = {
   empresa: '[Empresa]',
+  acento: '#4338ca',
+  bannerDesde: '#3730a3',
+  bannerMedio: '#4338ca',
+  bannerHasta: '#4f46e5',
+  logo: false,
   categorias,
   articulos,
   conversacion: [],

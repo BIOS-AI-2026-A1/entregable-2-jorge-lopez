@@ -14,6 +14,11 @@
   --acento-hover: #3730a3;
   --acento-claro: #eef2ff;
   --acento-foco: #6366f1;
+  /* Paradas del degradado del banner de inicio. El layout las sobrescribe inline
+     desde la paleta servida (SSR); estos valores son la reserva si no llegan. */
+  --banner-desde: #3730a3;
+  --banner-medio: #4338ca;
+  --banner-hasta: #4f46e5;
 }
 
 /* ── Base ────────────────────────────────────────────────── */
@@ -49,9 +54,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Focus ring — 2px solid, offset 2px, accent color ───── */
+/* ── Focus ring — 2px solid, offset 2px, accent focus token ───── */
+/* Unificado en --acento-foco: es el mismo token que consumen las utilidades
+   `ring-[var(--acento-foco)]` de los componentes, y el servidor valida su
+   contraste (≥3:1 sobre el fondo) al guardar una paleta nueva. */
 :focus-visible {
-  outline: 2px solid var(--acento);
+  outline: 2px solid var(--acento-foco);
   outline-offset: 2px;
   border-radius: 4px;
 }

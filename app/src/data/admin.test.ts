@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { peticionGuardado, peticionUsuario, type ArticuloAdmin } from './admin'
+import {
+  peticionCategoria,
+  peticionGuardado,
+  peticionUsuario,
+  type ArticuloAdmin,
+  type CategoriaAdmin,
+} from './admin'
 
 function payload(): ArticuloAdmin {
   const trad = {
@@ -95,6 +101,55 @@ describe('peticionGuardado', () => {
     for (const destino of destinos) {
       expect(peticionGuardado(payload(), destino).url.startsWith('/api/admin/')).toBe(true)
     }
+  })
+})
+
+function categoria(): CategoriaAdmin {
+  return {
+    id: 'facturacion',
+    icono: 'recibo',
+    fondo: 'bg-emerald-50',
+    texto: 'text-emerald-700',
+    orden: 3,
+    es: { slug: 'facturacion', nombre: 'Facturación' },
+    pt: { slug: 'faturacao', nombre: 'Faturação' },
+  }
+}
+
+describe('peticionCategoria', () => {
+  it('crea con POST contra la colección, con el id en el cuerpo', () => {
+    const p = peticionCategoria(categoria(), { tipo: 'crear' })
+    expect(p.metodo).toBe('POST')
+    expect(p.url).toBe('/api/admin/categorias')
+    expect(p.cuerpo).toHaveProperty('id', 'facturacion')
+  })
+
+  it('edita con PUT contra la categoría y sin el id en el cuerpo', () => {
+    const p = peticionCategoria(categoria(), { tipo: 'editar', categoriaId: 'cuenta' })
+    expect(p.metodo).toBe('PUT')
+    expect(p.url).toBe('/api/admin/categorias/cuenta')
+    expect(p.cuerpo).not.toHaveProperty('id')
+  })
+
+  it('al editar usa el id del destino, no el del borrador', () => {
+    const p = peticionCategoria(categoria(), { tipo: 'editar', categoriaId: 'otra' })
+    expect(p.url).toBe('/api/admin/categorias/otra')
+  })
+
+  it('al editar no arranca el id del objeto que recibe', () => {
+    const original = categoria()
+    peticionCategoria(original, { tipo: 'editar', categoriaId: 'cuenta' })
+    expect(original.id).toBe('facturacion')
+  })
+
+  it('al editar conserva el resto de campos de la categoría', () => {
+    const cuerpo = peticionCategoria(categoria(), { tipo: 'editar', categoriaId: 'cuenta' }).cuerpo as Omit<
+      CategoriaAdmin,
+      'id'
+    >
+    expect(Object.keys(cuerpo).sort()).toEqual(['es', 'fondo', 'icono', 'orden', 'pt', 'texto'].sort())
+    expect(cuerpo.es.nombre).toBe('Facturación')
+    expect(cuerpo.pt.nombre).toBe('Faturação')
   })
 })
 

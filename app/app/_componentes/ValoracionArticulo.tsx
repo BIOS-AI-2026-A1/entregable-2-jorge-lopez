@@ -18,7 +18,7 @@ export function ValoracionArticulo({ idioma }: { idioma: Idioma }) {
           <button
             type="button"
             onClick={() => setValoracion('si')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:border-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:border-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
           >
             <Ic.ThumbsUp size={16} />
             {t('articulo.utilSi')}
@@ -26,7 +26,7 @@ export function ValoracionArticulo({ idioma }: { idioma: Idioma }) {
           <button
             type="button"
             onClick={() => setValoracion('no')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:border-red-600 hover:text-red-800 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:border-red-600 hover:text-red-800 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
           >
             <Ic.ThumbsDown size={16} />
             {t('articulo.utilNo')}

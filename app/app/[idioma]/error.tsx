@@ -30,7 +30,7 @@ export default function ErrorContenido({ reset }: { error: Error; reset: () => v
         <button
           type="button"
           onClick={reset}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
           style={{ background: 'var(--acento)' }}
         >
           <Ic.RefreshCw size={16} />

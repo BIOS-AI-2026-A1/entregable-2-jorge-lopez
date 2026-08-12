@@ -49,7 +49,10 @@ export async function reenviarConSesion(request: NextRequest, rutaBackend: strin
 
   const url = `${BACKEND}${rutaBackend}${request.nextUrl.search}`
   const metodo = request.method
-  const cuerpo = metodo === 'GET' || metodo === 'HEAD' ? undefined : await request.text()
+  // Se reenvía como bytes (ArrayBuffer), no como texto: `request.text()` decodifica
+  // en UTF-8 y corrompería un binario (p. ej. la subida del logotipo PNG/ICO). Para
+  // los cuerpos JSON es indistinto (los mismos bytes con su `content-type`).
+  const cuerpo = metodo === 'GET' || metodo === 'HEAD' ? undefined : await request.arrayBuffer()
   const tipo = request.headers.get('content-type') ?? undefined
 
   const llamar = (token?: string): Promise<Response> => {

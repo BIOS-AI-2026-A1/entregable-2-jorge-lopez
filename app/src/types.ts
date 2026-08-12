@@ -126,6 +126,14 @@ export interface Metrica {
 export interface ContenidoIdioma {
   /** Nombre de marca global (campo [Empresa]); reemplaza el placeholder [EMPRESA]. */
   empresa: string
+  /** Color de acento de la marca (hex). Alimenta los tokens `--acento*` en SSR. */
+  acento: string
+  /** Tres paradas del degradado del banner de inicio (hex). */
+  bannerDesde: string
+  bannerMedio: string
+  bannerHasta: string
+  /** Si hay logotipo de marca subido (cabecera y favicon lo usan). */
+  logo: boolean
   categorias: Categoria[]
   articulos: Articulo[]
   conversacion: MensajeChat[]

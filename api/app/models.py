@@ -17,6 +17,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     func,
 )
@@ -191,14 +192,26 @@ class RefreshToken(Base):
 class Ajustes(Base):
     """Ajustes globales de la instalación. Fila única (`id=1`).
 
-    Hoy solo guarda el campo **[Empresa]** (nombre de marca global editable por
-    Root). Es un singleton a propósito: no es multi-tenant.
+    Guarda el campo **[Empresa]** (nombre de marca global editable por Root) y la
+    **marca visual**: color de acento, las tres paradas del degradado del banner de
+    inicio y el logotipo (binario + MIME). Los colores llevan por defecto el aspecto
+    índigo actual; el logo es opcional (sin logo, la cabecera cae al recuadro de
+    iniciales y el favicon al de por defecto). Es un singleton a propósito: no es
+    multi-tenant.
     """
 
     __tablename__ = "ajustes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     empresa: Mapped[str] = mapped_column(String, nullable=False)
+    # Colores hex `#rrggbb`. Los valores por defecto reproducen el aspecto actual.
+    acento: Mapped[str] = mapped_column(String, nullable=False, default="#4338ca")
+    banner_desde: Mapped[str] = mapped_column(String, nullable=False, default="#3730a3")
+    banner_medio: Mapped[str] = mapped_column(String, nullable=False, default="#4338ca")
+    banner_hasta: Mapped[str] = mapped_column(String, nullable=False, default="#4f46e5")
+    # Logotipo subido (PNG/ICO). Nulo mientras no se suba ninguno.
+    logo_bin: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    logo_mime: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class ConfigIA(Base):

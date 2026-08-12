@@ -79,9 +79,9 @@ export function SelectorIdioma({ idioma }: { idioma: Idioma }) {
                     ? t('idioma.actual', { idioma: t(`idioma.${codigo}`) })
                     : t('idioma.cambiarA', { idioma: t(`idioma.${codigo}`) })
                 }
-                className={`inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2 rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 ${
+                className={`inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2 rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 ${
                   activo
-                    ? 'bg-indigo-50 text-indigo-800 font-bold underline underline-offset-4 decoration-2'
+                    ? 'bg-[var(--acento-claro)] text-[var(--acento)] font-bold underline underline-offset-4 decoration-2'
                     : 'text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >

@@ -23,7 +23,7 @@ export function Accordion({ pregunta, respuesta }: { pregunta: string; respuesta
           onClick={() => setAbierto(o => !o)}
           aria-expanded={abierto}
           aria-controls={idPanel}
-          className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#4338ca] transition-colors min-h-[56px]"
+          className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--acento-foco)] transition-colors min-h-[56px]"
         >
           <span className="font-medium text-slate-900 text-[15px] leading-snug">{pregunta}</span>
           <Ic.ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${abierto ? 'rotate-180' : ''}`} />
