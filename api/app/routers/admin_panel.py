@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import requiere_nivel
 from app.models import Articulo, NivelAcceso, PreguntaSinResolver
-from app.routers.comun import exigir_id_disponible
+from app.routers.comun import exigir_id_disponible, validar_relacionados
 from app.schemas import ArticuloAdminOut, ArticuloIn, PreguntaAdminOut
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict, pregunta_a_dict
 from app.texto import normalizar_slug
@@ -41,7 +41,9 @@ def crear_articulo_desde_pregunta(
     pregunta = db.get(PreguntaSinResolver, pregunta_id)
     if pregunta is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pregunta no encontrada")
-    exigir_id_disponible(db, normalizar_slug(datos.id))
+    id_normalizado = normalizar_slug(datos.id)
+    exigir_id_disponible(db, id_normalizado)
+    validar_relacionados(db, id_normalizado, datos.relacionados)
 
     a = Articulo()
     aplicar_datos_articulo(a, datos, incluir_id=True)

@@ -149,6 +149,10 @@ def test_editar_y_eliminar_sin_sesion_rechazados(client):
 # --- Campos que deben sobrevivir al viaje -----------------------------------
 
 def test_los_relacionados_conservan_su_orden(client, auth):
+    # Los relacionados deben existir (integridad referencial): se crean primero.
+    for rid in ("zeta", "alfa", "mu"):
+        assert client.post("/api/admin/articulos", json=articulo_valido(rid), headers=auth).status_code == 201
+
     payload = articulo_valido()
     payload["relacionados"] = ["zeta", "alfa", "mu"]
 
@@ -235,3 +239,85 @@ def test_los_slugs_se_normalizan_en_el_servidor(client, auth):
     creado = client.post("/api/admin/articulos", json=payload, headers=auth).json()
     assert creado["es"]["slug"] == "cafe-con-leche"
     assert creado["pt"]["slug"] == "cafe-com-leite"
+
+
+# --- Integridad referencial de los relacionados -----------------------------
+
+def test_crear_con_relacionado_inexistente_es_422(client, auth):
+    payload = articulo_valido()
+    payload["relacionados"] = ["no-existe"]
+    r = client.post("/api/admin/articulos", json=payload, headers=auth)
+    assert r.status_code == 422
+    # No se persiste el artículo cuando el relacionado es inválido.
+    assert client.get("/api/admin/articulos/nuevo-articulo", headers=auth).status_code == 404
+
+
+def test_crear_con_auto_referencia_es_422(client, auth):
+    # Un artículo no puede listarse a sí mismo como relacionado.
+    payload = articulo_valido("auto")
+    payload["relacionados"] = ["auto"]
+    r = client.post("/api/admin/articulos", json=payload, headers=auth)
+    assert r.status_code == 422
+    assert client.get("/api/admin/articulos/auto", headers=auth).status_code == 404
+
+
+def test_editar_con_relacionado_inexistente_es_422_y_no_cambia(client, auth):
+    client.post("/api/admin/articulos", json=articulo_valido(), headers=auth)
+
+    cambio = articulo_valido()
+    del cambio["id"]
+    cambio["es"]["titulo"] = "No debería guardarse"
+    cambio["relacionados"] = ["no-existe"]
+    assert client.put("/api/admin/articulos/nuevo-articulo", json=cambio, headers=auth).status_code == 422
+
+    # El artículo conserva su estado anterior.
+    leido = client.get("/api/admin/articulos/nuevo-articulo", headers=auth).json()
+    assert leido["es"]["titulo"] == "Nuevo artículo"
+
+
+def test_borrar_articulo_limpia_los_enlaces_entrantes(client, auth):
+    # B referencia a A; al borrar A, el enlace entrante desde B desaparece
+    # (ON DELETE CASCADE de la FK), sin dejar relacionados colgando.
+    client.post("/api/admin/articulos", json=articulo_valido("articulo-a"), headers=auth)
+    payload_b = articulo_valido("articulo-b")
+    payload_b["relacionados"] = ["articulo-a"]
+    client.post("/api/admin/articulos", json=payload_b, headers=auth)
+
+    assert client.delete("/api/admin/articulos/articulo-a", headers=auth).status_code == 204
+
+    leido_b = client.get("/api/admin/articulos/articulo-b", headers=auth).json()
+    assert leido_b["relacionados"] == []
+
+
+def test_fk_diferible_permite_ciclo_en_una_transaccion(db_session):
+    """Referencias mutuas al sembrar: se inserta un enlace antes de que exista su
+    destino, dentro de la misma transacción. Solo pasa con FK DEFERRABLE INITIALLY
+    DEFERRED (como en el seed con `direccion-envio` <-> `seguimiento-pedido`)."""
+    from sqlalchemy import text
+
+    from app.models import Articulo
+
+    conn = db_session.connection()
+    conn.execute(
+        text(
+            "INSERT INTO articulos (id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
+            " VALUES ('uno','cuenta','2026-07-25',1,0,0)"
+        )
+    )
+    # El destino 'dos' aún no existe: con FK inmediata esto fallaría aquí.
+    conn.execute(
+        text("INSERT INTO articulo_relacionados (articulo_id, relacionado_id, orden) VALUES ('uno','dos',0)")
+    )
+    conn.execute(
+        text(
+            "INSERT INTO articulos (id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
+            " VALUES ('dos','cuenta','2026-07-25',1,0,1)"
+        )
+    )
+    conn.execute(
+        text("INSERT INTO articulo_relacionados (articulo_id, relacionado_id, orden) VALUES ('dos','uno',0)")
+    )
+    db_session.commit()  # la comprobación diferida se aplica aquí y pasa
+
+    assert db_session.get(Articulo, "uno") is not None
+    assert db_session.get(Articulo, "dos") is not None
