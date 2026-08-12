@@ -21,7 +21,7 @@ from datetime import date  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
@@ -92,6 +92,16 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    # SQLite no aplica las claves foráneas salvo que se active por conexión. Se
+    # enciende para que el cascade y las FK diferibles se comporten como en
+    # PostgreSQL (la base real), y los tests de integridad sean fieles.
+    @event.listens_for(engine, "connect")
+    def _activar_fk(dbapi_conn, _record):  # noqa: ANN001
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     db = TestingSessionLocal()

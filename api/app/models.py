@@ -87,6 +87,9 @@ class Articulo(Base):
         back_populates="articulo",
         cascade="all, delete-orphan",
         order_by="ArticuloRelacionado.orden",
+        # Dos FKs apuntan a articulos.id (articulo_id y relacionado_id): se fija cuál
+        # define esta relación de "enlaces salientes".
+        foreign_keys="ArticuloRelacionado.articulo_id",
     )
 
 
@@ -113,10 +116,18 @@ class ArticuloRelacionado(Base):
     articulo_id: Mapped[str] = mapped_column(
         ForeignKey("articulos.id", ondelete="CASCADE"), primary_key=True
     )
-    relacionado_id: Mapped[str] = mapped_column(String, primary_key=True)
+    # FK diferible: al borrar un artículo se limpian los enlaces que lo apuntan
+    # (ON DELETE CASCADE), y las referencias mutuas/ciclos del seed funcionan
+    # porque la comprobación se aplaza al commit (todas las filas ya están).
+    relacionado_id: Mapped[str] = mapped_column(
+        ForeignKey("articulos.id", ondelete="CASCADE", deferrable=True, initially="DEFERRED"),
+        primary_key=True,
+    )
     orden: Mapped[int] = mapped_column(Integer, default=0)
 
-    articulo: Mapped[Articulo] = relationship(back_populates="relacionados")
+    articulo: Mapped[Articulo] = relationship(
+        back_populates="relacionados", foreign_keys=[articulo_id]
+    )
 
 
 class PreguntaSinResolver(Base):

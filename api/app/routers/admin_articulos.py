@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import requiere_nivel
 from app.models import Articulo, NivelAcceso
-from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404
+from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404, validar_relacionados
 from app.schemas import (
     ArticuloAdminOut,
     ArticuloIn,
@@ -58,7 +58,9 @@ def traducir(
 @router.post("", response_model=ArticuloAdminOut, status_code=status.HTTP_201_CREATED)
 def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
     # Se comprueba la disponibilidad con el id ya normalizado (el mismo que persiste).
-    exigir_id_disponible(db, normalizar_slug(datos.id))
+    id_normalizado = normalizar_slug(datos.id)
+    exigir_id_disponible(db, id_normalizado)
+    validar_relacionados(db, id_normalizado, datos.relacionados)
     a = Articulo()
     aplicar_datos_articulo(a, datos, incluir_id=True)
     db.add(a)
@@ -70,6 +72,7 @@ def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
 @router.put("/{articulo_id}", response_model=ArticuloAdminOut)
 def actualizar(articulo_id: str, datos: ArticuloUpdateIn, db: Session = Depends(get_db)) -> dict:
     a = obtener_articulo_o_404(db, articulo_id)
+    validar_relacionados(db, articulo_id, datos.relacionados)
     aplicar_datos_articulo(a, datos, incluir_id=False)
     db.commit()
     db.refresh(a)
