@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from app.routers import (
     admin_ajustes,
@@ -52,6 +53,17 @@ def _error_proveedor(_: Request, __: ErrorProveedor) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_502_BAD_GATEWAY,
         content={"detail": "El proveedor de IA no pudo completar la traducción. Inténtalo de nuevo."},
+    )
+
+
+@app.exception_handler(IntegrityError)
+def _error_integridad(_: Request, __: IntegrityError) -> JSONResponse:
+    # Red de seguridad: una violación de integridad (p. ej. un relacionado que dejó
+    # de existir entre la validación y el commit) es un dato inválido, no un fallo
+    # del servidor. Se responde 422 en vez de dejar que se propague como 500.
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": "La operación viola una restricción de integridad de los datos."},
     )
 
 

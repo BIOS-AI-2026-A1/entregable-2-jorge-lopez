@@ -7,6 +7,8 @@ a un código de respuesta, que es asunto del router.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -55,3 +57,21 @@ def exigir_categoria_sin_articulos(db: Session, categoria_id: str) -> None:
             f"No se puede borrar la categoría: tiene {n} artículo(s) asignado(s). "
             "Reasigna o elimina esos artículos primero.",
         )
+def validar_relacionados(db: Session, articulo_id: str, relacionados: Iterable[str]) -> None:
+    """Corta con 422 si algún relacionado es inválido.
+
+    Un relacionado es inválido si es el propio artículo (auto-referencia) o si no
+    corresponde a un artículo existente. Se comprueba en el servidor para dar un
+    error de validación claro en vez de un 500 por la FK (que además, al ser
+    diferible, solo saltaría al hacer commit)."""
+    for rid in relacionados:
+        if rid == articulo_id:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"Un artículo no puede relacionarse consigo mismo: «{rid}».",
+            )
+        if db.get(Articulo, rid) is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"El artículo relacionado no existe: «{rid}».",
+            )
