@@ -188,7 +188,13 @@ def test_las_metricas_de_un_idioma_no_se_mezclan_con_las_del_otro(db_session):
 
 
 def test_los_relacionados_salen_por_orden_y_no_por_insercion(db_session):
-    a = _articulo(db_session, "con-relacionados")
+    # Los relacionados deben existir (integridad referencial): se crean primero,
+    # con un `orden` posterior para que `con-relacionados` siga siendo el primero.
+    _articulo(db_session, "primero", orden=1)
+    _articulo(db_session, "segundo", orden=2)
+    _articulo(db_session, "tercero", orden=3)
+
+    a = _articulo(db_session, "con-relacionados", orden=0)
     # Se insertan desordenados a propósito: manda `orden`, no el orden de alta.
     a.relacionados.append(ArticuloRelacionado(relacionado_id="tercero", orden=2))
     a.relacionados.append(ArticuloRelacionado(relacionado_id="primero", orden=0))
@@ -197,6 +203,7 @@ def test_los_relacionados_salen_por_orden_y_no_por_insercion(db_session):
     db_session.expire_all()
 
     articulo = ensamblar_contenido(db_session, "es")["articulos"][0]
+    assert articulo["id"] == "con-relacionados"
     assert articulo["relacionados"] == ["primero", "segundo", "tercero"]
 
 
