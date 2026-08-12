@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   AA_NORMAL,
+  BLANCO,
+  derivarDegradadoBanner,
   derivarTokensAcento,
   hexARgb,
   luminanciaRelativa,
@@ -10,6 +12,10 @@ import {
 
 const ACENTO_DEFECTO = '#4338ca'
 const BANNER_DEFECTO: [string, string, string] = ['#3730a3', '#4338ca', '#4f46e5']
+// Acentos que superan la validación COMPLETA de paleta (botón, tinte, foco). Un gris muy
+// desaturado como #767676 cumple 4.5:1 con blanco pero falla el par acento/tinte, así que
+// no es un acento de marca válido; su caso límite se prueba aparte solo contra el blanco.
+const ACENTOS_VALIDOS = ['#4338ca', '#0f766e', '#b91c1c', '#7c3aed', '#1d4ed8']
 
 describe('fórmulas de contraste', () => {
   it('expande el hex de tres dígitos', () => {
@@ -51,6 +57,47 @@ describe('derivación de tokens', () => {
     const base = luminanciaRelativa(ACENTO_DEFECTO)
     expect(luminanciaRelativa(tokens.hover)).toBeLessThan(base)
     expect(luminanciaRelativa(tokens.claro)).toBeGreaterThan(base)
+  })
+})
+
+describe('derivación del degradado del banner', () => {
+  // Referencia compartida con Python (test_contraste.py): misma fórmula ⇒ mismo hex.
+  const BANNER_DERIVADO_DEFECTO = { desde: '#4338ca', medio: '#372eac', hasta: '#2d258b' }
+
+  it('la parada inicial es el propio acento', () => {
+    expect(derivarDegradadoBanner(ACENTO_DEFECTO).desde).toBe(ACENTO_DEFECTO)
+  })
+
+  it('reproduce la referencia compartida con el servidor (paridad)', () => {
+    expect(derivarDegradadoBanner(ACENTO_DEFECTO)).toEqual(BANNER_DERIVADO_DEFECTO)
+  })
+
+  it.each(ACENTOS_VALIDOS)('cada parada derivada de %s contrasta con blanco', acento => {
+    expect(ratioContraste(BLANCO, acento)).toBeGreaterThanOrEqual(AA_NORMAL) // precondición
+    const banner = derivarDegradadoBanner(acento)
+    for (const parada of Object.values(banner)) {
+      expect(ratioContraste(BLANCO, parada)).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  })
+
+  it.each(ACENTOS_VALIDOS)('la luminosidad decrece hacia el final (%s)', acento => {
+    const { desde, medio, hasta } = derivarDegradadoBanner(acento)
+    expect(luminanciaRelativa(desde)).toBeGreaterThanOrEqual(luminanciaRelativa(medio))
+    expect(luminanciaRelativa(medio)).toBeGreaterThanOrEqual(luminanciaRelativa(hasta))
+  })
+
+  it.each(ACENTOS_VALIDOS)('el degradado derivado de %s valida la paleta', acento => {
+    const { desde, medio, hasta } = derivarDegradadoBanner(acento)
+    expect(validarPaleta(acento, desde, medio, hasta)).toBeNull()
+  })
+
+  it('un acento gris al borde de 4.5:1 mantiene el banner accesible con blanco', () => {
+    // #767676 roza el mínimo con blanco; las paradas (más oscuras) lo mantienen, aunque
+    // el gris no sea un acento de marca válido por otras razones (par acento/tinte).
+    expect(ratioContraste(BLANCO, '#767676')).toBeGreaterThanOrEqual(AA_NORMAL)
+    for (const parada of Object.values(derivarDegradadoBanner('#767676'))) {
+      expect(ratioContraste(BLANCO, parada)).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
   })
 })
 

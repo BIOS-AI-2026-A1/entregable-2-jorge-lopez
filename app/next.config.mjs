@@ -37,13 +37,20 @@ const nextConfig = {
     return [{ source: '/:path*', headers: CABECERAS_SEGURIDAD }]
   },
   async rewrites() {
-    // Solo el contenido público (por idioma) se reenvía directo al backend. Las
-    // rutas `/api/admin/*` y `/api/auth/*` las sirven los Route Handlers del BFF
-    // (adjuntan la cookie de sesión); nunca deben pasar por este rewrite.
+    // El contenido público (por idioma) y el logotipo de marca se reenvían directo
+    // al backend. Las rutas `/api/admin/*` y `/api/auth/*` las sirven los Route
+    // Handlers del BFF (adjuntan la cookie de sesión); nunca deben pasar por aquí.
     return [
       {
         source: '/api/:idioma(es|pt)/:path*',
         destination: `${BACKEND}/api/:idioma/:path*`,
+      },
+      {
+        // Logotipo público (cabecera + favicon): binario servido por la API, sin
+        // cookie. Sin este rewrite, `/api/marca/logo` cae en Next (404) y la
+        // imagen aparece rota en desarrollo.
+        source: '/api/marca/:path*',
+        destination: `${BACKEND}/api/marca/:path*`,
       },
     ]
   },

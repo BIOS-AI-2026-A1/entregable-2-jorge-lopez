@@ -224,24 +224,25 @@ export function guardarEmpresa(empresa: string): Promise<Response> {
 
 // ── Marca visual: paleta y logotipo (solo Root) ─────────────────────────────
 
-/** Paleta editable: acento + tres paradas del degradado del banner (hex). */
+/**
+ * Paleta editable: solo el acento. El degradado del banner ya no se elige a mano; lo
+ * deriva el servidor del acento (`derivar_degradado_banner`), accesible por construcción.
+ */
 export interface MarcaPayload {
   acento: string
-  bannerDesde: string
-  bannerMedio: string
-  bannerHasta: string
 }
 
 /**
- * Guarda la paleta. El servidor valida el contraste WCAG y responde 422 con el par
- * que falla si no cumple; la pantalla distingue ese código para avisar sin persistir.
+ * Guarda la paleta (solo el acento). El servidor deriva el banner y valida el contraste
+ * WCAG; responde 422 con el par que falla si no cumple, y la pantalla distingue ese
+ * código para avisar sin persistir.
  */
 export function guardarMarca(payload: MarcaPayload): Promise<Response> {
   return apiFetch('/api/admin/ajustes/marca', { method: 'PUT', body: JSON.stringify(payload) })
 }
 
 /**
- * Sube el logotipo como cuerpo binario crudo (PNG/ICO). Se fija el `Content-Type`
+ * Sube el logotipo como cuerpo binario crudo (PNG/ICO/JPEG). Se fija el `Content-Type`
  * explícito para que `apiFetch` no lo trate como JSON; el servidor decide el tipo
  * real por magic bytes, no por esta cabecera.
  */

@@ -21,7 +21,7 @@ import {
   type ConfigIAAdmin,
   type PreguntaAdmin,
 } from '@/data/admin'
-import { derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
+import { derivarDegradadoBanner, derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
 import { esRoot } from '@/auth/nivel'
 import { fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
@@ -77,9 +77,6 @@ export function PanelInterno({
   const [categorias, setCategorias] = useState<CategoriaAdmin[]>([])
   const [formCategoria, setFormCategoria] = useState<{ modo: 'crear' | 'editar'; inicial?: CategoriaAdmin } | null>(null)
   const [acento, setAcento] = useState(contenido.acento)
-  const [bannerDesde, setBannerDesde] = useState(contenido.bannerDesde)
-  const [bannerMedio, setBannerMedio] = useState(contenido.bannerMedio)
-  const [bannerHasta, setBannerHasta] = useState(contenido.bannerHasta)
   const [subiendoLogo, setSubiendoLogo] = useState(false)
 
   const puedeRoot = esRoot(nivel)
@@ -135,13 +132,11 @@ export function PanelInterno({
     setEmpresaInput(contenido.empresa)
   }, [contenido.empresa])
 
-  // Los selectores de color siguen a la paleta servida tras guardar (router.refresh).
+  // El selector de acento sigue a la paleta servida tras guardar (router.refresh). El
+  // banner ya no se edita: se deriva del acento al previsualizar y al guardar.
   useEffect(() => {
     setAcento(contenido.acento)
-    setBannerDesde(contenido.bannerDesde)
-    setBannerMedio(contenido.bannerMedio)
-    setBannerHasta(contenido.bannerHasta)
-  }, [contenido.acento, contenido.bannerDesde, contenido.bannerMedio, contenido.bannerHasta])
+  }, [contenido.acento])
 
   const pestanaActiva = resolverPestana(searchParams.get('seccion'), puedeRoot)
   function cambiarPestana(id: PestanaId) {
@@ -187,7 +182,7 @@ export function PanelInterno({
 
   async function guardarMarcaHandler(evento: FormEvent) {
     evento.preventDefault()
-    const resp = await guardarMarca({ acento, bannerDesde, bannerMedio, bannerHasta })
+    const resp = await guardarMarca({ acento })
     if (resp.ok) {
       avisoExito(t('ajustesMarca.guardado'))
       router.refresh() // los tokens de la paleta se reinyectan en el layout servido
@@ -571,8 +566,11 @@ export function PanelInterno({
   )
 
   // Vista previa de contraste en cliente (adelanta el aviso; la autoridad es el
-  // servidor). Los `<input type=color>` siempre dan `#rrggbb` válido, así que no lanza.
-  const falloPaleta = validarPaleta(acento, bannerDesde, bannerMedio, bannerHasta)
+  // servidor). El banner se deriva del acento, igual que en el servidor, así que el
+  // aviso ya solo puede objetar el acento. El `<input type=color>` siempre da `#rrggbb`
+  // válido, así que no lanza.
+  const banner = derivarDegradadoBanner(acento)
+  const falloPaleta = validarPaleta(acento, banner.desde, banner.medio, banner.hasta)
   const tokensAcento = derivarTokensAcento(acento)
 
   // ── Contenido de la pestaña «Administración» (solo Root) ─────────────────────
@@ -616,57 +614,33 @@ export function PanelInterno({
           {t('ajustesMarca.titulo')}
         </h3>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="marca-acento" className="block text-sm font-medium text-slate-700 mb-1">
-              {t('ajustesMarca.acento')}
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="marca-acento"
-                type="color"
-                value={acento}
-                onChange={e => setAcento(e.target.value)}
-                className="w-11 h-11 rounded-lg border border-slate-400 bg-white p-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
-              />
-              <span className="text-sm text-slate-600 font-mono">{acento}</span>
-            </div>
+        <div>
+          <label htmlFor="marca-acento" className="block text-sm font-medium text-slate-700 mb-1">
+            {t('ajustesMarca.acento')}
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="marca-acento"
+              type="color"
+              value={acento}
+              onChange={e => setAcento(e.target.value)}
+              className="w-11 h-11 rounded-lg border border-slate-400 bg-white p-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
+            />
+            <span className="text-sm text-slate-600 font-mono">{acento}</span>
           </div>
-          <fieldset className="min-w-0">
-            <legend className="block text-sm font-medium text-slate-700 mb-1">{t('ajustesMarca.banner')}</legend>
-            <div className="flex items-center gap-3">
-              {(
-                [
-                  ['marca-banner-desde', bannerDesde, setBannerDesde, 'ajustesMarca.bannerDesde'],
-                  ['marca-banner-medio', bannerMedio, setBannerMedio, 'ajustesMarca.bannerMedio'],
-                  ['marca-banner-hasta', bannerHasta, setBannerHasta, 'ajustesMarca.bannerHasta'],
-                ] as const
-              ).map(([id, valor, set, clave]) => (
-                <div key={id} className="flex flex-col items-center gap-1">
-                  <input
-                    id={id}
-                    type="color"
-                    value={valor}
-                    onChange={e => set(e.target.value)}
-                    aria-label={t(clave)}
-                    className="w-11 h-11 rounded-lg border border-slate-400 bg-white p-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
-                  />
-                  <span className="text-[10px] text-slate-500">{t(clave)}</span>
-                </div>
-              ))}
-            </div>
-          </fieldset>
+          <p className="mt-1 text-xs text-slate-500">{t('ajustesMarca.bannerAyuda')}</p>
         </div>
 
-        {/* Vista previa en vivo: botón, degradado del banner y anillo de foco. */}
+        {/* Vista previa en vivo: botón, degradado del banner (derivado) y anillo de foco. */}
         <div className="rounded-xl border border-slate-200 p-4 space-y-3" aria-hidden="true">
           <div
-            className="rounded-lg h-16 flex items-center px-4 text-white text-sm font-semibold"
+            className="rounded-lg h-16 flex items-center justify-center px-4 text-white text-lg font-bold text-center"
             style={{
-              background: `linear-gradient(160deg, ${bannerDesde} 0%, ${bannerMedio} 60%, ${bannerHasta} 100%)`,
+              background: `linear-gradient(160deg, ${banner.desde} 0%, ${banner.medio} 60%, ${banner.hasta} 100%)`,
+              fontFamily: 'var(--font-serif), serif',
             }}
           >
-            {t('ajustesMarca.previewBanner')}
+            {t('inicio.titulo', { empresa: contenido.empresa })}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <span className="inline-flex items-center px-4 py-2 rounded-lg text-white text-sm font-semibold" style={{ background: acento }}>
@@ -710,7 +684,7 @@ export function PanelInterno({
           {t('ajustesMarca.guardar')}
         </button>
 
-        {/* Subida de logotipo (PNG/ICO). La valida el servidor por magic bytes. */}
+        {/* Subida de logotipo (PNG/ICO/JPEG). La valida el servidor por magic bytes. */}
         <div className="pt-3 border-t border-slate-200 space-y-2">
           <label htmlFor="marca-logo" className="block text-sm font-medium text-slate-700">
             {t('ajustesMarca.logo')}
@@ -718,12 +692,12 @@ export function PanelInterno({
           <div className="flex items-center gap-3 flex-wrap">
             {contenido.logo && (
               // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API
-              <img src="/api/marca/logo" alt={t('ajustesMarca.logoActualAlt')} className="w-11 h-11 rounded-lg object-contain border border-slate-200" />
+              <img src="/api/marca/logo" alt={t('ajustesMarca.logoActualAlt')} className="w-14 h-14 rounded-lg object-contain border border-slate-200" />
             )}
             <input
               id="marca-logo"
               type="file"
-              accept="image/png,image/x-icon,.png,.ico"
+              accept="image/png,image/x-icon,image/jpeg,.png,.ico,.jpg,.jpeg"
               disabled={subiendoLogo}
               onChange={e => {
                 const archivo = e.target.files?.[0]

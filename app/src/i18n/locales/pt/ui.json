@@ -226,11 +226,7 @@
   "ajustesMarca": {
     "titulo": "Marca visual",
     "acento": "Cor de destaque",
-    "banner": "Gradiente do banner",
-    "bannerDesde": "Inicial",
-    "bannerMedio": "Média",
-    "bannerHasta": "Final",
-    "previewBanner": "Prévia do banner",
+    "bannerAyuda": "O gradiente do banner é gerado automaticamente a partir da cor de destaque para garantir o contraste WCAG AA.",
     "previewBoton": "Botão de exemplo",
     "previewFoco": "Foco de exemplo",
     "contrasteOk": "O contraste cumpre a WCAG 2.2 AA.",
@@ -241,9 +237,9 @@
     "error": "Não foi possível salvar. Tente novamente.",
     "logo": "Logotipo",
     "logoActualAlt": "Logotipo atual",
-    "logoAyuda": "Formatos aceitos: PNG ou ICO (máximo 512 KB). Também é usado como favicon.",
+    "logoAyuda": "Formatos aceitos: PNG, ICO ou JPG (máximo 2 MB). Também é usado como favicon.",
     "logoGuardado": "Logotipo atualizado.",
-    "logoError": "Formato não aceito ou arquivo grande demais. Use PNG ou ICO (máx. 512 KB)."
+    "logoError": "Formato não aceito ou arquivo grande demais. Use PNG, ICO ou JPG (máx. 2 MB)."
   },
   "kcs": {
     "nueva": "Nova",

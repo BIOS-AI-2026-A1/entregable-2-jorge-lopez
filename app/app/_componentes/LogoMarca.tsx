@@ -26,11 +26,11 @@ export function LogoMarca({
         <img
           src="/api/marca/logo"
           alt={nombre}
-          className="w-9 h-9 rounded-lg object-contain select-none"
+          className="w-12 h-12 rounded-lg object-contain select-none"
         />
       ) : (
         <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold tracking-wide select-none"
+          className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-sm font-bold tracking-wide select-none"
           style={{ background: 'var(--acento)' }}
           aria-hidden="true"
         >

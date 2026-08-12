@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.contraste import validar_paleta
+from app.contraste import derivar_degradado_banner, validar_paleta
 from app.database import get_db
 from app.deps import requiere_nivel
 from app.imagenes import MAX_LOGO_BYTES, detectar_mime_logo
@@ -50,11 +50,14 @@ def actualizar_empresa(datos: EmpresaIn, db: Session = Depends(get_db)) -> Empre
 def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
     """Guarda la paleta si cumple WCAG AA; si no, rechaza con 422 y no persiste.
 
-    La validación de contraste es la autoridad del servidor: deriva la escala de acento
-    y comprueba todos los pares (botón, hover, foco, cada parada del banner). El frontend
-    solo adelanta el aviso.
+    El Root elige solo el acento: el degradado del banner se **deriva** de él
+    (`derivar_degradado_banner`), monocromático y accesible por construcción. El servidor
+    es la autoridad —deriva aquí, no confía en paradas del cuerpo— y valida todos los
+    pares (botón, hover, foco, cada parada derivada) antes de persistir. El frontend solo
+    adelanta el aviso.
     """
-    fallo = validar_paleta(datos.acento, datos.bannerDesde, datos.bannerMedio, datos.bannerHasta)
+    banner = derivar_degradado_banner(datos.acento)
+    fallo = validar_paleta(datos.acento, banner["desde"], banner["medio"], banner["hasta"])
     if fallo is not None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -67,9 +70,9 @@ def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
         )
     ajuste = _fila_ajustes(db)
     ajuste.acento = datos.acento
-    ajuste.banner_desde = datos.bannerDesde
-    ajuste.banner_medio = datos.bannerMedio
-    ajuste.banner_hasta = datos.bannerHasta
+    ajuste.banner_desde = banner["desde"]
+    ajuste.banner_medio = banner["medio"]
+    ajuste.banner_hasta = banner["hasta"]
     db.commit()
     return MarcaOut(
         acento=ajuste.acento,
@@ -81,7 +84,7 @@ def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
 
 @router.post("/logo", response_model=LogoOut, status_code=status.HTTP_201_CREATED)
 async def subir_logo(request: Request, db: Session = Depends(get_db)) -> LogoOut:
-    """Sube el logotipo (PNG/ICO) como cuerpo binario crudo.
+    """Sube el logotipo (PNG/ICO/JPEG) como cuerpo binario crudo.
 
     Se recibe el binario directo (sin multipart) para no añadir `python-multipart`: el
     tipo se decide por magic bytes, no por el nombre de archivo, así que no hace falta
@@ -100,7 +103,7 @@ async def subir_logo(request: Request, db: Session = Depends(get_db)) -> LogoOut
     if mime is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "Formato no admitido. Solo se aceptan PNG o ICO (no SVG).",
+            "Formato no admitido. Solo se aceptan PNG, ICO o JPEG (no SVG).",
         )
     ajuste = _fila_ajustes(db)
     ajuste.logo_bin = datos
