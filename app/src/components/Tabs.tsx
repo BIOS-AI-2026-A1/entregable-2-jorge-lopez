@@ -83,10 +83,10 @@ export function Tabs<Id extends string>({
               }}
               onClick={() => onCambio(pestana.id)}
               onKeyDown={evento => alTeclado(evento, indice)}
-              className={`-mb-px inline-flex items-center px-4 rounded-t-lg text-sm font-semibold border border-b-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px] ${
+              className={`-mb-px inline-flex items-center px-4 rounded-t-lg text-sm font-semibold border border-b-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px] ${
                 seleccionada
-                  ? 'bg-white text-indigo-800 border-slate-200 border-t-2 border-t-[color:var(--acento)]'
-                  : 'bg-slate-50 text-slate-600 border-transparent hover:text-indigo-800 hover:bg-white'
+                  ? 'bg-white text-[var(--acento)] border-slate-200 border-t-2 border-t-[color:var(--acento)]'
+                  : 'bg-slate-50 text-slate-600 border-transparent hover:text-[var(--acento)] hover:bg-white'
               }`}
             >
               {pestana.etiqueta}

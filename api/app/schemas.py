@@ -79,6 +79,14 @@ class ContenidoIdiomaOut(BaseModel):
     """
 
     empresa: str
+    # Marca visual pública: alimenta los tokens de acento y el degradado del banner
+    # en el HTML servido (SSR). El logo no viaja aquí (se sirve por `/api/marca/logo`).
+    acento: str
+    bannerDesde: str
+    bannerMedio: str
+    bannerHasta: str
+    # Indica si hay logotipo subido (para cabecera y favicon); el binario no viaja aquí.
+    logo: bool
     categorias: list[CategoriaOut]
     articulos: list[ArticuloOut]
     conversacion: list[dict[str, Any]]
@@ -163,6 +171,60 @@ class ArticuloAdminOut(BaseModel):
     pt: TraduccionArticuloIn
 
 
+# --- CRUD de categorías (entrada bilingüe) ----------------------------------
+
+class TraduccionCategoriaIn(BaseModel):
+    slug: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    nombre: TextoCorto
+
+
+class CategoriaIn(BaseModel):
+    """Categoría bilingüe: `es` y `pt` son obligatorios (paridad de idiomas).
+
+    Espejo de `Categoria`/`CategoriaTraduccion`: la entidad estable lleva la
+    presentación (icono, fondo, texto, orden) y cada idioma su nombre y slug.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    icono: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    fondo: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    texto: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    orden: int = Field(default=0, ge=0)
+    es: TraduccionCategoriaIn
+    pt: TraduccionCategoriaIn
+
+
+class CategoriaUpdateIn(BaseModel):
+    """Como `CategoriaIn` pero sin `id` (viene de la ruta)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    icono: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    fondo: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    texto: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    orden: int = Field(default=0, ge=0)
+    es: TraduccionCategoriaIn
+    pt: TraduccionCategoriaIn
+
+
+class CategoriaAdminOut(BaseModel):
+    """Categoría con sus dos idiomas, para gestionar en el panel.
+
+    Distinta de `CategoriaOut` (proyección pública de un solo idioma que viaja en
+    el contenido), como `ArticuloAdminOut` lo es de `ArticuloOut`.
+    """
+
+    id: str
+    icono: str
+    fondo: str
+    texto: str
+    orden: int
+    es: TraduccionCategoriaIn
+    pt: TraduccionCategoriaIn
+
+
 # --- Panel: preguntas sin resolver ------------------------------------------
 
 class PreguntaAdminOut(BaseModel):
@@ -232,6 +294,38 @@ class EmpresaIn(BaseModel):
 
 class EmpresaOut(BaseModel):
     empresa: str
+
+
+# --- Ajustes: marca visual (paleta + logo), solo Root -----------------------
+
+# Color hexadecimal `#rgb` o `#rrggbb`. La validación de formato la hace Pydantic;
+# la de contraste WCAG la hace el router con `app.contraste` (autoridad del servidor).
+ColorHex = Annotated[str, Field(pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")]
+
+
+class MarcaIn(BaseModel):
+    """Paleta editable por Root: acento + tres paradas del degradado del banner."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    acento: ColorHex
+    bannerDesde: ColorHex
+    bannerMedio: ColorHex
+    bannerHasta: ColorHex
+
+
+class MarcaOut(BaseModel):
+    acento: str
+    bannerDesde: str
+    bannerMedio: str
+    bannerHasta: str
+
+
+class LogoOut(BaseModel):
+    """Estado del logotipo para el panel. Nunca incluye el binario."""
+
+    presente: bool
+    mime: str | None = None
 
 
 # --- Configuración de proveedor de IA (solo Root) ---------------------------

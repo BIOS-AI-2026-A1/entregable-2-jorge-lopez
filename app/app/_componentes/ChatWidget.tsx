@@ -36,7 +36,7 @@ function Fragmentos({
               <Link
                 href={rutas.articulo(idioma, articulo.slug)}
                 aria-label={t('chat.fuenteAria', { n: fragmento.n })}
-                className="text-indigo-700 hover:text-indigo-900 font-bold ml-0.5 text-[11px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#4338ca] rounded"
+                className="text-[var(--acento)] hover:text-[var(--acento-hover)] font-bold ml-0.5 text-[11px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--acento-foco)] rounded"
               >
                 [{fragmento.n}]
               </Link>
@@ -64,7 +64,7 @@ function BloqueFuentes({ citas, idioma, contenido }: { citas: Cita[]; idioma: Id
           <Link
             key={cita.n}
             href={rutas.articulo(idioma, articulo.slug)}
-            className="flex items-start gap-1.5 text-[12px] text-indigo-700 hover:text-indigo-900 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#4338ca] rounded leading-snug"
+            className="flex items-start gap-1.5 text-[12px] text-[var(--acento)] hover:text-[var(--acento-hover)] hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--acento-foco)] rounded leading-snug"
           >
             <Ic.ExternalLink size={11} className="shrink-0 mt-0.5" />
             <span>
@@ -91,8 +91,8 @@ function Mensaje({ mensaje, idioma, contenido }: { mensaje: MensajeChat; idioma:
   }
 
   const avatar = (
-    <div className="shrink-0 w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center mt-0.5">
-      <Ic.Sparkles size={13} className="text-indigo-700" />
+    <div className="shrink-0 w-7 h-7 rounded-full bg-[var(--acento-claro)] flex items-center justify-center mt-0.5">
+      <Ic.Sparkles size={13} className="text-[var(--acento)]" />
     </div>
   )
 
@@ -136,7 +136,7 @@ function Mensaje({ mensaje, idioma, contenido }: { mensaje: MensajeChat; idioma:
         </div>
         <a
           href="mailto:soporte@empresa.example"
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
         >
           <Ic.Mail size={15} />
           {t('escalamiento.boton')}
@@ -249,12 +249,12 @@ export function ChatWidget({
               type="text"
               placeholder={t('chat.entradaMarcador')}
               aria-describedby="chat-nota"
-              className="flex-1 px-3 py-2 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:border-transparent"
+              className="flex-1 px-3 py-2 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:border-transparent"
             />
             <button
               type="button"
               aria-label={t('chat.enviar')}
-              className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-opacity hover:opacity-90"
+              className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-opacity hover:opacity-90"
               style={{ background: 'var(--acento)' }}
             >
               <Ic.Send size={16} />

@@ -7,27 +7,34 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { ContenidoIdioma, Idioma } from '@/types'
 import {
   eliminarArticulo,
+  eliminarCategoria,
   guardarConfigIA,
   guardarEmpresa,
+  guardarMarca,
+  listarCategorias,
   listarPreguntas,
   obtenerArticulo,
   obtenerConfigIA,
+  subirLogo,
   type ArticuloAdmin,
+  type CategoriaAdmin,
   type ConfigIAAdmin,
   type PreguntaAdmin,
 } from '@/data/admin'
+import { derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
 import { esRoot } from '@/auth/nivel'
 import { fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
 import { KcsChip } from '@/components/KcsChip'
 import { ArticuloForm } from '@/components/ArticuloForm'
+import { CategoriaForm } from '@/components/CategoriaForm'
 import { Modal } from '@/components/Modal'
 import { Tabs, type Pestana } from '@/components/Tabs'
 import { resolverPestana, type PestanaId } from '@/panel/panelPestanas'
 
 const ICONO_METRICA = {
-  sinResolver: { icono: <Ic.HelpCircle size={22} className="text-indigo-700" />, fondo: 'bg-indigo-50' },
+  sinResolver: { icono: <Ic.HelpCircle size={22} className="text-[var(--acento)]" />, fondo: 'bg-[var(--acento-claro)]' },
   conCita: { icono: <Ic.CheckCircle size={22} className="text-emerald-700" />, fondo: 'bg-emerald-50' },
   creados: { icono: <Ic.FileText size={22} className="text-purple-700" />, fondo: 'bg-purple-50' },
 } as const
@@ -67,6 +74,13 @@ export function PanelInterno({
   const [proveedorInput, setProveedorInput] = useState('anthropic')
   const [claveInput, setClaveInput] = useState('')
   const [editandoClave, setEditandoClave] = useState(false)
+  const [categorias, setCategorias] = useState<CategoriaAdmin[]>([])
+  const [formCategoria, setFormCategoria] = useState<{ modo: 'crear' | 'editar'; inicial?: CategoriaAdmin } | null>(null)
+  const [acento, setAcento] = useState(contenido.acento)
+  const [bannerDesde, setBannerDesde] = useState(contenido.bannerDesde)
+  const [bannerMedio, setBannerMedio] = useState(contenido.bannerMedio)
+  const [bannerHasta, setBannerHasta] = useState(contenido.bannerHasta)
+  const [subiendoLogo, setSubiendoLogo] = useState(false)
 
   const puedeRoot = esRoot(nivel)
 
@@ -92,6 +106,12 @@ export function PanelInterno({
     else if (resp.status === 401) router.replace(rutas.login(idioma))
   }
 
+  async function cargarCategorias() {
+    const resp = await listarCategorias()
+    if (resp.ok) setCategorias((await resp.json()) as CategoriaAdmin[])
+    else if (resp.status === 401) router.replace(rutas.login(idioma))
+  }
+
   async function cargarConfigIA() {
     const resp = await obtenerConfigIA()
     if (resp.ok) {
@@ -105,6 +125,7 @@ export function PanelInterno({
 
   useEffect(() => {
     void cargarPreguntas()
+    void cargarCategorias()
     if (puedeRoot) void cargarConfigIA()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idioma])
@@ -113,6 +134,14 @@ export function PanelInterno({
   useEffect(() => {
     setEmpresaInput(contenido.empresa)
   }, [contenido.empresa])
+
+  // Los selectores de color siguen a la paleta servida tras guardar (router.refresh).
+  useEffect(() => {
+    setAcento(contenido.acento)
+    setBannerDesde(contenido.bannerDesde)
+    setBannerMedio(contenido.bannerMedio)
+    setBannerHasta(contenido.bannerHasta)
+  }, [contenido.acento, contenido.bannerDesde, contenido.bannerMedio, contenido.bannerHasta])
 
   const pestanaActiva = resolverPestana(searchParams.get('seccion'), puedeRoot)
   function cambiarPestana(id: PestanaId) {
@@ -156,6 +185,49 @@ export function PanelInterno({
     }
   }
 
+  async function guardarMarcaHandler(evento: FormEvent) {
+    evento.preventDefault()
+    const resp = await guardarMarca({ acento, bannerDesde, bannerMedio, bannerHasta })
+    if (resp.ok) {
+      avisoExito(t('ajustesMarca.guardado'))
+      router.refresh() // los tokens de la paleta se reinyectan en el layout servido
+    } else if (resp.status === 401) {
+      router.replace(rutas.login(idioma))
+    } else if (resp.status === 422) {
+      // El servidor rechaza una paleta que no cumple contraste: nombra el par que falla.
+      const cuerpo = (await resp.json().catch(() => null)) as
+        | { detail?: { par?: string; ratio?: number; minimo?: number } }
+        | null
+      const d = cuerpo?.detail
+      avisoError(
+        d?.par
+          ? t('ajustesMarca.errorContrastePar', { par: d.par, ratio: d.ratio, minimo: d.minimo })
+          : t('ajustesMarca.errorContraste'),
+      )
+    } else {
+      avisoError(t('ajustesMarca.error'))
+    }
+  }
+
+  async function subirLogoHandler(archivo: File) {
+    setSubiendoLogo(true)
+    try {
+      const resp = await subirLogo(archivo)
+      if (resp.ok) {
+        avisoExito(t('ajustesMarca.logoGuardado'))
+        router.refresh() // la cabecera y el favicon pasan a mostrar el logo nuevo
+      } else if (resp.status === 401) {
+        router.replace(rutas.login(idioma))
+      } else if (resp.status === 422) {
+        avisoError(t('ajustesMarca.logoError'))
+      } else {
+        avisoError(t('ajustesMarca.error'))
+      }
+    } finally {
+      setSubiendoLogo(false)
+    }
+  }
+
   async function recargarTodo() {
     await cargarPreguntas()
     router.refresh() // refresca el contenido (métricas, artículos) desde la API
@@ -192,6 +264,30 @@ export function PanelInterno({
     setFormulario(null)
     avisoExito(t('panelGestion.guardado'))
     void recargarTodo()
+  }
+
+  async function eliminarCategoriaHandler(id: string, nombre: string) {
+    if (!window.confirm(t('panelCategorias.confirmarEliminar', { nombre }))) return
+    const resp = await eliminarCategoria(id)
+    if (resp.ok) {
+      avisoExito(t('panelCategorias.eliminado'))
+      await cargarCategorias()
+      router.refresh() // el contenido público refleja la categoría borrada
+    } else if (resp.status === 409) {
+      // Bloqueo por integridad: la categoría aún tiene artículos asignados.
+      avisoError(t('panelCategorias.errorConArticulos'))
+    } else if (resp.status === 401) {
+      router.replace(rutas.login(idioma))
+    } else {
+      avisoError(t('panelCategorias.errorGuardar'))
+    }
+  }
+
+  function alGuardadoCategoria(modo: 'crear' | 'editar') {
+    setFormCategoria(null)
+    avisoExito(modo === 'crear' ? t('panelCategorias.creado') : t('panelCategorias.guardado'))
+    void cargarCategorias()
+    router.refresh() // el contenido público refleja la categoría creada/editada
   }
 
   const filas = filtro === 'todas' ? preguntas : preguntas.filter(p => p.estado === filtro)
@@ -244,10 +340,10 @@ export function PanelInterno({
                 type="button"
                 onClick={() => setFiltro(valor)}
                 aria-pressed={activo}
-                className={`px-3 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px] ${
+                className={`px-3 rounded-full text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px] ${
                   activo
-                    ? 'bg-indigo-700 text-white border-indigo-700'
-                    : 'bg-white text-slate-700 border-slate-500 hover:border-indigo-600 hover:text-indigo-800'
+                    ? 'bg-[var(--acento)] text-white border-[var(--acento)]'
+                    : 'bg-white text-slate-700 border-slate-500 hover:border-[var(--acento)] hover:text-[var(--acento)]'
                 }`}
               >
                 {valor === 'todas' ? t('panel.filtroTodas') : t(`kcs.${valor}`)}
@@ -314,7 +410,7 @@ export function PanelInterno({
                               setAviso(null)
                             }}
                             aria-label={t('panel.crearArticuloAria', { pregunta: fila.pregunta })}
-                            className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-800 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px] whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-[var(--acento-claro)] text-[var(--acento)] bg-[var(--acento-claro)] hover:bg-[var(--acento-claro)] hover:border-[var(--acento)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors min-h-[44px] whitespace-nowrap"
                           >
                             <Ic.Plus size={13} />
                             {t('panel.crearArticulo')}
@@ -351,7 +447,7 @@ export function PanelInterno({
             setFormulario({ modo: 'crear' })
             setAviso(null)
           }}
-          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
           style={{ background: 'var(--acento)' }}
         >
           <Ic.Plus size={15} />
@@ -368,7 +464,7 @@ export function PanelInterno({
                 type="button"
                 onClick={() => abrirEditar(articulo.id)}
                 aria-label={t('panelGestion.editarAria', { titulo: articulo.titulo })}
-                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
               >
                 <Ic.Edit size={14} />
                 {t('panelGestion.editar')}
@@ -377,7 +473,7 @@ export function PanelInterno({
                 type="button"
                 onClick={() => eliminar(articulo.id, articulo.titulo)}
                 aria-label={t('panelGestion.eliminarAria', { titulo: articulo.titulo })}
-                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
               >
                 <Ic.Trash size={14} />
                 {t('panelGestion.eliminar')}
@@ -402,6 +498,83 @@ export function PanelInterno({
     </section>
   )
 
+  // ── Contenido de la pestaña «Categorías» (Standard + Root) ───────────────────
+  const contenidoCategorias = (
+    <section aria-labelledby="categorias-h2" className="space-y-4">
+      <h2 id="categorias-h2" className="sr-only">
+        {t('panelCategorias.titulo')}
+      </h2>
+      <div className="flex items-center justify-end gap-4 flex-wrap">
+        <button
+          type="button"
+          onClick={() => {
+            setFormCategoria({ modo: 'crear' })
+            setAviso(null)
+          }}
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
+          style={{ background: 'var(--acento)' }}
+        >
+          <Ic.Plus size={15} />
+          {t('panelCategorias.nuevo')}
+        </button>
+      </div>
+
+      {categorias.length === 0 ? (
+        <p className="text-sm text-slate-600">{t('panelCategorias.vacio')}</p>
+      ) : (
+        <ul className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-200 list-none p-0 m-0">
+          {categorias.map(categoria => (
+            <li key={categoria.id} className="flex items-center justify-between gap-3 px-4 py-3 flex-wrap">
+              <span className="text-sm font-medium text-slate-800">
+                {categoria[idioma].nombre}
+                <span className="text-slate-400 font-normal"> · {categoria.id}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormCategoria({ modo: 'editar', inicial: categoria })
+                    setAviso(null)
+                  }}
+                  aria-label={t('panelCategorias.editarAria', { nombre: categoria[idioma].nombre })}
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+                >
+                  <Ic.Edit size={14} />
+                  {t('panelCategorias.editar')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => eliminarCategoriaHandler(categoria.id, categoria[idioma].nombre)}
+                  aria-label={t('panelCategorias.eliminarAria', { nombre: categoria[idioma].nombre })}
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-red-200 text-red-800 bg-red-50 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+                >
+                  <Ic.Trash size={14} />
+                  {t('panelCategorias.eliminar')}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {formCategoria && (
+        <Modal labelledBy="form-categoria-h" onCerrar={() => setFormCategoria(null)} cerrarAlClicarFondo={false}>
+          <CategoriaForm
+            modo={formCategoria.modo}
+            inicial={formCategoria.inicial}
+            onCerrar={() => setFormCategoria(null)}
+            onGuardado={alGuardadoCategoria}
+          />
+        </Modal>
+      )}
+    </section>
+  )
+
+  // Vista previa de contraste en cliente (adelanta el aviso; la autoridad es el
+  // servidor). Los `<input type=color>` siempre dan `#rrggbb` válido, así que no lanza.
+  const falloPaleta = validarPaleta(acento, bannerDesde, bannerMedio, bannerHasta)
+  const tokensAcento = derivarTokensAcento(acento)
+
   // ── Contenido de la pestaña «Administración» (solo Root) ─────────────────────
   const contenidoAdmin = (
     <section aria-labelledby="root-h2" className="space-y-4">
@@ -422,11 +595,11 @@ export function PanelInterno({
             onChange={e => setEmpresaInput(e.target.value)}
             aria-labelledby="empresa-h3"
             aria-describedby="empresa-ayuda"
-            className="flex-1 min-w-[16rem] px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+            className="flex-1 min-w-[16rem] px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
           />
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
             style={{ background: 'var(--acento)' }}
           >
             <Ic.Save size={15} />
@@ -436,6 +609,135 @@ export function PanelInterno({
         <p id="empresa-ayuda" className="text-xs text-slate-500">
           {t('ajustesEmpresa.ayuda')}
         </p>
+      </form>
+
+      <form onSubmit={guardarMarcaHandler} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4" aria-labelledby="marca-h3">
+        <h3 id="marca-h3" className="text-sm font-semibold text-slate-900">
+          {t('ajustesMarca.titulo')}
+        </h3>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="marca-acento" className="block text-sm font-medium text-slate-700 mb-1">
+              {t('ajustesMarca.acento')}
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="marca-acento"
+                type="color"
+                value={acento}
+                onChange={e => setAcento(e.target.value)}
+                className="w-11 h-11 rounded-lg border border-slate-400 bg-white p-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
+              />
+              <span className="text-sm text-slate-600 font-mono">{acento}</span>
+            </div>
+          </div>
+          <fieldset className="min-w-0">
+            <legend className="block text-sm font-medium text-slate-700 mb-1">{t('ajustesMarca.banner')}</legend>
+            <div className="flex items-center gap-3">
+              {(
+                [
+                  ['marca-banner-desde', bannerDesde, setBannerDesde, 'ajustesMarca.bannerDesde'],
+                  ['marca-banner-medio', bannerMedio, setBannerMedio, 'ajustesMarca.bannerMedio'],
+                  ['marca-banner-hasta', bannerHasta, setBannerHasta, 'ajustesMarca.bannerHasta'],
+                ] as const
+              ).map(([id, valor, set, clave]) => (
+                <div key={id} className="flex flex-col items-center gap-1">
+                  <input
+                    id={id}
+                    type="color"
+                    value={valor}
+                    onChange={e => set(e.target.value)}
+                    aria-label={t(clave)}
+                    className="w-11 h-11 rounded-lg border border-slate-400 bg-white p-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
+                  />
+                  <span className="text-[10px] text-slate-500">{t(clave)}</span>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        {/* Vista previa en vivo: botón, degradado del banner y anillo de foco. */}
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3" aria-hidden="true">
+          <div
+            className="rounded-lg h-16 flex items-center px-4 text-white text-sm font-semibold"
+            style={{
+              background: `linear-gradient(160deg, ${bannerDesde} 0%, ${bannerMedio} 60%, ${bannerHasta} 100%)`,
+            }}
+          >
+            {t('ajustesMarca.previewBanner')}
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="inline-flex items-center px-4 py-2 rounded-lg text-white text-sm font-semibold" style={{ background: acento }}>
+              {t('ajustesMarca.previewBoton')}
+            </span>
+            <span
+              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold bg-white"
+              style={{ color: acento, outline: `2px solid ${tokensAcento.foco}`, outlineOffset: 2 }}
+            >
+              {t('ajustesMarca.previewFoco')}
+            </span>
+          </div>
+        </div>
+
+        {/* Aviso de contraste (adelanto en cliente; el servidor decide al guardar). */}
+        <div role="status" aria-live="polite" className="min-h-[1.25rem]">
+          {falloPaleta ? (
+            <p className="inline-flex items-center gap-2 text-sm text-red-800 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+              <Ic.AlertCircle size={15} className="text-red-700 shrink-0" />
+              {t('ajustesMarca.errorContrastePar', {
+                par: falloPaleta.par,
+                ratio: falloPaleta.ratio,
+                minimo: falloPaleta.minimo,
+              })}
+            </p>
+          ) : (
+            <p className="inline-flex items-center gap-2 text-sm text-emerald-800">
+              <Ic.CheckCircle size={15} className="text-emerald-700 shrink-0" />
+              {t('ajustesMarca.contrasteOk')}
+            </p>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          disabled={!!falloPaleta}
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px] disabled:opacity-60"
+          style={{ background: 'var(--acento)' }}
+        >
+          <Ic.Save size={15} />
+          {t('ajustesMarca.guardar')}
+        </button>
+
+        {/* Subida de logotipo (PNG/ICO). La valida el servidor por magic bytes. */}
+        <div className="pt-3 border-t border-slate-200 space-y-2">
+          <label htmlFor="marca-logo" className="block text-sm font-medium text-slate-700">
+            {t('ajustesMarca.logo')}
+          </label>
+          <div className="flex items-center gap-3 flex-wrap">
+            {contenido.logo && (
+              // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API
+              <img src="/api/marca/logo" alt={t('ajustesMarca.logoActualAlt')} className="w-11 h-11 rounded-lg object-contain border border-slate-200" />
+            )}
+            <input
+              id="marca-logo"
+              type="file"
+              accept="image/png,image/x-icon,.png,.ico"
+              disabled={subiendoLogo}
+              onChange={e => {
+                const archivo = e.target.files?.[0]
+                if (archivo) void subirLogoHandler(archivo)
+                e.target.value = '' // permite volver a elegir el mismo archivo
+              }}
+              aria-describedby="marca-logo-ayuda"
+              className="text-sm text-slate-700 file:mr-3 file:min-h-[44px] file:px-4 file:rounded-lg file:border-0 file:text-white file:text-sm file:font-semibold file:cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 rounded-lg"
+            />
+          </div>
+          <p id="marca-logo-ayuda" className="text-xs text-slate-500">
+            {t('ajustesMarca.logoAyuda')}
+          </p>
+        </div>
       </form>
 
       <form onSubmit={guardarConfigIAHandler} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3" aria-labelledby="config-ia-h3">
@@ -451,7 +753,7 @@ export function PanelInterno({
               id="config-ia-proveedor"
               value={proveedorInput}
               onChange={e => seleccionarProveedor(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
             >
               <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
               <option value="deepseek">{t('configIA.proveedores.deepseek')}</option>
@@ -471,7 +773,7 @@ export function PanelInterno({
                 autoComplete="off"
                 placeholder={t('configIA.clavePlaceholder')}
                 aria-describedby="config-ia-estado"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
               />
             ) : (
               // Solo lectura: se muestra la pista (últimos caracteres) enmascarada,
@@ -487,7 +789,7 @@ export function PanelInterno({
                     : t('configIA.claveConfiguradaAria')
                 }
                 aria-describedby="config-ia-estado"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-600 font-mono tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-600 font-mono tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
               />
             )}
           </div>
@@ -510,7 +812,7 @@ export function PanelInterno({
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
             style={{ background: 'var(--acento)' }}
           >
             <Ic.Save size={15} />
@@ -524,7 +826,7 @@ export function PanelInterno({
                   setEditandoClave(false)
                   setClaveInput('')
                 }}
-                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
               >
                 <Ic.X size={15} />
                 {t('configIA.cancelar')}
@@ -536,7 +838,7 @@ export function PanelInterno({
                   setEditandoClave(true)
                   setClaveInput('')
                 }}
-                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
               >
                 <Ic.Edit size={15} />
                 {t('configIA.editar')}
@@ -548,7 +850,7 @@ export function PanelInterno({
 
       <Link
         href={rutas.usuarios(idioma)}
-        className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+        className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
       >
         <Ic.User size={15} />
         {t('gestionUsuarios.enlace')}
@@ -559,6 +861,7 @@ export function PanelInterno({
   const pestanas: Pestana<PestanaId>[] = [
     { id: 'sinResolver', etiqueta: t('panel.titulo'), contenido: contenidoSinResolver },
     { id: 'gestion', etiqueta: t('panelGestion.titulo'), contenido: contenidoGestion },
+    { id: 'categorias', etiqueta: t('panelCategorias.titulo'), contenido: contenidoCategorias },
   ]
   if (puedeRoot) {
     pestanas.push({ id: 'admin', etiqueta: t('panel.seccionRoot'), contenido: contenidoAdmin })
@@ -569,7 +872,7 @@ export function PanelInterno({
       <div className="border-b border-slate-200 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-widest mb-1">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--acento)] uppercase tracking-widest mb-1">
               <Ic.BarChart size={14} />
               {t('panel.seccion')}
             </div>
@@ -580,7 +883,7 @@ export function PanelInterno({
           <button
             type="button"
             onClick={cerrarSesion}
-            className="inline-flex items-center gap-2 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px] self-start"
+            className="inline-flex items-center gap-2 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px] self-start"
           >
             <Ic.LogOut size={15} />
             {t('panel.cerrarSesion')}

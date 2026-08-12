@@ -5,15 +5,20 @@
  * alcanza pidiéndola directamente si la sesión no es Root.
  */
 
-export type PestanaId = 'sinResolver' | 'gestion' | 'admin'
+export type PestanaId = 'sinResolver' | 'gestion' | 'categorias' | 'admin'
 
 /** Orden en que se muestran las pestañas; la primera es el valor por defecto. */
-export const PESTANAS: readonly PestanaId[] = ['sinResolver', 'gestion', 'admin']
+export const PESTANAS: readonly PestanaId[] = ['sinResolver', 'gestion', 'categorias', 'admin']
 
 const POR_DEFECTO: PestanaId = 'sinResolver'
 
 function esPestanaId(valor: string | null): valor is PestanaId {
-  return valor === 'sinResolver' || valor === 'gestion' || valor === 'admin'
+  return (
+    valor === 'sinResolver' ||
+    valor === 'gestion' ||
+    valor === 'categorias' ||
+    valor === 'admin'
+  )
 }
 
 /**

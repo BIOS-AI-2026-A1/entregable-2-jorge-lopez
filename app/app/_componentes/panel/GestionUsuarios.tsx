@@ -73,12 +73,12 @@ export function GestionUsuarios({ idioma }: { idioma: Idioma }) {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
           <Link
             href={rutas.panel(idioma)}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-700 hover:text-indigo-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 rounded min-h-[44px]"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--acento)] hover:text-[var(--acento-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 rounded min-h-[44px]"
           >
             <Ic.ArrowLeft size={15} />
             {t('gestionUsuarios.volver')}
           </Link>
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-widest mt-2 mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--acento)] uppercase tracking-widest mt-2 mb-1">
             <Ic.User size={14} />
             {t('gestionUsuarios.seccion')}
           </div>
@@ -116,7 +116,7 @@ export function GestionUsuarios({ idioma }: { idioma: Idioma }) {
                 setFormulario({ modo: 'crear' })
                 setAviso(null)
               }}
-              className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+              className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
               style={{ background: 'var(--acento)' }}
             >
               <Ic.Plus size={15} />
@@ -183,7 +183,7 @@ export function GestionUsuarios({ idioma }: { idioma: Idioma }) {
                                 setAviso(null)
                               }}
                               aria-label={t('gestionUsuarios.editarAria', { correo: usuario.email })}
-                              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
                             >
                               <Ic.Edit size={14} />
                               {t('gestionUsuarios.editar')}
@@ -195,7 +195,7 @@ export function GestionUsuarios({ idioma }: { idioma: Idioma }) {
                                 usuario.activo ? 'gestionUsuarios.desactivarAria' : 'gestionUsuarios.activarAria',
                                 { correo: usuario.email },
                               )}
-                              className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px] ${
+                              className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px] ${
                                 usuario.activo
                                   ? 'border-red-200 text-red-800 bg-red-50 hover:bg-red-100'
                                   : 'border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100'

@@ -46,14 +46,14 @@ export function FormularioLogin({ idioma }: { idioma: Idioma }) {
   }
 
   const claseCampo =
-    'w-full px-3 py-2.5 rounded-lg border border-slate-500 bg-white text-slate-900 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:border-transparent'
+    'w-full px-3 py-2.5 rounded-lg border border-slate-500 bg-white text-slate-900 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:border-transparent'
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-[70vh] flex items-center justify-center px-4 py-12 focus:outline-none">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center mb-3">
-            <Ic.Lock size={22} className="text-indigo-700" />
+          <div className="mx-auto w-12 h-12 rounded-xl bg-[var(--acento-claro)] flex items-center justify-center mb-3">
+            <Ic.Lock size={22} className="text-[var(--acento)]" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'var(--font-serif), serif' }}>
             {t('login.titulo')}
@@ -104,7 +104,7 @@ export function FormularioLogin({ idioma }: { idioma: Idioma }) {
           <button
             type="submit"
             disabled={enviando}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] disabled:opacity-60 min-h-[44px]"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] disabled:opacity-60 min-h-[44px]"
             style={{ background: 'var(--acento)' }}
           >
             {enviando ? <Ic.Loader size={16} className="animate-spin motion-reduce:animate-none" /> : <Ic.Lock size={16} />}

@@ -13,6 +13,7 @@ from app.models import (
     ArticuloRelacionado,
     ArticuloTraduccion,
     Categoria,
+    CategoriaTraduccion,
     Conversacion,
     Metrica,
     PreguntaSinResolver,
@@ -25,6 +26,14 @@ IDIOMAS = ("es", "pt")
 AJUSTES_ID = 1
 EMPRESA_POR_DEFECTO = "[Empresa]"
 
+# Valores de reserva de la marca visual, iguales a los `server_default` de la
+# migración `0005_marca` y al aspecto índigo actual de `src/index.css`. Se usan si la
+# fila de ajustes todavía no existe (antes del seed) o si una columna llega vacía.
+ACENTO_POR_DEFECTO = "#4338ca"
+BANNER_DESDE_POR_DEFECTO = "#3730a3"
+BANNER_MEDIO_POR_DEFECTO = "#4338ca"
+BANNER_HASTA_POR_DEFECTO = "#4f46e5"
+
 
 def _traduccion(entidad, idioma: str):
     return next((t for t in entidad.traducciones if t.idioma == idioma), None)
@@ -35,6 +44,31 @@ def obtener_empresa(db: Session) -> str:
     de ajustes todavía no existe (p. ej. antes del seed)."""
     ajuste = db.get(Ajustes, AJUSTES_ID)
     return ajuste.empresa if ajuste is not None else EMPRESA_POR_DEFECTO
+
+
+def obtener_marca(db: Session) -> dict:
+    """Marca visual actual (acento + tres paradas del banner) para el contenido público.
+
+    Reserva los valores por defecto si la fila de ajustes aún no existe. El logo NO
+    viaja aquí (es binario): se sirve por `GET /api/marca/logo`.
+    """
+    ajuste = db.get(Ajustes, AJUSTES_ID)
+    if ajuste is None:
+        return {
+            "acento": ACENTO_POR_DEFECTO,
+            "bannerDesde": BANNER_DESDE_POR_DEFECTO,
+            "bannerMedio": BANNER_MEDIO_POR_DEFECTO,
+            "bannerHasta": BANNER_HASTA_POR_DEFECTO,
+            "logo": False,
+        }
+    return {
+        "acento": ajuste.acento or ACENTO_POR_DEFECTO,
+        "bannerDesde": ajuste.banner_desde or BANNER_DESDE_POR_DEFECTO,
+        "bannerMedio": ajuste.banner_medio or BANNER_MEDIO_POR_DEFECTO,
+        "bannerHasta": ajuste.banner_hasta or BANNER_HASTA_POR_DEFECTO,
+        # Solo el booleano: el binario se sirve por `GET /api/marca/logo`, no aquí.
+        "logo": ajuste.logo_bin is not None,
+    }
 
 
 def ensamblar_contenido(db: Session, idioma: str) -> dict:
@@ -82,8 +116,10 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
     # las personas usuarias y puede contener datos personales. Se sirve solo por
     # `/api/admin/preguntas-sin-resolver`, tras la dependencia de nivel.
     return {
-        # El nombre de marca lo ve todo visitante anónimo: es contenido público.
+        # El nombre de marca y la paleta los ve todo visitante anónimo: son públicos.
+        # El acento y las paradas del banner alimentan los tokens CSS en SSR.
         "empresa": obtener_empresa(db),
+        **obtener_marca(db),
         "categorias": categorias,
         "articulos": articulos,
         "conversacion": conversacion,
@@ -126,6 +162,49 @@ def articulo_a_admin_dict(a: Articulo) -> dict:
         "es": trad_dict("es"),
         "pt": trad_dict("pt"),
     }
+
+
+def categoria_a_admin_dict(c: Categoria) -> dict:
+    """Serializa una categoría con sus dos idiomas para gestionarla en el panel."""
+
+    def trad_dict(idioma: str) -> dict:
+        t = _traduccion(c, idioma)
+        return {"slug": t.slug, "nombre": t.nombre}
+
+    return {
+        "id": c.id,
+        "icono": c.icono,
+        "fondo": c.fondo,
+        "texto": c.texto,
+        "orden": c.orden,
+        "es": trad_dict("es"),
+        "pt": trad_dict("pt"),
+    }
+
+
+def aplicar_datos_categoria(c: Categoria, datos, *, incluir_id: bool) -> None:
+    """Vuelca los campos de un `CategoriaIn`/`CategoriaUpdateIn` en la entidad ORM.
+
+    Atómico bilingüe: escribe siempre ambas traducciones (es+pt). El id es la clave
+    estable entre idiomas y se normaliza en el servidor (autoridad), como en artículos.
+    """
+    if incluir_id:
+        c.id = normalizar_slug(datos.id)
+    c.icono = datos.icono
+    c.fondo = datos.fondo
+    c.texto = datos.texto
+    c.orden = datos.orden
+
+    c.traducciones = []
+    for idioma in IDIOMAS:
+        t = getattr(datos, idioma)
+        c.traducciones.append(
+            CategoriaTraduccion(
+                idioma=idioma,
+                slug=normalizar_slug(t.slug),
+                nombre=t.nombre,
+            )
+        )
 
 
 def pregunta_a_dict(p: PreguntaSinResolver) -> dict:

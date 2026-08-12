@@ -30,12 +30,12 @@ type Props = {
 }
 
 const CAMPO =
-  'w-full min-h-[44px] px-3 py-2 rounded-lg border border-slate-500 bg-white text-slate-900 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:border-transparent'
+  'w-full min-h-[44px] px-3 py-2 rounded-lg border border-slate-500 bg-white text-slate-900 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:border-transparent'
 // Campo de solo lectura: mismo tamaño, aspecto atenuado y sin foco de edición.
 const CAMPO_RO =
   'w-full min-h-[44px] px-3 py-2 rounded-lg border border-slate-300 bg-slate-100 text-slate-600 text-sm'
 const BOTON_SEC =
-  'inline-flex items-center gap-1.5 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]'
+  'inline-flex items-center gap-1.5 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]'
 
 const HOY = () => new Date().toISOString().slice(0, 10)
 
@@ -199,7 +199,7 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
         : t('panelGestion.editar')
 
   return (
-    <section aria-labelledby="form-articulo-h" className="rounded-2xl border border-indigo-200 bg-white p-5 sm:p-6 shadow-xl">
+    <section aria-labelledby="form-articulo-h" className="rounded-2xl border border-[var(--acento-claro)] bg-white p-5 sm:p-6 shadow-xl">
       <div className="flex items-start justify-between gap-3 mb-4">
         <h2 id="form-articulo-h" className="text-lg font-bold text-slate-900">
           {titulo}
@@ -208,7 +208,7 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
           type="button"
           onClick={onCerrar}
           aria-label={t('panelGestion.cerrar')}
-          className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-500 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1"
+          className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-500 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
         >
           <Ic.X size={18} />
         </button>
@@ -319,7 +319,7 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
             <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
-                className="w-5 h-5 rounded border-slate-500 text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca]"
+                className="w-5 h-5 rounded border-slate-500 text-[var(--acento)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)]"
                 checked={draft.destacado}
                 onChange={e => setDraft(d => ({ ...d, destacado: e.target.checked }))}
               />
@@ -345,7 +345,7 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
           <button
             type="submit"
             disabled={enviando}
-            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] disabled:opacity-60 min-h-[44px]"
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] disabled:opacity-60 min-h-[44px]"
             style={{ background: 'var(--acento)' }}
           >
             {enviando ? <Ic.Loader size={16} className="animate-spin motion-reduce:animate-none" /> : <Ic.Save size={16} />}
@@ -391,7 +391,7 @@ function SeccionIdioma({
 
   return (
     <fieldset className="rounded-xl border border-slate-200 p-4">
-      <legend className="px-2 text-sm font-bold text-indigo-800 uppercase tracking-wide">{t(`idioma.${idioma}`)}</legend>
+      <legend className="px-2 text-sm font-bold text-[var(--acento)] uppercase tracking-wide">{t(`idioma.${idioma}`)}</legend>
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <button
@@ -399,8 +399,8 @@ function SeccionIdioma({
             onClick={onTraducir}
             aria-disabled={ocupado}
             aria-busy={traduciendoEste}
-            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-800 bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px] ${
-              ocupado ? 'opacity-60 cursor-not-allowed' : 'hover:bg-indigo-100 hover:border-indigo-300'
+            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-[var(--acento-claro)] text-[var(--acento)] bg-[var(--acento-claro)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors min-h-[44px] ${
+              ocupado ? 'opacity-60 cursor-not-allowed' : 'hover:bg-[var(--acento-claro)] hover:border-[var(--acento)]'
             }`}
           >
             {traduciendoEste ? (
@@ -550,7 +550,7 @@ function FilasDinamicas<T>({
               type="button"
               onClick={() => onQuitar(i)}
               aria-label={t('panelGestion.quitarFila', { n: i + 1 })}
-              className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-500 bg-white text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1"
+              className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-lg border border-slate-500 bg-white text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1"
             >
               <Ic.Trash size={15} />
             </button>

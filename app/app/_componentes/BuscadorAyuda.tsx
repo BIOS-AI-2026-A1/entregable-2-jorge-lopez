@@ -31,7 +31,10 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
     <>
       <section
         className="py-16 px-4 text-center"
-        style={{ background: 'linear-gradient(160deg, #3730a3 0%, #4338ca 60%, #4f46e5 100%)' }}
+        style={{
+          background:
+            'linear-gradient(160deg, var(--banner-desde) 0%, var(--banner-medio) 60%, var(--banner-hasta) 100%)',
+        }}
         aria-labelledby="home-h1"
       >
         <h1
@@ -57,7 +60,7 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
               value={consulta}
               onChange={e => setConsulta(e.target.value)}
               placeholder={t('inicio.buscarMarcador')}
-              className="w-full pl-12 pr-4 py-3.5 rounded-xl text-slate-900 bg-white text-base shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-700"
+              className="w-full pl-12 pr-4 py-3.5 rounded-xl text-slate-900 bg-white text-base shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--acento)]"
             />
           </div>
           <p className="mt-2 text-indigo-100 text-xs text-left">{t('inicio.buscarPista')}</p>
@@ -80,9 +83,9 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
                       <li key={articulo.id}>
                         <Link
                           href={rutas.articulo(idioma, articulo.slug)}
-                          className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left text-slate-700 hover:text-indigo-800 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
+                          className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left text-slate-700 hover:text-[var(--acento)] hover:bg-[var(--acento-claro)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors min-h-[44px]"
                         >
-                          <Ic.ChevronRight size={15} className="shrink-0 text-indigo-400" />
+                          <Ic.ChevronRight size={15} className="shrink-0 text-[var(--acento)]" />
                           <span className="text-sm font-medium">{articulo.titulo}</span>
                           {categoria && (
                             <span className="ml-auto shrink-0 text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -104,7 +107,7 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
                 <p className="text-slate-600 text-sm mt-2">{t('busqueda.sinResultadosAyuda')}</p>
                 <a
                   href="mailto:soporte@empresa.example"
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px]"
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
                   style={{ background: 'var(--acento)' }}
                 >
                   <Ic.Mail size={16} />
@@ -116,7 +119,7 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
               <button
                 type="button"
                 onClick={() => setConsulta('')}
-                className="inline-flex items-center gap-2 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+                className="inline-flex items-center gap-2 px-3 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
               >
                 <Ic.X size={15} />
                 {t('busqueda.limpiar')}
@@ -141,7 +144,7 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
                     <button
                       type="button"
                       onClick={() => setConsulta(categoria.nombre)}
-                      className="w-full group flex flex-col items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-2 transition-all cursor-pointer min-h-[120px] justify-center"
+                      className="w-full group flex flex-col items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-[var(--acento)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-2 transition-all cursor-pointer min-h-[120px] justify-center"
                       aria-label={t('inicio.categoriaAria', { nombre: categoria.nombre, count: total })}
                     >
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${categoria.fondo} ${categoria.texto} transition-transform group-hover:scale-110`}>
@@ -168,9 +171,9 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
                   <li key={articulo.id}>
                     <Link
                       href={rutas.articulo(idioma, articulo.slug)}
-                      className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left text-slate-700 hover:text-indigo-800 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 transition-colors group min-h-[44px]"
+                      className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-left text-slate-700 hover:text-[var(--acento)] hover:bg-[var(--acento-claro)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 transition-colors group min-h-[44px]"
                     >
-                      <Ic.ChevronRight size={15} className="shrink-0 text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
+                      <Ic.ChevronRight size={15} className="shrink-0 text-[var(--acento)] group-hover:translate-x-0.5 transition-transform" />
                       <span className="text-sm font-medium">{articulo.titulo}</span>
                     </Link>
                   </li>

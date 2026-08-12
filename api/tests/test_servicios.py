@@ -130,10 +130,27 @@ def test_idioma_sin_nada_devuelve_los_cuatro_bloques_vacios(db_session):
     """
     contenido = ensamblar_contenido(db_session, "fr")
 
-    assert set(contenido) == {"empresa", "categorias", "articulos", "conversacion", "metricas"}
-    # `empresa` es global (no depende del idioma): sale con su valor aunque no haya contenido.
+    assert set(contenido) == {
+        "empresa",
+        "acento",
+        "bannerDesde",
+        "bannerMedio",
+        "bannerHasta",
+        "logo",
+        "categorias",
+        "articulos",
+        "conversacion",
+        "metricas",
+    }
+    # `empresa` y la marca son globales (no dependen del idioma): salen con su valor
+    # aunque no haya contenido de ese idioma.
     assert contenido == {
         "empresa": "Acme",
+        "acento": "#4338ca",
+        "bannerDesde": "#3730a3",
+        "bannerMedio": "#4338ca",
+        "bannerHasta": "#4f46e5",
+        "logo": False,
         "categorias": [],
         "articulos": [],
         "conversacion": [],

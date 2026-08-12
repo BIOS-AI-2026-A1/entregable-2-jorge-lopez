@@ -9,11 +9,13 @@ from sqlalchemy.exc import IntegrityError
 from app.routers import (
     admin_ajustes,
     admin_articulos,
+    admin_categorias,
     admin_config_ia,
     admin_panel,
     admin_usuarios,
     auth,
     contenido,
+    marca,
 )
 from app.servicios_ia import ErrorProveedor, ProveedorNoConfigurado
 
@@ -24,8 +26,10 @@ app = FastAPI(
 )
 
 app.include_router(contenido.router)
+app.include_router(marca.router)
 app.include_router(auth.router)
 app.include_router(admin_articulos.router)
+app.include_router(admin_categorias.router)
 app.include_router(admin_panel.router)
 app.include_router(admin_usuarios.router)
 app.include_router(admin_ajustes.router)

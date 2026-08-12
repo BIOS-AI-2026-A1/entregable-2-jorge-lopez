@@ -70,7 +70,7 @@ export function UsuarioForm({
             autoComplete="off"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+            className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
           />
         </div>
 
@@ -82,7 +82,7 @@ export function UsuarioForm({
             id={`${idBase}-nivel`}
             value={nivel}
             onChange={e => setNivel(Number(e.target.value))}
-            className="w-full px-3 py-2.5 rounded-lg border border-slate-400 bg-white text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+            className="w-full px-3 py-2.5 rounded-lg border border-slate-400 bg-white text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
           >
             <option value={NivelAcceso.ESTANDAR}>{t('gestionUsuarios.nivelEstandar')}</option>
             <option value={NivelAcceso.ROOT}>{t('gestionUsuarios.nivelRoot')}</option>
@@ -103,7 +103,7 @@ export function UsuarioForm({
           value={password}
           onChange={e => setPassword(e.target.value)}
           aria-describedby={`${idBase}-password-ayuda`}
-          className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+          className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
         />
         <p id={`${idBase}-password-ayuda`} className="text-xs text-slate-500 mt-1">
           {modo === 'crear' ? t('gestionUsuarios.contrasenaAyudaCrear') : t('gestionUsuarios.contrasenaAyudaEditar')}
@@ -123,7 +123,7 @@ export function UsuarioForm({
         <button
           type="submit"
           disabled={enviando}
-          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#4338ca] min-h-[44px] disabled:opacity-60"
+          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px] disabled:opacity-60"
           style={{ background: 'var(--acento)' }}
         >
           <Ic.CheckCircle size={15} />
@@ -132,7 +132,7 @@ export function UsuarioForm({
         <button
           type="button"
           onClick={onCerrar}
-          className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca] focus-visible:ring-offset-1 min-h-[44px]"
+          className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
         >
           {t('gestionUsuarios.cancelar')}
         </button>
