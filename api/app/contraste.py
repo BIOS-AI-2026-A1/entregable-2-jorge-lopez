@@ -135,6 +135,26 @@ def derivar_tokens_acento(acento: str) -> dict:
     }
 
 
+# Escalones de luminosidad de las tres paradas del banner respecto al acento.
+# Cero o negativos (igual o más oscuro): al oscurecer sobre blanco solo aumenta el
+# contraste, así que —cumpliendo el acento 4.5:1 con blanco— cada parada lo cumple
+# por construcción. La parada inicial es el propio acento; el degradado ahonda hacia
+# el final. Con el acento por defecto (`#4338ca`) da un índigo que se oscurece.
+_BANNER_DELTAS = (0.0, -0.08, -0.16)
+
+
+def derivar_degradado_banner(acento: str) -> dict:
+    """Deriva las tres paradas (0/60/100 %) del degradado del banner a partir del acento.
+
+    Monocromático: conserva el tono (H) y la saturación (S) del acento y baja la
+    luminosidad en escalones hacia la parada final. Cada parada queda igual o más oscura
+    que el acento, de modo que si el acento cumple 4.5:1 con el texto blanco, cada parada
+    lo cumple también. Devuelve un dict con `desde`, `medio` y `hasta` (hex).
+    """
+    desde, medio, hasta = (_ajustar_luminosidad(acento, d) for d in _BANNER_DELTAS)
+    return {"desde": desde, "medio": medio, "hasta": hasta}
+
+
 def validar_paleta(
     acento: str,
     banner_desde: str,

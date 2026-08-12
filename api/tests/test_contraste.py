@@ -6,12 +6,19 @@ import pytest
 
 from app.contraste import (
     AA_NORMAL,
+    BLANCO,
+    derivar_degradado_banner,
     derivar_tokens_acento,
     hex_a_rgb,
     luminancia_relativa,
     ratio_contraste,
     validar_paleta,
 )
+
+# Acentos que superan la validación COMPLETA de paleta (botón, tinte, foco). Un gris muy
+# desaturado como #767676 cumple 4.5:1 con blanco pero falla el par acento/tinte, así que
+# no es un acento de marca válido; su caso límite se prueba aparte solo contra el blanco.
+ACENTOS_VALIDOS = ("#4338ca", "#0f766e", "#b91c1c", "#7c3aed", "#1d4ed8")
 
 # Paleta por defecto (aspecto índigo actual): debe cumplir toda la validación.
 ACENTO_DEFECTO = "#4338ca"
@@ -68,6 +75,56 @@ def test_hover_mas_oscuro_y_claro_mas_luminoso_que_la_base():
     base = luminancia_relativa(ACENTO_DEFECTO)
     assert luminancia_relativa(tokens["hover"]) < base
     assert luminancia_relativa(tokens["claro"]) > base
+
+
+# --- Derivación del degradado del banner -------------------------------------
+
+def test_degradado_devuelve_tres_paradas_hex_validas():
+    banner = derivar_degradado_banner(ACENTO_DEFECTO)
+    assert set(banner) == {"desde", "medio", "hasta"}
+    for valor in banner.values():
+        assert hex_a_rgb(valor)  # no lanza => hex válido
+
+
+def test_parada_inicial_es_el_propio_acento():
+    assert derivar_degradado_banner(ACENTO_DEFECTO)["desde"] == ACENTO_DEFECTO
+
+
+def test_reproduce_la_referencia_compartida_con_el_cliente():
+    # Misma referencia que el espejo TS (contraste.test.ts): misma fórmula ⇒ mismo hex.
+    assert derivar_degradado_banner(ACENTO_DEFECTO) == {
+        "desde": "#4338ca",
+        "medio": "#372eac",
+        "hasta": "#2d258b",
+    }
+
+
+@pytest.mark.parametrize("acento", ACENTOS_VALIDOS)
+def test_cada_parada_cumple_contraste_con_blanco(acento):
+    # Precondición: el acento cumple 4.5:1 con el texto blanco.
+    assert ratio_contraste(BLANCO, acento) >= AA_NORMAL
+    for parada in derivar_degradado_banner(acento).values():
+        assert ratio_contraste(BLANCO, parada) >= AA_NORMAL
+
+
+@pytest.mark.parametrize("acento", ACENTOS_VALIDOS)
+def test_luminosidad_decrece_hacia_el_final(acento):
+    banner = derivar_degradado_banner(acento)
+    lum = [luminancia_relativa(banner[k]) for k in ("desde", "medio", "hasta")]
+    assert lum[0] >= lum[1] >= lum[2]
+
+
+@pytest.mark.parametrize("acento", ACENTOS_VALIDOS)
+def test_el_degradado_derivado_valida_la_paleta(acento):
+    banner = derivar_degradado_banner(acento)
+    assert validar_paleta(acento, banner["desde"], banner["medio"], banner["hasta"]) is None
+
+
+def test_acento_en_el_borde_de_45_da_paradas_accesibles():
+    # #767676 roza el mínimo 4.5:1 con blanco; las paradas (más oscuras) lo mantienen.
+    banner = derivar_degradado_banner("#767676")
+    for parada in banner.values():
+        assert ratio_contraste(BLANCO, parada) >= AA_NORMAL
 
 
 # --- Validación de la paleta -------------------------------------------------

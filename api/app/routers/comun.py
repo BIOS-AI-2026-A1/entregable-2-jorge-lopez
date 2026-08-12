@@ -57,6 +57,8 @@ def exigir_categoria_sin_articulos(db: Session, categoria_id: str) -> None:
             f"No se puede borrar la categoría: tiene {n} artículo(s) asignado(s). "
             "Reasigna o elimina esos artículos primero.",
         )
+
+
 def validar_relacionados(db: Session, articulo_id: str, relacionados: Iterable[str]) -> None:
     """Corta con 422 si algún relacionado es inválido.
 

@@ -2,37 +2,60 @@
 
 from __future__ import annotations
 
+from app.contraste import derivar_degradado_banner
+
 # Binarios mínimos: el detector decide por los primeros bytes (magic bytes).
 PNG_VALIDO = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 ICO_VALIDO = b"\x00\x00\x01\x00" + b"\x00" * 32
+JPEG_VALIDO = b"\xff\xd8\xff\xe0" + b"\x00" * 32
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
 
-PALETA_VALIDA = {
-    "acento": "#4338ca",
-    "bannerDesde": "#3730a3",
-    "bannerMedio": "#4338ca",
-    "bannerHasta": "#4f46e5",
-}
+# El Root solo elige el acento; el banner se deriva en el servidor.
+PALETA_VALIDA = {"acento": "#4338ca"}
 
 
-# --- Paleta: contraste y autorización ---------------------------------------
+# --- Paleta: derivación, contraste y autorización ---------------------------
 
-def test_root_guarda_paleta_valida(client, auth):
+def test_root_guarda_solo_el_acento_y_recibe_el_banner_derivado(client, auth):
     r = client.put("/api/admin/ajustes/marca", json=PALETA_VALIDA, headers=auth)
     assert r.status_code == 200, r.text
-    assert r.json()["acento"] == "#4338ca"
+    esperado = derivar_degradado_banner("#4338ca")
+    cuerpo = r.json()
+    assert cuerpo["acento"] == "#4338ca"
+    assert cuerpo["bannerDesde"] == esperado["desde"]
+    assert cuerpo["bannerMedio"] == esperado["medio"]
+    assert cuerpo["bannerHasta"] == esperado["hasta"]
 
 
-def test_paleta_valida_se_propaga_al_contenido_publico(client, auth):
-    nueva = {**PALETA_VALIDA, "acento": "#0f766e"}  # teal oscuro, contrasta con blanco
+def test_el_banner_se_deriva_del_acento_en_el_contenido_publico(client, auth):
+    nueva = {"acento": "#0f766e"}  # teal oscuro, contrasta con blanco
     assert client.put("/api/admin/ajustes/marca", json=nueva, headers=auth).status_code == 200
     contenido = client.get("/api/es/contenido").json()
+    esperado = derivar_degradado_banner("#0f766e")
     assert contenido["acento"] == "#0f766e"
-    assert contenido["bannerDesde"] == "#3730a3"
+    assert contenido["bannerDesde"] == esperado["desde"]
+    assert contenido["bannerMedio"] == esperado["medio"]
+    assert contenido["bannerHasta"] == esperado["hasta"]
+
+
+def test_paradas_de_banner_en_el_cuerpo_se_ignoran(client, auth):
+    # El cuerpo trae paradas arbitrarias (una casi blanca que no contrastaría); el
+    # servidor las descarta y persiste el degradado derivado del acento.
+    cuerpo = {
+        "acento": "#4338ca",
+        "bannerDesde": "#ffffff",
+        "bannerMedio": "#fffbe6",
+        "bannerHasta": "#fefefe",
+    }
+    assert client.put("/api/admin/ajustes/marca", json=cuerpo, headers=auth).status_code == 200
+    contenido = client.get("/api/es/contenido").json()
+    esperado = derivar_degradado_banner("#4338ca")
+    assert contenido["bannerDesde"] == esperado["desde"]
+    assert contenido["bannerDesde"] != "#ffffff"  # no se coló el blanco del cuerpo
 
 
 def test_acento_con_contraste_insuficiente_es_422(client, auth):
-    malo = {**PALETA_VALIDA, "acento": "#cccccc"}
+    malo = {"acento": "#cccccc"}
     r = client.put("/api/admin/ajustes/marca", json=malo, headers=auth)
     assert r.status_code == 422
     detalle = r.json()["detail"]
@@ -41,13 +64,8 @@ def test_acento_con_contraste_insuficiente_es_422(client, auth):
     assert client.get("/api/es/contenido").json()["acento"] != "#cccccc"
 
 
-def test_banner_con_contraste_insuficiente_es_422(client, auth):
-    malo = {**PALETA_VALIDA, "bannerHasta": "#fffbe6"}
-    assert client.put("/api/admin/ajustes/marca", json=malo, headers=auth).status_code == 422
-
-
 def test_hex_mal_formado_es_422(client, auth):
-    malo = {**PALETA_VALIDA, "acento": "azul"}
+    malo = {"acento": "azul"}
     assert client.put("/api/admin/ajustes/marca", json=malo, headers=auth).status_code == 422
 
 
@@ -81,6 +99,17 @@ def test_root_sube_ico(client, auth):
     r = client.post("/api/admin/ajustes/logo", content=ICO_VALIDO, headers=auth)
     assert r.status_code == 201
     assert r.json()["mime"] == "image/x-icon"
+
+
+def test_root_sube_jpeg_y_se_sirve(client, auth):
+    r = client.post("/api/admin/ajustes/logo", content=JPEG_VALIDO, headers=auth)
+    assert r.status_code == 201, r.text
+    assert r.json() == {"presente": True, "mime": "image/jpeg"}
+
+    servido = client.get("/api/marca/logo")
+    assert servido.status_code == 200
+    assert servido.headers["content-type"] == "image/jpeg"
+    assert servido.content == JPEG_VALIDO
 
 
 def test_se_rechaza_svg(client, auth):

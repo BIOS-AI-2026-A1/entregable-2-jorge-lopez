@@ -304,14 +304,17 @@ ColorHex = Annotated[str, Field(pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 class MarcaIn(BaseModel):
-    """Paleta editable por Root: acento + tres paradas del degradado del banner."""
+    """Paleta editable por Root: solo el acento.
 
-    model_config = ConfigDict(extra="forbid")
+    Las tres paradas del degradado del banner ya no son entrada: el servidor las deriva
+    del acento (`derivar_degradado_banner`). `extra="ignore"` (por defecto) descarta sin
+    error cualquier parada de banner que envíe un cliente antiguo o manipulado; el
+    resultado guardado es siempre el derivado y validado, nunca el del cuerpo.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     acento: ColorHex
-    bannerDesde: ColorHex
-    bannerMedio: ColorHex
-    bannerHasta: ColorHex
 
 
 class MarcaOut(BaseModel):

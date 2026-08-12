@@ -121,6 +121,31 @@ export function derivarTokensAcento(acento: string): TokensAcento {
   }
 }
 
+// Escalones de luminosidad de las tres paradas del banner respecto al acento.
+// Cero o negativos (igual o más oscuro): al oscurecer sobre blanco solo aumenta el
+// contraste, así que —cumpliendo el acento 4.5:1 con blanco— cada parada lo cumple
+// por construcción. La parada inicial es el propio acento; el degradado ahonda hacia
+// el final. Paridad con `_BANNER_DELTAS` de `api/app/contraste.py`.
+const BANNER_DELTAS = [0.0, -0.08, -0.16] as const
+
+export interface DegradadoBanner {
+  desde: string
+  medio: string
+  hasta: string
+}
+
+/**
+ * Deriva las tres paradas (0/60/100 %) del degradado del banner a partir del acento.
+ * Monocromático: conserva el tono y la saturación del acento y baja la luminosidad en
+ * escalones hacia la parada final; cada parada queda igual o más oscura que el acento,
+ * así que si el acento cumple 4.5:1 con el texto blanco, cada parada lo cumple también.
+ * Paridad con `derivar_degradado_banner` de `api/app/contraste.py`.
+ */
+export function derivarDegradadoBanner(acento: string): DegradadoBanner {
+  const [desde, medio, hasta] = BANNER_DELTAS.map(d => ajustarLuminosidad(acento, d))
+  return { desde, medio, hasta }
+}
+
 /**
  * Valida el conjunto completo de pares de contraste de la paleta propuesta.
  * Devuelve `null` si toda la paleta cumple AA, o el primer par que falla.
