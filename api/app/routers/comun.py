@@ -29,7 +29,6 @@ def exigir_id_disponible(db: Session, articulo_id: str) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un artículo con ese identificador")
 
 
-<<<<<<< HEAD
 def obtener_categoria_o_404(db: Session, categoria_id: str) -> Categoria:
     """Devuelve la categoría o corta con 404."""
     c = db.get(Categoria, categoria_id)
@@ -58,7 +57,8 @@ def exigir_categoria_sin_articulos(db: Session, categoria_id: str) -> None:
             f"No se puede borrar la categoría: tiene {n} artículo(s) asignado(s). "
             "Reasigna o elimina esos artículos primero.",
         )
-=======
+
+
 def validar_relacionados(db: Session, articulo_id: str, relacionados: Iterable[str]) -> None:
     """Corta con 422 si algún relacionado es inválido.
 
@@ -77,4 +77,3 @@ def validar_relacionados(db: Session, articulo_id: str, relacionados: Iterable[s
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 f"El artículo relacionado no existe: «{rid}».",
             )
->>>>>>> origin/main
