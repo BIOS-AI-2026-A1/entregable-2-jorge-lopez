@@ -20,26 +20,26 @@ export function LogoMarca({
   const t = traducir(idioma)
   const nombre = t('marca.nombre', { empresa: empresa || t('marca.reserva') })
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API, no un asset estático
         <img
           src="/api/marca/logo"
           alt={nombre}
-          className="w-12 h-12 rounded-lg object-contain select-none"
+          className="w-20 h-20 rounded-xl object-contain select-none"
         />
       ) : (
         <div
-          className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-sm font-bold tracking-wide select-none"
+          className="w-20 h-20 rounded-xl flex items-center justify-center text-white text-lg font-bold tracking-wide select-none"
           style={{ background: 'var(--acento)' }}
           aria-hidden="true"
         >
           {t('marca.iniciales')}
         </div>
       )}
-      <div className="leading-none">
-        <span className="font-bold text-[17px] text-slate-900">{nombre}</span>
-        <span className="text-slate-600 font-normal ml-2 text-[15px]">{t('marca.sufijo')}</span>
+      <div className="leading-tight">
+        <span className="font-bold text-[20px] text-slate-900">{nombre}</span>
+        <span className="text-slate-600 font-normal ml-2 text-[16px]">{t('marca.sufijo')}</span>
       </div>
     </div>
   )
