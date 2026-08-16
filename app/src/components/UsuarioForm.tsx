@@ -9,7 +9,7 @@ type Modo = 'crear' | 'editar'
 /**
  * Alta y edición de un usuario administrable. Al crear, la contraseña es
  * obligatoria (mínimo 12 caracteres); al editar, se deja en blanco para no
- * cambiarla. El nivel se elige entre Standard y Root.
+ * cambiarla. El nivel se elige entre Editor y Administrador.
  */
 export function UsuarioForm({
   modo,
@@ -24,7 +24,7 @@ export function UsuarioForm({
 }) {
   const { t } = useTranslation()
   const [email, setEmail] = useState(inicial?.email ?? '')
-  const [nivel, setNivel] = useState<number>(inicial?.nivel ?? NivelAcceso.ESTANDAR)
+  const [nivel, setNivel] = useState<number>(inicial?.nivel ?? NivelAcceso.EDITOR)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -41,7 +41,7 @@ export function UsuarioForm({
         onGuardado(modo)
         return
       }
-      // 409: correo en uso o la operación dejaría al sistema sin Root activo.
+      // 409: correo en uso o la operación dejaría al sistema sin Administrador activo.
       setError(resp.status === 409 ? t('gestionUsuarios.errorConflicto') : t('gestionUsuarios.errorGuardar'))
     } catch {
       setError(t('gestionUsuarios.errorRed'))
@@ -84,8 +84,8 @@ export function UsuarioForm({
             onChange={e => setNivel(Number(e.target.value))}
             className="w-full px-3 py-2.5 rounded-lg border border-slate-400 bg-white text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
           >
-            <option value={NivelAcceso.ESTANDAR}>{t('gestionUsuarios.nivelEstandar')}</option>
-            <option value={NivelAcceso.ROOT}>{t('gestionUsuarios.nivelRoot')}</option>
+            <option value={NivelAcceso.EDITOR}>{t('gestionUsuarios.nivelEditor')}</option>
+            <option value={NivelAcceso.ADMINISTRADOR}>{t('gestionUsuarios.nivelAdministrador')}</option>
           </select>
         </div>
       </div>

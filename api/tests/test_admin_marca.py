@@ -10,13 +10,13 @@ ICO_VALIDO = b"\x00\x00\x01\x00" + b"\x00" * 32
 JPEG_VALIDO = b"\xff\xd8\xff\xe0" + b"\x00" * 32
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
 
-# El Root solo elige el acento; el banner se deriva en el servidor.
+# El Administrador solo elige el acento; el banner se deriva en el servidor.
 PALETA_VALIDA = {"acento": "#4338ca"}
 
 
 # --- Paleta: derivación, contraste y autorización ---------------------------
 
-def test_root_guarda_solo_el_acento_y_recibe_el_banner_derivado(client, auth):
+def test_administrador_guarda_solo_el_acento_y_recibe_el_banner_derivado(client, auth):
     r = client.put("/api/admin/ajustes/marca", json=PALETA_VALIDA, headers=auth)
     assert r.status_code == 200, r.text
     esperado = derivar_degradado_banner("#4338ca")
@@ -69,8 +69,8 @@ def test_hex_mal_formado_es_422(client, auth):
     assert client.put("/api/admin/ajustes/marca", json=malo, headers=auth).status_code == 422
 
 
-def test_standard_no_puede_cambiar_la_paleta(client, standard_auth):
-    assert client.put("/api/admin/ajustes/marca", json=PALETA_VALIDA, headers=standard_auth).status_code == 403
+def test_editor_no_puede_cambiar_la_paleta(client, editor_auth):
+    assert client.put("/api/admin/ajustes/marca", json=PALETA_VALIDA, headers=editor_auth).status_code == 403
 
 
 def test_anonymous_no_puede_cambiar_la_paleta(client):
@@ -83,7 +83,7 @@ def test_sin_logo_el_servido_es_404(client):
     assert client.get("/api/marca/logo").status_code == 404
 
 
-def test_root_sube_png_y_se_sirve(client, auth):
+def test_administrador_sube_png_y_se_sirve(client, auth):
     r = client.post("/api/admin/ajustes/logo", content=PNG_VALIDO, headers=auth)
     assert r.status_code == 201, r.text
     assert r.json() == {"presente": True, "mime": "image/png"}
@@ -95,13 +95,13 @@ def test_root_sube_png_y_se_sirve(client, auth):
     assert servido.content == PNG_VALIDO
 
 
-def test_root_sube_ico(client, auth):
+def test_administrador_sube_ico(client, auth):
     r = client.post("/api/admin/ajustes/logo", content=ICO_VALIDO, headers=auth)
     assert r.status_code == 201
     assert r.json()["mime"] == "image/x-icon"
 
 
-def test_root_sube_jpeg_y_se_sirve(client, auth):
+def test_administrador_sube_jpeg_y_se_sirve(client, auth):
     r = client.post("/api/admin/ajustes/logo", content=JPEG_VALIDO, headers=auth)
     assert r.status_code == 201, r.text
     assert r.json() == {"presente": True, "mime": "image/jpeg"}
@@ -134,8 +134,8 @@ def test_se_rechaza_archivo_vacio(client, auth):
     assert client.post("/api/admin/ajustes/logo", content=b"", headers=auth).status_code == 422
 
 
-def test_standard_no_puede_subir_logo(client, standard_auth):
-    assert client.post("/api/admin/ajustes/logo", content=PNG_VALIDO, headers=standard_auth).status_code == 403
+def test_editor_no_puede_subir_logo(client, editor_auth):
+    assert client.post("/api/admin/ajustes/logo", content=PNG_VALIDO, headers=editor_auth).status_code == 403
 
 
 def test_anonymous_no_puede_subir_logo(client):

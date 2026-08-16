@@ -2,7 +2,7 @@
 
 Crea la tabla `config_ia` (fila única `id=1`) con el proveedor activo y un mapa
 JSON de claves de API cifradas por proveedor. Es incremental sobre `0002`: no toca
-las tablas existentes. La fila la crea/actualiza el panel (Root); si no existe, el
+las tablas existentes. La fila la crea/actualiza el panel (Administrador); si no existe, el
 proveedor efectivo por defecto es Anthropic (Claude).
 
 Revision ID: 0003

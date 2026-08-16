@@ -153,16 +153,16 @@ def _sembrar_admin(db) -> None:
         # Ojo: no se recrea. Para rotar la contraseña hay que borrar la fila antes.
         print(f"Administrador {s.admin_email} ya existe; no se recrea.")
         return
-    # El administrador inicial es Root: es el primer usuario y quien gestiona a los demás.
+    # El administrador inicial es Administrador: es el primer usuario y quien gestiona a los demás.
     db.add(
         AdminUser(
             email=s.admin_email,
             password_hash=hash_password(s.admin_password),
-            nivel=NivelAcceso.ROOT.value,
+            nivel=NivelAcceso.ADMINISTRADOR.value,
             activo=True,
         )
     )
-    print(f"Administrador {s.admin_email} creado (Root).")
+    print(f"Administrador {s.admin_email} creado (Administrador).")
 
 
 def _sembrar_ajustes(db) -> None:

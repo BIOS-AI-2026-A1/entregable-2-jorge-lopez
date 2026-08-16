@@ -1,8 +1,8 @@
-"""Gestión de usuarios, exclusiva de Root (Nivel 3).
+"""Gestión de usuarios, exclusiva de Administrador (Nivel 3).
 
 Permite crear, editar y activar/desactivar usuarios y asignar su nivel. Las
 salvaguardas viven aquí, en el servidor: nadie puede autodesactivarse ni
-autodegradarse, ni dejar el sistema sin ningún Root activo.
+autodegradarse, ni dejar el sistema sin ningún Administrador activo.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from app.servicios import usuario_a_dict
 router = APIRouter(
     prefix="/api/admin/usuarios",
     tags=["admin", "usuarios"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ROOT))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.ADMINISTRADOR))],
 )
 
 
@@ -31,16 +31,20 @@ def _obtener_o_404(db: Session, usuario_id: int) -> AdminUser:
     return usuario
 
 
-def _root_activos(db: Session) -> int:
+def _administradores_activos(db: Session) -> int:
     return (
         db.query(AdminUser)
-        .filter(AdminUser.nivel == NivelAcceso.ROOT, AdminUser.activo.is_(True))
+        .filter(AdminUser.nivel == NivelAcceso.ADMINISTRADOR, AdminUser.activo.is_(True))
         .count()
     )
 
 
-def _es_ultimo_root_activo(db: Session, usuario: AdminUser) -> bool:
-    return usuario.nivel == NivelAcceso.ROOT and usuario.activo and _root_activos(db) <= 1
+def _es_ultimo_administrador_activo(db: Session, usuario: AdminUser) -> bool:
+    return (
+        usuario.nivel == NivelAcceso.ADMINISTRADOR
+        and usuario.activo
+        and _administradores_activos(db) <= 1
+    )
 
 
 @router.get("", response_model=list[UsuarioOut])
@@ -70,17 +74,17 @@ def actualizar(
     usuario_id: int,
     datos: UsuarioActualizarIn,
     db: Session = Depends(get_db),
-    actual: AdminUser = Depends(requiere_nivel(NivelAcceso.ROOT)),
+    actual: AdminUser = Depends(requiere_nivel(NivelAcceso.ADMINISTRADOR)),
 ) -> dict:
     usuario = _obtener_o_404(db, usuario_id)
-    degrada = int(datos.nivel) < NivelAcceso.ROOT
+    degrada = int(datos.nivel) < NivelAcceso.ADMINISTRADOR
 
-    # Nadie se degrada a sí mismo: perdería el propio acceso Root sin querer.
+    # Nadie se degrada a sí mismo: perdería el propio acceso Administrador sin querer.
     if usuario.id == actual.id and degrada:
-        raise HTTPException(status.HTTP_409_CONFLICT, "No puedes quitarte tu propio nivel Root")
-    # No dejar el sistema sin ningún Root activo.
-    if degrada and _es_ultimo_root_activo(db, usuario):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Debe quedar al menos un usuario Root activo")
+        raise HTTPException(status.HTTP_409_CONFLICT, "No puedes quitarte tu propio nivel Administrador")
+    # No dejar el sistema sin ningún Administrador activo.
+    if degrada and _es_ultimo_administrador_activo(db, usuario):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Debe quedar al menos un usuario Administrador activo")
 
     otro = db.query(AdminUser).filter(AdminUser.email == datos.email).first()
     if otro is not None and otro.id != usuario.id:
@@ -108,15 +112,15 @@ def activar(usuario_id: int, db: Session = Depends(get_db)) -> dict:
 def desactivar(
     usuario_id: int,
     db: Session = Depends(get_db),
-    actual: AdminUser = Depends(requiere_nivel(NivelAcceso.ROOT)),
+    actual: AdminUser = Depends(requiere_nivel(NivelAcceso.ADMINISTRADOR)),
 ) -> dict:
     usuario = _obtener_o_404(db, usuario_id)
     # Nadie se desactiva a sí mismo: se cerraría el propio acceso.
     if usuario.id == actual.id:
         raise HTTPException(status.HTTP_409_CONFLICT, "No puedes desactivar tu propia cuenta")
-    # No dejar el sistema sin ningún Root activo.
-    if _es_ultimo_root_activo(db, usuario):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Debe quedar al menos un usuario Root activo")
+    # No dejar el sistema sin ningún Administrador activo.
+    if _es_ultimo_administrador_activo(db, usuario):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Debe quedar al menos un usuario Administrador activo")
     usuario.activo = False
     db.commit()
     db.refresh(usuario)

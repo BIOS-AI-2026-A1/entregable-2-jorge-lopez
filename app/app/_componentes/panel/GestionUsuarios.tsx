@@ -14,8 +14,8 @@ import { UsuarioForm } from '@/components/UsuarioForm'
 type FormState = { modo: 'crear' | 'editar'; inicial?: UsuarioAdmin }
 
 /**
- * Gestión de usuarios (solo Root). La ruta ya está protegida por el Server
- * Component (nivel Root); aun así, cada operación la vuelve a autorizar el backend.
+ * Gestión de usuarios (solo Administrador). La ruta ya está protegida por el Server
+ * Component (nivel Administrador); aun así, cada operación la vuelve a autorizar el backend.
  */
 export function GestionUsuarios({ idioma }: { idioma: Idioma }) {
   const { t } = useTranslation()
@@ -151,14 +151,14 @@ export function GestionUsuarios({ idioma }: { idioma: Idioma }) {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {usuarios.map(usuario => {
-                    const esRootUsuario = usuario.nivel >= NivelAcceso.ROOT
+                    const esAdministradorUsuario = usuario.nivel >= NivelAcceso.ADMINISTRADOR
                     return (
                       <tr key={usuario.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3.5 text-slate-800 font-medium">{usuario.email}</td>
                         <td className="px-4 py-3.5">
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border border-slate-300 text-slate-700 bg-slate-50">
-                            {esRootUsuario && <Ic.Shield size={12} />}
-                            {t(esRootUsuario ? 'gestionUsuarios.nivelRoot' : 'gestionUsuarios.nivelEstandar')}
+                            {esAdministradorUsuario && <Ic.Shield size={12} />}
+                            {t(esAdministradorUsuario ? 'gestionUsuarios.nivelAdministrador' : 'gestionUsuarios.nivelEditor')}
                           </span>
                         </td>
                         <td className="px-4 py-3.5">

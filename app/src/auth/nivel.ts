@@ -3,13 +3,13 @@
  *
  * El valor entero ordena la herencia de permisos: autorizar es comparar
  * `nivel_actual >= nivel_requerido`. La interfaz usa esto para ocultar los
- * controles Root, pero la autoridad siempre es el backend.
+ * controles de Administrador, pero la autoridad siempre es el backend.
  */
 
 export const NivelAcceso = {
   ANONIMO: 1,
-  ESTANDAR: 2,
-  ROOT: 3,
+  EDITOR: 2,
+  ADMINISTRADOR: 3,
 } as const
 
 export type NivelAcceso = (typeof NivelAcceso)[keyof typeof NivelAcceso]
@@ -23,6 +23,6 @@ export function tieneNivel(actual: number | null | undefined, requerido: NivelAc
   return actual != null && actual >= requerido
 }
 
-export function esRoot(nivel: number | null | undefined): boolean {
-  return tieneNivel(nivel, NivelAcceso.ROOT)
+export function esAdministrador(nivel: number | null | undefined): boolean {
+  return tieneNivel(nivel, NivelAcceso.ADMINISTRADOR)
 }

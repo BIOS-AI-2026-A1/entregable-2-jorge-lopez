@@ -22,7 +22,7 @@ import {
   type PreguntaAdmin,
 } from '@/data/admin'
 import { derivarDegradadoBanner, derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
-import { esRoot } from '@/auth/nivel'
+import { esAdministrador } from '@/auth/nivel'
 import { fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
@@ -79,7 +79,7 @@ export function PanelInterno({
   const [acento, setAcento] = useState(contenido.acento)
   const [subiendoLogo, setSubiendoLogo] = useState(false)
 
-  const puedeRoot = esRoot(nivel)
+  const puedeAdministrar = esAdministrador(nivel)
 
   // Estado de la clave del proveedor seleccionado en el desplegable. Si tiene clave
   // y no se está editando, el campo se muestra en solo lectura con la pista (últimos
@@ -123,7 +123,7 @@ export function PanelInterno({
   useEffect(() => {
     void cargarPreguntas()
     void cargarCategorias()
-    if (puedeRoot) void cargarConfigIA()
+    if (puedeAdministrar) void cargarConfigIA()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idioma])
 
@@ -138,7 +138,7 @@ export function PanelInterno({
     setAcento(contenido.acento)
   }, [contenido.acento])
 
-  const pestanaActiva = resolverPestana(searchParams.get('seccion'), puedeRoot)
+  const pestanaActiva = resolverPestana(searchParams.get('seccion'), puedeAdministrar)
   function cambiarPestana(id: PestanaId) {
     const proximo = new URLSearchParams(Array.from(searchParams.entries()))
     proximo.set('seccion', id)
@@ -493,7 +493,7 @@ export function PanelInterno({
     </section>
   )
 
-  // ── Contenido de la pestaña «Categorías» (Standard + Root) ───────────────────
+  // ── Contenido de la pestaña «Categorías» (Editor + Administrador) ────────────
   const contenidoCategorias = (
     <section aria-labelledby="categorias-h2" className="space-y-4">
       <h2 id="categorias-h2" className="sr-only">
@@ -573,11 +573,11 @@ export function PanelInterno({
   const falloPaleta = validarPaleta(acento, banner.desde, banner.medio, banner.hasta)
   const tokensAcento = derivarTokensAcento(acento)
 
-  // ── Contenido de la pestaña «Administración» (solo Root) ─────────────────────
+  // ── Contenido de la pestaña «Administración» (solo Administrador) ────────────
   const contenidoAdmin = (
-    <section aria-labelledby="root-h2" className="space-y-4">
-      <h2 id="root-h2" className="sr-only">
-        {t('panel.seccionRoot')}
+    <section aria-labelledby="admin-h2" className="space-y-4">
+      <h2 id="admin-h2" className="sr-only">
+        {t('panel.seccionAdmin')}
       </h2>
 
       <form onSubmit={guardarEmpresaHandler} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3" aria-labelledby="empresa-h3">
@@ -856,8 +856,8 @@ export function PanelInterno({
     { id: 'gestion', etiqueta: t('panelGestion.titulo'), contenido: contenidoGestion },
     { id: 'categorias', etiqueta: t('panelCategorias.titulo'), contenido: contenidoCategorias },
   ]
-  if (puedeRoot) {
-    pestanas.push({ id: 'admin', etiqueta: t('panel.seccionRoot'), contenido: contenidoAdmin })
+  if (puedeAdministrar) {
+    pestanas.push({ id: 'admin', etiqueta: t('panel.seccionAdmin'), contenido: contenidoAdmin })
   }
 
   return (

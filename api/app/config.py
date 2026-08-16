@@ -32,16 +32,16 @@ class Settings(BaseSettings):
 
     # Administrador inicial que crea el seed. La contraseña, por el mismo motivo
     # que el secreto, es obligatoria y no tiene valor por defecto. El seed lo crea
-    # como Root (nivel 3): es el primer usuario y quien gestiona a los demás.
+    # como Administrador (nivel 3): es el primer usuario y quien gestiona a los demás.
     admin_email: str = "admin@centro-ayuda.local"
     admin_password: str
 
     # Valor inicial del campo [Empresa] (nombre de marca global). Editable después
-    # desde el panel por un usuario Root; el seed solo lo usa para la primera fila.
+    # desde el panel por un usuario Administrador; el seed solo lo usa para la primera fila.
     empresa_inicial: str = "[Empresa]"
 
     # Clave simétrica (Fernet) con la que se cifran en reposo las claves de API de
-    # los proveedores de IA que introduce Root. Opcional a propósito: sin ella la
+    # los proveedores de IA que introduce el Administrador. Opcional a propósito: sin ella la
     # API arranca igual y todo funciona salvo guardar/usar claves de IA (traducción),
     # que avisa de que falta configurarla. Generar una propia:
     #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

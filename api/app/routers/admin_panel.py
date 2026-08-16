@@ -17,7 +17,7 @@ from app.texto import normalizar_slug
 router = APIRouter(
     prefix="/api/admin/preguntas-sin-resolver",
     tags=["admin"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ESTANDAR))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.EDITOR))],
 )
 
 

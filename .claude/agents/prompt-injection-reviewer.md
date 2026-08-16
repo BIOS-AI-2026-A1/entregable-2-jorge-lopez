@@ -28,7 +28,7 @@ de contenido llega a un modelo:
 
 1. **Traducción de artículos (viva).** `api/app/servicios_ia.py` compone el prompt en `_prompt()`: incrusta
    el JSON del artículo y exige devolver JSON con la misma estructura (proveedores Anthropic y DeepSeek). El
-   contenido lo controla un administrador **Standard o Root**, no un anónimo, pero sigue siendo un canal
+   contenido lo controla un administrador **Editor o Administrador**, no un anónimo, pero sigue siendo un canal
    donde instrucciones y datos se mezclan en el mismo mensaje `user`. Riesgo: contenido de artículo que
    altere las reglas de traducción, rompa la estructura JSON exigida o inyecte texto en el idioma destino.
 
@@ -45,7 +45,7 @@ de contenido llega a un modelo:
    entrando juntos al prompt del asistente.
 
 Modelo de niveles de acceso (importa para calibrar la severidad): **Anonymous** (sin sesión, solo el centro
-de ayuda y —en el futuro— el chat) < **Standard** (panel y producto, incluida la traducción) < **Root**
+de ayuda y —en el futuro— el chat) < **Editor** (panel y producto, incluida la traducción) < **Administrador**
 (además usuarios y `[Empresa]`). Una inyección explotable por un anónimo (chat/RAG) pesa más que una que
 exige contenido ya redactado por un administrador (traducción).
 
@@ -119,7 +119,7 @@ Devuelve un reporte estructurado así:
   - Título y severidad.
   - Superficie (traducción / chat con citas / RAG futuro) y referencia de archivo y línea, o la decisión de
     diseño si el pipeline aún no existe.
-  - Abuso: una o dos frases sobre cómo podría explotarse, y por qué nivel de acceso (Anonymous/Standard/Root).
+  - Abuso: una o dos frases sobre cómo podría explotarse, y por qué nivel de acceso (Anonymous/Editor/Administrador).
   - Corrección: el cambio de diseño del prompt, de validación de entrada o de acotación de salida a aplicar.
 - Sección **Pruebas adversarias sugeridas:** al menos una entrada de ejemplo por superficie revisada, lista
   para verificar la defensa.

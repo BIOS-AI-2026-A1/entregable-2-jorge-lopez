@@ -1,7 +1,7 @@
 """CRUD de categorías, protegido por sesión de administrador. Crear/editar exige es+pt.
 
 Es una función de producto (gestión de contenido): la usa cualquier sesión válida
-(Nivel 2, Standard, o superior), como el CRUD de artículos. El borrado se bloquea con
+(Nivel 2, Editor, o superior), como el CRUD de artículos. El borrado se bloquea con
 409 si la categoría todavía tiene artículos asignados (integridad referencial).
 """
 
@@ -25,7 +25,7 @@ from app.texto import normalizar_slug
 router = APIRouter(
     prefix="/api/admin/categorias",
     tags=["admin"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ESTANDAR))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.EDITOR))],
 )
 
 

@@ -43,8 +43,8 @@ def admin_actual(
 def requiere_nivel(minimo: NivelAcceso) -> Callable[..., AdminUser]:
     """Fábrica de dependencias: exige que la sesión tenga al menos `minimo`.
 
-    La jerarquía es un entero ordenado, así que Root (3) satisface cualquier
-    requisito de Standard (2). Nivel insuficiente responde 403 (autenticado pero
+    La jerarquía es un entero ordenado, así que Administrador (3) satisface cualquier
+    requisito de Editor (2). Nivel insuficiente responde 403 (autenticado pero
     sin permiso), distinto del 401 de `admin_actual` (sin sesión válida).
     """
 

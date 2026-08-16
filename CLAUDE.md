@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Proyecto capstone: una aplicación de **Centro de Ayuda**. El **frontend** vive en `app/` (las 4 pantallas,
 bilingüe), migrado a **Next.js (App Router) con renderizado en servidor y sesión en cookie httpOnly**
 (cambio OpenSpec `migrar-frontend-nextjs`), y el **backend** en `api/` (FastAPI) incluye el control de
-acceso en tres niveles Anonymous / Standard / Root. Varias secciones de este documento se irán completando
+acceso en tres niveles Anonymous / Editor / Administrador. Varias secciones de este documento se irán completando
 a medida que se construya.
 
 ## Stack
@@ -50,14 +50,14 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
 - **Autenticación de administrador:** correo + contraseña con hash **argon2** y sesión **JWT**. Protege
   `/api/admin/*` y restringe el Panel Interno (`/:idioma/panel`) a sesión válida.
 - **Control de acceso en tres niveles jerárquicos:** Anonymous (sin sesión, solo centro de ayuda),
-  Standard (panel + funciones de producto) y Root (además gestión de usuarios y campo `[Empresa]`). La
+  Editor (panel + funciones de producto) y Administrador (además gestión de usuarios y campo `[Empresa]`). La
   dependencia `requiere_nivel` aplica la autorización **en el servidor** (403 por nivel insuficiente),
   leyendo nivel y estado `activo` de la base en cada petición (no del JWT), para revocar acceso al instante.
 - **Consumo desde el frontend** con **Server Components de Next**: el contenido público se carga en el
   servidor (`src/data/servidor.ts`) y el panel usa el BFF por cookie (`src/bff/apiFetch.ts`), sin tocar
   componentes ni su ARIA.
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
-  usuarios (Root) y campo `[Empresa]` (valor de marca global) ahora; **RAG solo diseñado**, no construido.
+  usuarios (Administrador) y campo `[Empresa]` (valor de marca global) ahora; **RAG solo diseñado**, no construido.
 
 ## Convenciones
 
@@ -72,7 +72,7 @@ Lo establecido hasta ahora:
 - Color de acento expuesto como token `--acento` para poder recambiar la marca sin tocar componentes.
 - **CRUD de artículos bilingüe atómico:** crear o editar un artículo exige español y portugués juntos; nunca
   se persiste un artículo en un solo idioma.
-- **Acceso jerárquico estricto (`Root ⊃ Standard ⊃ Anonymous`):** la autorización se aplica **en el
+- **Acceso jerárquico estricto (`Administrador ⊃ Editor ⊃ Anonymous`):** la autorización se aplica **en el
   servidor**, no solo ocultando controles en la interfaz; un usuario nunca alcanza un recurso por encima de
   su nivel, ni por petición directa.
 - **`[Empresa]` es el identificador interno del campo de marca**, no un marcador de posición: se conserva

@@ -239,7 +239,7 @@ class PreguntaAdminOut(BaseModel):
 
 # --- Sesión y niveles -------------------------------------------------------
 
-# Nivel asignable a un usuario: Standard (2) o Root (3). Anonymous (1) no se
+# Nivel asignable a un usuario: Editor (2) o Administrador (3). Anónimo (1) no se
 # asigna nunca (es la ausencia de sesión), así que se excluye del contrato.
 NivelAsignable = Literal[2, 3]
 
@@ -254,7 +254,7 @@ class MeOut(BaseModel):
     nivel: int
 
 
-# --- Gestión de usuarios (solo Root) ----------------------------------------
+# --- Gestión de usuarios (solo Administrador) -------------------------------
 
 class UsuarioOut(BaseModel):
     """Usuario administrable. Nunca incluye el hash de la contraseña."""
@@ -296,7 +296,7 @@ class EmpresaOut(BaseModel):
     empresa: str
 
 
-# --- Ajustes: marca visual (paleta + logo), solo Root -----------------------
+# --- Ajustes: marca visual (paleta + logo), solo Administrador --------------
 
 # Color hexadecimal `#rgb` o `#rrggbb`. La validación de formato la hace Pydantic;
 # la de contraste WCAG la hace el router con `app.contraste` (autoridad del servidor).
@@ -304,7 +304,7 @@ ColorHex = Annotated[str, Field(pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 class MarcaIn(BaseModel):
-    """Paleta editable por Root: solo el acento.
+    """Paleta editable por Administrador: solo el acento.
 
     Las tres paradas del degradado del banner ya no son entrada: el servidor las deriva
     del acento (`derivar_degradado_banner`). `extra="ignore"` (por defecto) descarta sin
@@ -331,7 +331,7 @@ class LogoOut(BaseModel):
     mime: str | None = None
 
 
-# --- Configuración de proveedor de IA (solo Root) ---------------------------
+# --- Configuración de proveedor de IA (solo Administrador) ------------------
 
 # Proveedores admitidos. Anthropic (Claude) es el de por defecto. Anthropic y
 # DeepSeek tienen motor de traducción real; Google Translate queda como opción
@@ -345,7 +345,7 @@ class ProveedorEstado(BaseModel):
 
     id: ProveedorIA
     configurada: bool
-    # Últimos caracteres de la clave (p. ej. "s7xq") para que Root reconozca cuál
+    # Últimos caracteres de la clave (p. ej. "s7xq") para que el Administrador reconozca cuál
     # está puesta, sin exponer el resto. `None` si no hay clave o es demasiado corta
     # para revelar sin descubrir casi toda la clave.
     pista: str | None = None
