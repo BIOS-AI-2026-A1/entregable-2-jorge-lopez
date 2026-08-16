@@ -18,6 +18,7 @@ import {
 } from '@/data/articuloBorrador'
 import { derivarId, derivarSlug } from '@/data/slug'
 import { minutosDeArticulo } from '@/data/lecturaMinutos'
+import { Tabs, type Pestana } from './Tabs'
 import { Ic } from './iconos'
 
 type Props = {
@@ -72,7 +73,10 @@ function tradAdminADraft(t: TraduccionAdmin, slug: string): TradDraft {
 }
 
 export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, onGuardado }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // Idioma de la interfaz (segmento de ruta): decide la pestaña activa por defecto.
+  const idiomaInterfaz: Idioma = i18n.language === 'pt' ? 'pt' : 'es'
+  const [idiomaActivo, setIdiomaActivo] = useState<Idioma>(() => idiomaInterfaz)
   const [draft, setDraft] = useState<Draft>(() => draftInicial(inicial, categorias[0]?.id ?? ''))
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -117,6 +121,34 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
     if (traduciendo !== null) return // ya hay una traducción en curso: no reentrar
     setError(null)
     setAvisoTrad(null)
+
+    // Candado previo: el backend exige que el idioma origen tenga sus campos
+    // obligatorios (título, slug, título de pasos, y título de cada paso/pregunta
+    // que se rellene). Traducir un origen incompleto devolvía un 422 críptico y
+    // gastaba el proveedor de IA. Se avisa nombrando los campos y se enfoca el
+    // primero, sin llamar al backend.
+    const faltan = camposObligatoriosFaltantes(draft).filter(cf => cf.idioma === origen)
+    if (faltan.length > 0) {
+      const campos = faltan
+        .map(cf => t(cf.clave, cf.n !== undefined ? { n: cf.n } : undefined))
+        .join(', ')
+      setError(t('panelGestion.faltanCamposTraducir', { idioma: t(`idioma.${origen}`), campos }))
+      const primero = faltan.find(cf => idDeCampo(cf) !== null)
+      if (primero) {
+        const id = idDeCampo(primero)!
+        const enfocar = () => document.getElementById(id)?.focus()
+        // El botón de traducir vive en la pestaña del origen (activa), pero por
+        // robustez se activa esa pestaña antes de enfocar si no lo estuviera.
+        if (origen !== idiomaActivo) {
+          setIdiomaActivo(origen)
+          requestAnimationFrame(enfocar)
+        } else {
+          enfocar()
+        }
+      }
+      return
+    }
+
     setTraduciendo(origen)
     try {
       const contenido = aPayload(draft)[origen] // TraduccionAdmin del idioma origen
@@ -136,6 +168,13 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
         // El slug destino se deriva del título traducido salvo que se haya editado.
         [destino]: tradAdminADraft(tr, slugEditado[destino] ? d[destino].slug : derivarSlug(tr.titulo)),
       }))
+      // Muestra el resultado recién traducido cambiando a la pestaña del idioma
+      // destino; el aviso `aria-live` anuncia además que la traducción terminó.
+      setIdiomaActivo(destino)
+      // Reubica el foco en el título del idioma destino (diferido un frame, ya
+      // visible): al ocultarse el panel origen, el botón de traducir que tenía el
+      // foco desaparece y este caería a <body>, perdiendo la posición de teclado.
+      requestAnimationFrame(() => document.getElementById(`${destino}-titulo`)?.focus())
       setAvisoTrad(t('panelGestion.traduccionLista', { idioma: t(`idioma.${destino}`) }))
     } catch {
       setError(t('panelGestion.errorRed'))
@@ -162,8 +201,21 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
     const faltan = camposObligatoriosFaltantes(draft)
     if (faltan.length > 0) {
       setError(t('panelGestion.faltanCampos', { campos: faltan.map(etiquetaCampo).join(', ') }))
-      const primero = faltan.map(idDeCampo).find((id): id is string => id !== null)
-      if (primero) document.getElementById(primero)?.focus()
+      // Primer campo faltante con control propio en el DOM.
+      const primero = faltan.find(cf => idDeCampo(cf) !== null)
+      if (primero) {
+        const id = idDeCampo(primero)!
+        const enfocar = () => document.getElementById(id)?.focus()
+        // Si el campo vive en la pestaña del idioma no activo, primero se activa
+        // esa pestaña y se difiere el foco un frame: enfocar un control dentro de
+        // un panel `hidden` no funciona, así que hay que esperar a que sea visible.
+        if (primero.idioma && primero.idioma !== idiomaActivo) {
+          setIdiomaActivo(primero.idioma)
+          requestAnimationFrame(enfocar)
+        } else {
+          enfocar()
+        }
+      }
       return
     }
 
@@ -328,18 +380,28 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
           </div>
         </div>
 
-        {IDIOMAS.map(idioma => (
-          <SeccionIdioma
-            key={idioma}
-            idioma={idioma}
-            trad={draft[idioma]}
-            traduciendo={traduciendo}
-            onPatch={patch => patchTrad(idioma, patch)}
-            onTitulo={valor => alCambiarTitulo(idioma, valor)}
-            onSlug={valor => alCambiarSlug(idioma, valor)}
-            onTraducir={() => traducirDesde(idioma)}
-          />
-        ))}
+        <Tabs
+          activa={idiomaActivo}
+          onCambio={setIdiomaActivo}
+          etiquetaLista={t('panelGestion.idiomasTablist')}
+          pestanas={IDIOMAS.map(
+            (idioma): Pestana<Idioma> => ({
+              id: idioma,
+              etiqueta: t(`idioma.${idioma}`),
+              contenido: (
+                <SeccionIdioma
+                  idioma={idioma}
+                  trad={draft[idioma]}
+                  traduciendo={traduciendo}
+                  onPatch={patch => patchTrad(idioma, patch)}
+                  onTitulo={valor => alCambiarTitulo(idioma, valor)}
+                  onSlug={valor => alCambiarSlug(idioma, valor)}
+                  onTraducir={() => traducirDesde(idioma)}
+                />
+              ),
+            }),
+          )}
+        />
 
         <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-slate-200">
           <button

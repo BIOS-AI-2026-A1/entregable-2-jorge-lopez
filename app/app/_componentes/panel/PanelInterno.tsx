@@ -674,43 +674,62 @@ export function PanelInterno({
           )}
         </div>
 
-        <button
-          type="submit"
-          disabled={!!falloPaleta}
-          className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px] disabled:opacity-60"
-          style={{ background: 'var(--acento)' }}
-        >
-          <Ic.Save size={15} />
-          {t('ajustesMarca.guardar')}
-        </button>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={!!falloPaleta}
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px] disabled:opacity-60"
+            style={{ background: 'var(--acento)' }}
+          >
+            <Ic.Save size={15} />
+            {t('ajustesMarca.guardar')}
+          </button>
+        </div>
+      </form>
 
-        {/* Subida de logotipo (PNG/ICO/JPEG). La valida el servidor por magic bytes. */}
-        <div className="pt-3 border-t border-slate-200 space-y-2">
-          <label htmlFor="marca-logo" className="block text-sm font-medium text-slate-700">
-            {t('ajustesMarca.logo')}
-          </label>
-          <div className="flex items-center gap-3 flex-wrap">
-            {contenido.logo && (
-              // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API
-              <img src="/api/marca/logo" alt={t('ajustesMarca.logoActualAlt')} className="w-14 h-14 rounded-lg object-contain border border-slate-200" />
-            )}
-            <input
-              id="marca-logo"
-              type="file"
-              accept="image/png,image/x-icon,image/jpeg,.png,.ico,.jpg,.jpeg"
-              disabled={subiendoLogo}
-              onChange={e => {
-                const archivo = e.target.files?.[0]
-                if (archivo) void subirLogoHandler(archivo)
-                e.target.value = '' // permite volver a elegir el mismo archivo
-              }}
-              aria-describedby="marca-logo-ayuda"
-              className="text-sm text-slate-700 file:mr-3 file:min-h-[44px] file:px-4 file:rounded-lg file:border-0 file:text-white file:text-sm file:font-semibold file:cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 rounded-lg"
-            />
+      {/* Subida de logotipo (PNG/ICO/JPEG). La valida el servidor por magic bytes. */}
+      <form className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4" aria-labelledby="logo-h3">
+        <div className="flex items-start gap-3">
+          <div>
+            <h3 id="logo-h3" className="text-sm font-semibold text-slate-900">
+              {t('ajustesMarca.logo')}
+            </h3>
+            <p id="marca-logo-ayuda" className="text-xs text-slate-500 mt-0.5">
+              {t('ajustesMarca.logoAyuda')}
+            </p>
           </div>
-          <p id="marca-logo-ayuda" className="text-xs text-slate-500">
-            {t('ajustesMarca.logoAyuda')}
-          </p>
+        </div>
+
+        <div className="border-t border-slate-200 pt-4 flex items-center gap-4 flex-wrap">
+          {contenido.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API
+            <img src="/api/marca/logo" alt={t('ajustesMarca.logoActualAlt')} className="w-14 h-14 rounded-lg object-contain border border-slate-200 shrink-0" />
+          ) : (
+            <span className="w-14 h-14 rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0" aria-hidden="true">
+              <Ic.Image size={20} />
+            </span>
+          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* El input queda accesible por teclado (sr-only, no display:none); el
+                foco se refleja con focus-within sobre la etiqueta que actúa de botón. */}
+            <label className="inline-flex items-center gap-2 px-4 rounded-lg border bg-white text-sm font-semibold cursor-pointer hover:bg-slate-50 min-h-[44px] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[var(--acento-foco)]" style={{ color: 'var(--acento)', borderColor: 'var(--acento)' }}>
+              <Ic.Upload size={15} />
+              {t('ajustesMarca.logoBoton')}
+              <input
+                type="file"
+                accept="image/png,image/x-icon,image/jpeg,.png,.ico,.jpg,.jpeg"
+                disabled={subiendoLogo}
+                onChange={e => {
+                  const archivo = e.target.files?.[0]
+                  if (archivo) void subirLogoHandler(archivo)
+                  e.target.value = '' // permite volver a elegir el mismo archivo
+                }}
+                aria-label={t('ajustesMarca.logo')}
+                aria-describedby="marca-logo-ayuda"
+                className="sr-only"
+              />
+            </label>
+          </div>
         </div>
       </form>
 
@@ -783,7 +802,7 @@ export function PanelInterno({
               ))
             : t('configIA.cargando')}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
           <button
             type="submit"
             className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"

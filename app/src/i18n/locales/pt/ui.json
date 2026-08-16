@@ -187,9 +187,11 @@
     "slugAutoAyuda": "É gerado a partir do título. Você pode ajustá-lo.",
     "traducirA": "Traduzir para {{idioma}}",
     "traduciendo": "Traduzindo…",
-    "traduccionSinProveedor": "Não há provedor de IA configurado. Peça a um usuário Root que configure.",
+    "traduccionSinProveedor": "Não há provedor de IA configurado. Peça ao administrador do sistema para configurá-lo.",
     "traduccionError": "Não foi possível traduzir. Tente novamente.",
-    "traduccionLista": "Tradução para {{idioma}} concluída. Revise antes de salvar."
+    "traduccionLista": "Tradução para {{idioma}} concluída. Revise antes de salvar.",
+    "faltanCamposTraducir": "Para traduzir, primeiro preencha o conteúdo em {{idioma}}: {{campos}}.",
+    "idiomasTablist": "Idioma do artigo"
   },
   "panelCategorias": {
     "titulo": "Categorias",
@@ -239,7 +241,9 @@
     "logoActualAlt": "Logotipo atual",
     "logoAyuda": "Formatos aceitos: PNG, ICO ou JPG (máximo 2 MB). Também é usado como favicon.",
     "logoGuardado": "Logotipo atualizado.",
-    "logoError": "Formato não aceito ou arquivo grande demais. Use PNG, ICO ou JPG (máx. 2 MB)."
+    "logoError": "Formato não aceito ou arquivo grande demais. Use PNG, ICO ou JPG (máx. 2 MB).",
+    "logoBoton": "Enviar logotipo",
+    "logoSinArchivo": "Nenhum arquivo selecionado."
   },
   "kcs": {
     "nueva": "Nova",
