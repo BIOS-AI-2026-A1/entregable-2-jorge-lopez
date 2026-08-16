@@ -41,10 +41,10 @@ app.include_router(admin_config_ia.router)
 @app.exception_handler(ProveedorNoConfigurado)
 def _sin_proveedor(_: Request, __: ProveedorNoConfigurado) -> JSONResponse:
     # 409: el estado del servidor (sin proveedor/clave) impide traducir; el frontend
-    # lo distingue para pedir a un usuario Root que configure el proveedor.
+    # lo distingue para pedir a un usuario Administrador que configure el proveedor.
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
-        content={"detail": "No hay proveedor de IA configurado. Un usuario Root debe configurarlo."},
+        content={"detail": "No hay proveedor de IA configurado. Un usuario Administrador debe configurarlo."},
     )
 
 

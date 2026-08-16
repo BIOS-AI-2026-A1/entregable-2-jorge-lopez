@@ -23,16 +23,16 @@ describe('resolverPestana', () => {
     expect(resolverPestana('gestion', false)).toBe('gestion')
   })
 
-  it('categorias está disponible para Standard (sin Root)', () => {
+  it('categorias está disponible para Editor (sin Administrador)', () => {
     expect(resolverPestana('categorias', false)).toBe('categorias')
     expect(resolverPestana('categorias', true)).toBe('categorias')
   })
 
-  it('admin solo se resuelve cuando la sesión es Root', () => {
+  it('admin solo se resuelve cuando la sesión es Administrador', () => {
     expect(resolverPestana('admin', true)).toBe('admin')
   })
 
-  it('admin sin Root cae a la pestaña por defecto (no se expone por URL)', () => {
+  it('admin sin Administrador cae a la pestaña por defecto (no se expone por URL)', () => {
     expect(resolverPestana('admin', false)).toBe('sinResolver')
   })
 })

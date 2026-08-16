@@ -30,7 +30,7 @@ function aLogin(request: NextRequest, idioma: string): NextResponse {
  * - Sin access pero con refresh → renueva contra el backend y reescribe cookies.
  * - Sin ninguno o con refresh inválido → redirige a `/{idioma}/login`.
  *
- * La comprobación de **nivel** (Root para gestión de usuarios) la hace el Server
+ * La comprobación de **nivel** (Administrador para gestión de usuarios) la hace el Server
  * Component consultando `/api/auth/me`: aquí no se descodifica el JWT.
  */
 async function guardarPanel(

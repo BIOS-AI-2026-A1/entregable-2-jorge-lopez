@@ -1,6 +1,6 @@
 """Cifrado en reposo de las claves de API de los proveedores de IA.
 
-Las claves que introduce Root nunca se guardan en claro: se cifran con una clave
+Las claves que introduce el Administrador nunca se guardan en claro: se cifran con una clave
 simétrica (Fernet) tomada de `CLAVE_CIFRADO_IA`, que vive en el entorno y no en el
 repositorio. Si la variable falta, `cifrar`/`descifrar` fallan con un mensaje
 claro: es un error de configuración, no algo que degradar en silencio.

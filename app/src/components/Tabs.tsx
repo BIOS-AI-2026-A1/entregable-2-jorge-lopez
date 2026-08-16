@@ -13,8 +13,9 @@ export type Pestana<Id extends string> = {
  * automática) e Inicio/Fin. La pestaña activa se distingue con `aria-selected`
  * y un cambio de borde/fondo, no solo por color.
  *
- * Las pestañas llegan ya filtradas por quien las monta (p. ej. la pestaña Root
- * solo se incluye si la sesión es Root); este componente no decide visibilidad.
+ * Las pestañas llegan ya filtradas por quien las monta (p. ej. la pestaña de
+ * Administrador solo se incluye si la sesión es Administrador); este componente no
+ * decide visibilidad.
  */
 export function Tabs<Id extends string>({
   pestanas,

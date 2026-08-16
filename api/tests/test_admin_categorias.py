@@ -121,10 +121,10 @@ def test_borrar_inexistente_es_404(client, auth):
 
 # --- Autorización -----------------------------------------------------------
 
-def test_standard_puede_gestionar_categorias(client, standard_auth):
-    assert client.post("/api/admin/categorias", json=categoria_valida(), headers=standard_auth).status_code == 201
-    assert client.get("/api/admin/categorias", headers=standard_auth).status_code == 200
-    assert client.delete("/api/admin/categorias/facturacion", headers=standard_auth).status_code == 204
+def test_editor_puede_gestionar_categorias(client, editor_auth):
+    assert client.post("/api/admin/categorias", json=categoria_valida(), headers=editor_auth).status_code == 201
+    assert client.get("/api/admin/categorias", headers=editor_auth).status_code == 200
+    assert client.delete("/api/admin/categorias/facturacion", headers=editor_auth).status_code == 204
 
 
 def test_anonymous_no_alcanza_el_crud(client):

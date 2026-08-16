@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models import AdminUser, RefreshToken
 from app.security import hash_refresh
-from tests.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, STANDARD_EMAIL, STANDARD_PASSWORD
+from tests.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, EDITOR_EMAIL, EDITOR_PASSWORD
 
 
 def _login(client, email: str = ADMIN_EMAIL, password: str = ADMIN_PASSWORD) -> tuple[str, str]:
@@ -78,9 +78,9 @@ def test_refresh_expirado_rechazado(client, db_session):
 
 
 def test_refresh_de_usuario_desactivado_rechazado(client, db_session):
-    _, r1 = _login(client, STANDARD_EMAIL, STANDARD_PASSWORD)
+    _, r1 = _login(client, EDITOR_EMAIL, EDITOR_PASSWORD)
 
-    usuario = db_session.query(AdminUser).filter(AdminUser.email == STANDARD_EMAIL).one()
+    usuario = db_session.query(AdminUser).filter(AdminUser.email == EDITOR_EMAIL).one()
     usuario.activo = False
     db_session.commit()
 

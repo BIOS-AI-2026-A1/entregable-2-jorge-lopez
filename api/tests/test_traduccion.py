@@ -87,11 +87,11 @@ def test_traduce_pt_a_es(client, auth, proveedor_falso):
     assert r.json()["titulo"] == "[es] Alterar a senha"
 
 
-def test_standard_puede_traducir(client, standard_auth, proveedor_falso):
+def test_editor_puede_traducir(client, editor_auth, proveedor_falso):
     r = client.post(
         "/api/admin/articulos/traducir",
         json={"origen": "es", "contenido": CONTENIDO_ES},
-        headers=standard_auth,
+        headers=editor_auth,
     )
     assert r.status_code == 200
 
@@ -105,8 +105,8 @@ def test_anonimo_no_puede_traducir(client):
 
 
 def test_sin_proveedor_configurado_da_409(client, auth):
-    """Sin fila de ConfigIA ni clave, el traductor real corta con 409 (Root debe
-    configurar). No se sustituye la dependencia: se ejerce la resolución real."""
+    """Sin fila de ConfigIA ni clave, el traductor real corta con 409 (el Administrador
+    debe configurar). No se sustituye la dependencia: se ejerce la resolución real."""
     def traductor_sin_config():
         raise ProveedorNoConfigurado("anthropic")
 
@@ -137,7 +137,7 @@ def test_crear_proveedor_deepseek_con_clave(db_session):
 
 
 def test_crear_proveedor_deepseek_sin_clave(db_session):
-    """DeepSeek activo pero sin clave: no disponible hasta que Root la configure."""
+    """DeepSeek activo pero sin clave: no disponible hasta que el Administrador la configure."""
     _config_ia(db_session, "deepseek", {})
     with pytest.raises(ProveedorNoConfigurado):
         crear_proveedor(db_session)

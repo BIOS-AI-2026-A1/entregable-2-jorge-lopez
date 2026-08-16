@@ -128,7 +128,7 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
 
 
 def usuario_a_dict(u: AdminUser) -> dict:
-    """Serializa un usuario para el panel Root. Nunca expone el hash."""
+    """Serializa un usuario para el panel de Administrador. Nunca expone el hash."""
     return {
         "id": u.id,
         "email": u.email,

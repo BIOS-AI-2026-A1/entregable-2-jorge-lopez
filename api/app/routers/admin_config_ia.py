@@ -1,8 +1,8 @@
-"""Configuración del proveedor de IA, reservada a Root (Nivel 3).
+"""Configuración del proveedor de IA, reservada a Administrador (Nivel 3).
 
 La clave de API completa nunca se devuelve al cliente: la lectura informa de si cada
 proveedor tiene clave (`configurada`) y expone solo una **pista** (sus últimos
-caracteres) para que Root reconozca cuál está puesta. La escritura la cifra en
+caracteres) para que el Administrador reconozca cuál está puesta. La escritura la cifra en
 reposo. Dejar la clave vacía significa «no cambiarla». Sin fila, el proveedor
 efectivo es Anthropic.
 """
@@ -45,7 +45,7 @@ def _pista(token: str | None) -> str | None:
 router = APIRouter(
     prefix="/api/admin/config-ia",
     tags=["admin", "ia"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ROOT))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.ADMINISTRADOR))],
 )
 
 

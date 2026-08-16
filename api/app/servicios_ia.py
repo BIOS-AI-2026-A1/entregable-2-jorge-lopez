@@ -58,7 +58,7 @@ class ErrorTraduccion(RuntimeError):
 
 
 class ProveedorNoConfigurado(ErrorTraduccion):
-    """No hay clave (o cifrado) para el proveedor activo: Root debe configurarlo."""
+    """No hay clave (o cifrado) para el proveedor activo: el Administrador debe configurarlo."""
 
 
 class ErrorProveedor(ErrorTraduccion):

@@ -14,8 +14,8 @@ describe('rutas', () => {
     expect(rutas.usuarios('pt')).toBe('/pt/panel/usuarios')
   })
 
-  it('la gestión de usuarios cuelga del panel (ruta Root anidada)', () => {
-    // El router monta `panel/usuarios` bajo la guardia Root; la dirección
+  it('la gestión de usuarios cuelga del panel (ruta de Administrador anidada)', () => {
+    // El router monta `panel/usuarios` bajo la guardia de Administrador; la dirección
     // construida tiene que coincidir con ese segmento.
     for (const idioma of IDIOMAS) {
       expect(rutas.usuarios(idioma)).toBe(`${rutas.panel(idioma)}/usuarios`)

@@ -115,7 +115,7 @@
     "anterior": "Página anterior",
     "siguiente": "Página siguiente",
     "cerrarSesion": "Cerrar sesión",
-    "seccionRoot": "Administración"
+    "seccionAdmin": "Administración"
   },
   "login": {
     "titulo": "Iniciar sesión",
@@ -275,8 +275,8 @@
       "accion": "Acción"
     },
     "nivel": "Nivel de acceso",
-    "nivelEstandar": "Standard",
-    "nivelRoot": "Root",
+    "nivelEditor": "Editor",
+    "nivelAdministrador": "Administrador",
     "estadoActivo": "Activo",
     "estadoInactivo": "Inactivo",
     "correo": "Correo electrónico",
@@ -299,8 +299,8 @@
     "desactivado": "Usuario desactivado.",
     "errorCargar": "No se pudo cargar la lista de usuarios.",
     "errorGuardar": "No se pudo guardar. Revisa los campos e inténtalo de nuevo.",
-    "errorConflicto": "No se pudo guardar: el correo ya está en uso o la operación dejaría al sistema sin un usuario Root activo.",
-    "errorSalvaguarda": "No se pudo cambiar el estado: no puedes desactivar tu propia cuenta ni dejar al sistema sin un usuario Root activo.",
+    "errorConflicto": "No se pudo guardar: el correo ya está en uso o la operación dejaría al sistema sin un usuario Administrador activo.",
+    "errorSalvaguarda": "No se pudo cambiar el estado: no puedes desactivar tu propia cuenta ni dejar al sistema sin un usuario Administrador activo.",
     "errorRed": "No se pudo conectar con el servidor."
   },
   "configIA": {

@@ -1,7 +1,7 @@
-"""Ajustes globales de la instalación. Hoy: el campo [Empresa], editable por Root.
+"""Ajustes globales de la instalación. Hoy: el campo [Empresa], editable por Administrador.
 
 La lectura del nombre de marca es pública (viaja en `GET /api/{idioma}/contenido`);
-aquí vive solo la escritura, reservada a Nivel 3 (Root).
+aquí vive solo la escritura, reservada a Nivel 3 (Administrador).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from app.servicios import AJUSTES_ID, EMPRESA_POR_DEFECTO
 router = APIRouter(
     prefix="/api/admin/ajustes",
     tags=["admin", "ajustes"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ROOT))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.ADMINISTRADOR))],
 )
 
 
@@ -50,7 +50,7 @@ def actualizar_empresa(datos: EmpresaIn, db: Session = Depends(get_db)) -> Empre
 def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
     """Guarda la paleta si cumple WCAG AA; si no, rechaza con 422 y no persiste.
 
-    El Root elige solo el acento: el degradado del banner se **deriva** de él
+    El Administrador elige solo el acento: el degradado del banner se **deriva** de él
     (`derivar_degradado_banner`), monocromático y accesible por construcción. El servidor
     es la autoridad —deriva aquí, no confía en paradas del cuerpo— y valida todos los
     pares (botón, hover, foco, cada parada derivada) antes de persistir. El frontend solo

@@ -65,5 +65,5 @@ def logout(datos: LogoutIn | None = None, db: Session = Depends(get_db)) -> dict
 @router.get("/me", response_model=MeOut)
 def yo(admin: AdminUser = Depends(admin_actual)) -> MeOut:
     # El frontend lo consulta para ajustar la interfaz al nivel de la sesión
-    # (ocultar los controles Root). La autoridad sigue siendo el backend.
+    # (ocultar los controles de Administrador). La autoridad sigue siendo el backend.
     return MeOut(email=admin.email, nivel=admin.nivel)

@@ -89,7 +89,7 @@ export function guardarArticulo(payload: ArticuloAdmin, destino: DestinoArticulo
   return apiFetch(url, { method: metodo, body: JSON.stringify(cuerpo) })
 }
 
-// ── Gestión de categorías (Standard + Root) ─────────────────────────────────
+// ── Gestión de categorías (Editor + Administrador) ──────────────────────────
 
 /** Traducción de una categoría (nombre + slug por idioma). */
 export interface TraduccionCategoriaAdmin {
@@ -152,7 +152,7 @@ export function obtenerSesion(): Promise<Response> {
   return apiFetch('/api/auth/me')
 }
 
-// ── Gestión de usuarios (solo Root) ─────────────────────────────────────────
+// ── Gestión de usuarios (solo Administrador) ────────────────────────────────
 
 /** Usuario administrable que devuelve `/api/admin/usuarios`. Sin el hash. */
 export interface UsuarioAdmin {
@@ -213,7 +213,7 @@ export function desactivarUsuario(id: number): Promise<Response> {
   return apiFetch(`/api/admin/usuarios/${id}/desactivar`, { method: 'POST' })
 }
 
-// ── Campo [Empresa] (solo Root) ─────────────────────────────────────────────
+// ── Campo [Empresa] (solo Administrador) ────────────────────────────────────
 
 export function guardarEmpresa(empresa: string): Promise<Response> {
   return apiFetch('/api/admin/ajustes/empresa', {
@@ -222,7 +222,7 @@ export function guardarEmpresa(empresa: string): Promise<Response> {
   })
 }
 
-// ── Marca visual: paleta y logotipo (solo Root) ─────────────────────────────
+// ── Marca visual: paleta y logotipo (solo Administrador) ────────────────────
 
 /**
  * Paleta editable: solo el acento. El degradado del banner ya no se elige a mano; lo
@@ -268,7 +268,7 @@ export function traducirArticulo(origen: Idioma, contenido: TraduccionAdmin): Pr
   })
 }
 
-// ── Configuración de proveedor de IA (solo Root) ────────────────────────────
+// ── Configuración de proveedor de IA (solo Administrador) ───────────────────
 
 /**
  * Estado de un proveedor: si tiene clave configurada y una pista (los últimos

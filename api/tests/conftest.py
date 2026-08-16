@@ -41,13 +41,13 @@ from app.models import (  # noqa: E402
 from app.security import hash_password  # noqa: E402
 from app.servicios import AJUSTES_ID  # noqa: E402
 
-# El administrador principal es Root (como el que siembra el seed): puede todo.
+# El administrador principal es Administrador (como el que siembra el seed): puede todo.
 ADMIN_EMAIL = "admin@test.local"
 ADMIN_PASSWORD = "secreto-de-prueba"
 
-# Un segundo usuario, de Nivel 2 (Standard), para las pruebas de autorización.
-STANDARD_EMAIL = "standard@test.local"
-STANDARD_PASSWORD = "secreto-de-prueba-2"
+# Un segundo usuario, de Nivel 2 (Editor), para las pruebas de autorización.
+EDITOR_EMAIL = "editor@test.local"
+EDITOR_PASSWORD = "secreto-de-prueba-2"
 
 EMPRESA_INICIAL = "Acme"
 
@@ -60,15 +60,15 @@ def _sembrar_minimo(db) -> None:
         AdminUser(
             email=ADMIN_EMAIL,
             password_hash=hash_password(ADMIN_PASSWORD),
-            nivel=NivelAcceso.ROOT.value,
+            nivel=NivelAcceso.ADMINISTRADOR.value,
             activo=True,
         )
     )
     db.add(
         AdminUser(
-            email=STANDARD_EMAIL,
-            password_hash=hash_password(STANDARD_PASSWORD),
-            nivel=NivelAcceso.ESTANDAR.value,
+            email=EDITOR_EMAIL,
+            password_hash=hash_password(EDITOR_PASSWORD),
+            nivel=NivelAcceso.EDITOR.value,
             activo=True,
         )
     )
@@ -136,15 +136,15 @@ def auth(token) -> dict:
 
 
 @pytest.fixture
-def standard_token(client) -> str:
-    r = client.post("/api/auth/login", json={"email": STANDARD_EMAIL, "password": STANDARD_PASSWORD})
+def editor_token(client) -> str:
+    r = client.post("/api/auth/login", json={"email": EDITOR_EMAIL, "password": EDITOR_PASSWORD})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 
 
 @pytest.fixture
-def standard_auth(standard_token) -> dict:
-    return {"Authorization": f"Bearer {standard_token}"}
+def editor_auth(editor_token) -> dict:
+    return {"Authorization": f"Bearer {editor_token}"}
 
 
 def categoria_valida(categoria_id: str = "facturacion") -> dict:

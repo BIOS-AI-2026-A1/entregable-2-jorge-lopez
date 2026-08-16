@@ -29,7 +29,7 @@ Notas específicas de este repositorio (Centro de Ayuda):
 - La aplicación es bilingüe: **español y portugués**. El contenido tipado vive en `src/data/{es,pt}`.
 - El repositorio tiene **frontend Next.js** en `app/` (Server Components, BFF con cookie httpOnly) y
   **backend FastAPI + PostgreSQL/pgvector** en `api/` (auth argon2/JWT, control de acceso Anonymous /
-  Standard / Root). En el frontend prioriza XSS (`dangerouslySetInnerHTML`, `innerHTML`, salida sin
+  Editor / Administrador). En el frontend prioriza XSS (`dangerouslySetInnerHTML`, `innerHTML`, salida sin
   escapar), redirecciones abiertas y URLs sin validar, secretos filtrados en fuente o configuración,
   prototype pollution y dependencias vulnerables (`npm audit` si hay lockfile). En el backend cubre también
   los vectores de servidor cuando el código los toque: inyección SQL, fallos de autorización por nivel

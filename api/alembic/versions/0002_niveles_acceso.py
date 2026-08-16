@@ -1,4 +1,4 @@
-"""Niveles de acceso (Standard/Root), estado activo y campo [Empresa].
+"""Niveles de acceso (Editor/Administrador), estado activo y campo [Empresa].
 
 Añade a `admin_users` las columnas `nivel` y `activo`, y crea la tabla singleton
 `ajustes` con el campo [Empresa]. Es una migración incremental sobre `0001` para
@@ -22,15 +22,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Nuevas filas: Standard por defecto (el nivel más bajo con sesión), para no
-    # otorgar Root por omisión. `activo=true` por defecto.
+    # Nuevas filas: Editor por defecto (el nivel más bajo con sesión), para no
+    # otorgar Administrador por omisión. `activo=true` por defecto.
     op.add_column("admin_users", sa.Column("nivel", sa.Integer(), nullable=False, server_default="2"))
     op.add_column("admin_users", sa.Column("activo", sa.Boolean(), nullable=False, server_default=sa.true()))
 
     # Los administradores que ya existían son anteriores a los niveles y tenían
-    # acceso total: se promueven a Root para no dejar la instalación sin Root.
+    # acceso total: se promueven a Administrador para no dejar la instalación sin Administrador.
     # En una base nueva no hay filas todavía (el seed corre después), así que no
-    # afecta nada; el seed crea el admin inicial como Root explícitamente.
+    # afecta nada; el seed crea el admin inicial como Administrador explícitamente.
     op.execute("UPDATE admin_users SET nivel = 3")
 
     # Ajustes globales (singleton): el campo [Empresa]. La fila la crea el seed.

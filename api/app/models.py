@@ -34,13 +34,13 @@ class NivelAcceso(enum.IntEnum):
     """Niveles de acceso jerárquicos. El valor entero ordena la herencia de
     permisos: autorizar es comparar `nivel_actual >= nivel_requerido`.
 
-    ANONIMO nunca se persiste (es la ausencia de sesión); solo ESTANDAR y ROOT
+    ANONIMO nunca se persiste (es la ausencia de sesión); solo EDITOR y ADMINISTRADOR
     viven como `nivel` en `admin_users`.
     """
 
     ANONIMO = 1
-    ESTANDAR = 2
-    ROOT = 3
+    EDITOR = 2
+    ADMINISTRADOR = 3
 
 
 class Categoria(Base):
@@ -165,8 +165,8 @@ class AdminUser(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
-    # Nivel de acceso: 2 (Standard) o 3 (Root). Se guarda el entero de NivelAcceso.
-    nivel: Mapped[int] = mapped_column(Integer, nullable=False, default=NivelAcceso.ESTANDAR.value)
+    # Nivel de acceso: 2 (Editor) o 3 (Administrador). Se guarda el entero de NivelAcceso.
+    nivel: Mapped[int] = mapped_column(Integer, nullable=False, default=NivelAcceso.EDITOR.value)
     # Permite revocar el acceso sin borrar la fila (conserva la traza).
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -203,7 +203,7 @@ class RefreshToken(Base):
 class Ajustes(Base):
     """Ajustes globales de la instalación. Fila única (`id=1`).
 
-    Guarda el campo **[Empresa]** (nombre de marca global editable por Root) y la
+    Guarda el campo **[Empresa]** (nombre de marca global editable por Administrador) y la
     **marca visual**: color de acento, las tres paradas del degradado del banner de
     inicio y el logotipo (binario + MIME). Los colores llevan por defecto el aspecto
     índigo actual; el logo es opcional (sin logo, la cabecera cae al recuadro de
@@ -226,7 +226,7 @@ class Ajustes(Base):
 
 
 class ConfigIA(Base):
-    """Configuración del proveedor de IA. Fila única (`id=1`), editable solo por Root.
+    """Configuración del proveedor de IA. Fila única (`id=1`), editable solo por Administrador.
 
     `proveedor_activo` es el proveedor que se usa para las tareas de IA (traducción
     hoy; RAG en el futuro). `claves` mapea proveedor -> clave de API **cifrada en

@@ -1,7 +1,7 @@
 """Servido público del logotipo de marca (cabecera + favicon).
 
 La lectura es pública (la ve todo visitante, como el nombre de empresa y la paleta);
-la escritura vive en `admin_ajustes` (Root). Se sirve desde el mismo origen para que la
+la escritura vive en `admin_ajustes` (Administrador). Se sirve desde el mismo origen para que la
 CSP estricta (`img-src 'self'`) lo permita sin abrir a orígenes externos.
 """
 

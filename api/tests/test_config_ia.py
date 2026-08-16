@@ -1,4 +1,4 @@
-"""Configuración de proveedor de IA: solo Root, claves cifradas y nunca expuestas."""
+"""Configuración de proveedor de IA: solo Administrador, claves cifradas y nunca expuestas."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from app.models import ConfigIA
 from app.servicios_ia import CONFIG_IA_ID
 
 
-def test_root_ve_anthropic_por_defecto(client, auth):
+def test_administrador_ve_anthropic_por_defecto(client, auth):
     r = client.get("/api/admin/config-ia", headers=auth)
     assert r.status_code == 200
     cuerpo = r.json()
@@ -62,7 +62,7 @@ def test_pista_none_si_clave_demasiado_corta(client, auth):
     assert por_id["anthropic"]["pista"] is None
 
 
-def test_root_guarda_clave_y_no_vuelve_en_claro(client, auth):
+def test_administrador_guarda_clave_y_no_vuelve_en_claro(client, auth):
     r = client.put(
         "/api/admin/config-ia",
         json={"proveedorActivo": "anthropic", "clave": "sk-secreta-de-prueba"},
@@ -109,10 +109,10 @@ def test_proveedor_no_admitido_es_422(client, auth):
     assert r.status_code == 422
 
 
-def test_standard_no_accede(client, standard_auth):
-    assert client.get("/api/admin/config-ia", headers=standard_auth).status_code == 403
+def test_editor_no_accede(client, editor_auth):
+    assert client.get("/api/admin/config-ia", headers=editor_auth).status_code == 403
     r = client.put(
-        "/api/admin/config-ia", json={"proveedorActivo": "anthropic"}, headers=standard_auth
+        "/api/admin/config-ia", json={"proveedorActivo": "anthropic"}, headers=editor_auth
     )
     assert r.status_code == 403
 

@@ -21,11 +21,11 @@ from app.servicios_ia import ProveedorTraduccion, obtener_traductor, traducir_co
 from app.texto import normalizar_slug
 
 # El CRUD de artículos es una función de producto: la usa cualquier sesión válida
-# (Nivel 2, Standard, o superior).
+# (Nivel 2, Editor, o superior).
 router = APIRouter(
     prefix="/api/admin/articulos",
     tags=["admin"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ESTANDAR))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.EDITOR))],
 )
 
 
