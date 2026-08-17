@@ -1,35 +1,84 @@
 """Dependencias de FastAPI.
 
-`admin_actual` exige una sesión válida de un usuario activo (Nivel 2 o superior).
-`requiere_nivel(minimo)` la envuelve para exigir además un nivel mínimo, aplicando
-la jerarquía de acceso en el servidor.
+`portal_actual` resuelve el portal de la petición a partir del host (la única fuente
+del portal, nunca el cliente). `admin_actual` exige una sesión válida de un usuario
+activo (Nivel 2 o superior) **de ese portal**. `requiere_nivel(minimo)` la envuelve
+para exigir además un nivel mínimo, aplicando la jerarquía de acceso en el servidor.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import get_db
-from app.models import AdminUser, NivelAcceso
+from app.models import AdminUser, NivelAcceso, Portal
+from app.portales import normalizar_host, resolver_portal
 from app.security import decodificar_token
 
 _bearer = HTTPBearer(auto_error=False)
 
 
+def _host_de_confianza(request: Request) -> str:
+    """Host desde el que se resuelve el portal, tomado del proxy de confianza.
+
+    El frontend de Next (proxy inmediato del backend) reenvía el host del navegador en
+    `X-Forwarded-Host`; se prefiere sobre `Host`, que undici deriva de la URL interna del
+    backend (`127.0.0.1:8000`) y no identificaría ningún portal. Si no llega reenviado
+    (llamada directa, como en los tests), se cae al `Host`. Se toma solo el primer valor
+    de la lista `X-Forwarded-Host` (el del cliente, no los saltos intermedios).
+
+    Nota de despliegue: que el backend no sea alcanzable sin pasar por el proxy de confianza
+    —para que `X-Forwarded-Host` no se pueda suplantar y con él el portal— se documenta en
+    `api/README.md` › «Resolución de portal y proxy de confianza».
+    """
+    reenviado = request.headers.get("x-forwarded-host")
+    bruto = reenviado.split(",", 1)[0] if reenviado else request.headers.get("host")
+    return normalizar_host(bruto)
+
+
+def portal_actual(request: Request, db: Session = Depends(get_db)) -> Portal:
+    """Portal de la petición, resuelto en el servidor a partir del host.
+
+    El host es la ÚNICA fuente del portal: nunca se toma de un parámetro, cabecera de
+    aplicación o cuerpo del cliente (ver spec `resolucion-portal-por-dominio`). Un host
+    desconocido responde 404 (portal no encontrado) y un portal suspendido 503 (portal
+    no disponible), sin servir jamás datos de otro portal ni de un portal por defecto.
+    """
+    host = _host_de_confianza(request)
+    portal = resolver_portal(db, host, base_domain=get_settings().base_domain)
+    if portal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Portal no encontrado")
+    if portal.estado != "activo":
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Portal no disponible")
+    return portal
+
+
 def admin_actual(
     cred: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
 ) -> AdminUser:
     if cred is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "No autenticado")
-    email = decodificar_token(cred.credentials)
-    if email is None:
+    datos = decodificar_token(cred.credentials)
+    if datos is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida o expirada")
-    admin = db.query(AdminUser).filter(AdminUser.email == email).first()
+    # La sesión se acota al portal del host: el token se emitió para un portal concreto
+    # y solo vale en él. Como el correo es único por portal (no global), un token del
+    # portal A presentado en el host del portal B —donde puede existir el mismo correo—
+    # se rechaza aquí, antes de tocar la base, en vez de autenticar al homónimo de B.
+    if datos.portal_id != portal.id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida")
+    admin = (
+        db.query(AdminUser)
+        .filter(AdminUser.portal_id == portal.id, AdminUser.email == datos.email)
+        .first()
+    )
     if admin is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida")
     # Un usuario desactivado tiene el mismo acceso que uno sin sesión: la

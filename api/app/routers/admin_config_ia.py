@@ -1,4 +1,11 @@
-"""Configuración del proveedor de IA, reservada a Administrador (Nivel 3).
+"""Configuración del proveedor de IA, reservada a SuperAdmin (Nivel 4).
+
+Es configuración **global de la plataforma** (fila única, sin `portal_id`): el proveedor y
+la clave que devuelve valen para todos los portales. Por eso la gestiona solo el SuperAdmin
+transversal, no el Administrador de un portal —que solo debe poder tocar lo suyo—. Si la
+gobernara el Administrador (Nivel 3), el admin de un tenant podría sobrescribir la clave/
+proveedor que usan los demás portales (fuga cross-tenant); ver revisión de Sección 9 del
+cambio `multi-tenant-portales`.
 
 La clave de API completa nunca se devuelve al cliente: la lectura informa de si cada
 proveedor tiene clave (`configurada`) y expone solo una **pista** (sus últimos
@@ -45,7 +52,7 @@ def _pista(token: str | None) -> str | None:
 router = APIRouter(
     prefix="/api/admin/config-ia",
     tags=["admin", "ia"],
-    dependencies=[Depends(requiere_nivel(NivelAcceso.ADMINISTRADOR))],
+    dependencies=[Depends(requiere_nivel(NivelAcceso.SUPERADMIN))],
 )
 
 

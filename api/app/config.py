@@ -36,9 +36,22 @@ class Settings(BaseSettings):
     admin_email: str = "admin@centro-ayuda.local"
     admin_password: str
 
+    # SuperAdmin inicial (nivel 4, transversal a los portales). Opcional a propósito:
+    # sin `superadmin_password` el seed no lo crea (ni crea el portal de plataforma), y
+    # el entorno de desarrollo single-portal sigue funcionando igual. Cuando se define,
+    # el seed provisiona el/los SuperAdmin. Es un secreto: no tiene valor por defecto.
+    superadmin_email: str = "superadmin@centro-ayuda.local"
+    superadmin_password: str | None = None
+
     # Valor inicial del campo [Empresa] (nombre de marca global). Editable después
     # desde el panel por un usuario Administrador; el seed solo lo usa para la primera fila.
     empresa_inicial: str = "[Empresa]"
+
+    # Dominio base de los subdominios de portal (`<slug>.tuapp.com`). Solo se usa para
+    # extraer el slug cuando el host ES un subdominio suyo; los dominios propios y el
+    # desarrollo (`localhost`) se resuelven por coincidencia exacta en la tabla
+    # `dominios`. Configurable por entorno para no fijar el dominio de producción aquí.
+    base_domain: str = "tuapp.com"
 
     # Clave simétrica (Fernet) con la que se cifran en reposo las claves de API de
     # los proveedores de IA que introduce el Administrador. Opcional a propósito: sin ella la

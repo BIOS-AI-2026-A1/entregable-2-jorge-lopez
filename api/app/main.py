@@ -12,6 +12,7 @@ from app.routers import (
     admin_categorias,
     admin_config_ia,
     admin_panel,
+    admin_portales,
     admin_usuarios,
     auth,
     contenido,
@@ -32,6 +33,7 @@ app.include_router(admin_articulos.router)
 app.include_router(admin_categorias.router)
 app.include_router(admin_panel.router)
 app.include_router(admin_usuarios.router)
+app.include_router(admin_portales.router)
 app.include_router(admin_ajustes.router)
 app.include_router(admin_config_ia.router)
 

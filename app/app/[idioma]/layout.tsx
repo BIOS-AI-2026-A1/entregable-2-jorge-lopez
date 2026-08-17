@@ -3,12 +3,13 @@ import type { Metadata } from 'next'
 import { DM_Sans, DM_Serif_Display } from 'next/font/google'
 import { redirect } from 'next/navigation'
 import { esIdioma, type ContenidoIdioma } from '@/types'
-import { cargarContenidoServidor } from '@/data/servidor'
+import { cargarContenidoServidor, ErrorPortal, type MotivoPortal } from '@/data/servidor'
 import { derivarTokensAcento } from '@/seguridad/contraste'
 import '../globals.css'
 import { SkipLink } from '../_componentes/SkipLink'
 import { AppHeader } from '../_componentes/AppHeader'
 import { ChatLanzador } from '../_componentes/ChatLanzador'
+import { EstadoPortal } from '../_componentes/EstadoPortal'
 
 // Fuentes de marca autoalojadas por Next (`next/font`): se descargan en la
 // compilación y se sirven desde el mismo origen, así la CSP estricta
@@ -88,14 +89,16 @@ export default async function LayoutIdioma({
   if (!esIdioma(idioma)) redirect('/es')
 
   // Solo el idioma activo. La cabecera necesita el nombre de empresa y el chat
-  // la conversación de ejemplo; ambos salen de este único contenido. Si la
-  // fuente falla, la cabecera cae en su texto de reserva y deja que el error
-  // real lo muestre `error.tsx` desde la página (estado accesible, task 3.5).
+  // la conversación de ejemplo; ambos salen de este único contenido. Se distinguen
+  // dos fallos: si el host no resuelve un portal (`ErrorPortal`) se muestra el estado
+  // accesible de portal (task 3.4), sin cabecera ni marca de ningún otro portal; un
+  // fallo genérico de la fuente cae en `null` y lo comunica `error.tsx` (task 3.5).
   let contenido: ContenidoIdioma | null = null
+  let motivoPortal: MotivoPortal | null = null
   try {
     contenido = await cargarContenidoServidor(idioma)
-  } catch {
-    contenido = null
+  } catch (e) {
+    if (e instanceof ErrorPortal) motivoPortal = e.motivo
   }
 
   return (
@@ -108,10 +111,16 @@ export default async function LayoutIdioma({
         {/* id="root": el `Modal` del panel marca este contenedor como inert
             mientras está abierto (el diálogo vive fuera, en un portal a body). */}
         <div id="root" className="min-h-screen bg-slate-50">
-          <SkipLink idioma={idioma} />
-          <AppHeader idioma={idioma} empresa={contenido?.empresa} logo={contenido?.logo} />
-          {children}
-          {contenido && <ChatLanzador idioma={idioma} contenido={contenido} />}
+          {motivoPortal ? (
+            <EstadoPortal idioma={idioma} motivo={motivoPortal} />
+          ) : (
+            <>
+              <SkipLink idioma={idioma} />
+              <AppHeader idioma={idioma} empresa={contenido?.empresa} logo={contenido?.logo} />
+              {children}
+              {contenido && <ChatLanzador idioma={idioma} contenido={contenido} />}
+            </>
+          )}
         </div>
       </body>
     </html>

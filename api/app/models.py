@@ -16,9 +16,12 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     LargeBinary,
+    PrimaryKeyConstraint,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -34,19 +37,78 @@ class NivelAcceso(enum.IntEnum):
     """Niveles de acceso jerárquicos. El valor entero ordena la herencia de
     permisos: autorizar es comparar `nivel_actual >= nivel_requerido`.
 
-    ANONIMO nunca se persiste (es la ausencia de sesión); solo EDITOR y ADMINISTRADOR
-    viven como `nivel` en `admin_users`.
+    ANONIMO nunca se persiste (es la ausencia de sesión); EDITOR y ADMINISTRADOR
+    viven como `nivel` en `admin_users` acotados a su portal. SUPERADMIN es
+    transversal (gestiona portales): no se ata a un portal de contenido sino al
+    portal de plataforma reservado (ver `PORTAL_PLATAFORMA_ID`). Los valores 1–3
+    no cambian, por compatibilidad de API con el modelo single-tenant.
     """
 
     ANONIMO = 1
     EDITOR = 2
     ADMINISTRADOR = 3
+    SUPERADMIN = 4
+
+
+class Portal(Base):
+    """Tenant. Unidad de aislamiento: cada artículo, categoría, usuario, pregunta sin
+    resolver y ajuste de marca pertenece a exactamente un portal (`portal_id`).
+
+    `id` es la clave estable (referenciada por las FKs); `slug` es la clave legible
+    que define el subdominio `<slug>.tuapp.com`. `estado` permite suspender un portal
+    sin borrarlo ("activo"/"suspendido"). `nombre_empresa` es el valor de marca del
+    portal (el campo interno `[Empresa]`), aquí por portal en lugar de global.
+    """
+
+    __tablename__ = "portales"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    slug: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    nombre_empresa: Mapped[str] = mapped_column(String, nullable=False)
+    estado: Mapped[str] = mapped_column(String, nullable=False, default="activo")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    dominios: Mapped[list[Dominio]] = relationship(
+        back_populates="portal", cascade="all, delete-orphan"
+    )
+
+
+class Dominio(Base):
+    """Mapa `host → portal`. El subdominio del portal es la fila base; los dominios
+    propios del cliente son filas adicionales que apuntan al mismo `portal_id`.
+
+    La resolución del portal en el servidor busca el `Host` de la petición aquí. El
+    modelo queda preparado para dominios propios (fase posterior de infraestructura:
+    TLS/DNS por dominio); aquí solo se persiste el mapeo.
+    """
+
+    __tablename__ = "dominios"
+
+    host: Mapped[str] = mapped_column(String, primary_key=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Marca el host canónico del portal (su subdominio), frente a los dominios propios.
+    principal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    portal: Mapped[Portal] = relationship(back_populates="dominios")
 
 
 class Categoria(Base):
     __tablename__ = "categorias"
+    # PK compuesta `(portal_id, id)`: el id de categoría es único *por portal*, no
+    # global, igual que el slug. Así dos portales pueden reusar el mismo id sin
+    # colisionar. Simétrico con `conversaciones`/`metricas`, cuya PK también lleva portal.
+    __table_args__ = (PrimaryKeyConstraint("portal_id", "id"),)
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
     icono: Mapped[str] = mapped_column(String)
     fondo: Mapped[str] = mapped_column(String)
     texto: Mapped[str] = mapped_column(String)
@@ -59,11 +121,28 @@ class Categoria(Base):
 
 class CategoriaTraduccion(Base):
     __tablename__ = "categoria_traducciones"
-
-    categoria_id: Mapped[str] = mapped_column(
-        ForeignKey("categorias.id", ondelete="CASCADE"), primary_key=True
+    # Slug único por portal e idioma: dos portales pueden reusar el mismo slug de
+    # categoría sin colisionar. `portal_id` se denormaliza desde la categoría padre
+    # para poder imponer esa unicidad en la base.
+    __table_args__ = (
+        # La PK lleva `portal_id`: el id de categoría ya no es único global, así que
+        # `(categoria_id, idioma)` podía chocar entre portales.
+        PrimaryKeyConstraint("portal_id", "categoria_id", "idioma"),
+        # FK compuesta a la PK por portal de la categoría (sustituye a la simple a
+        # `categorias.id`): la traducción vive en el mismo portal que su categoría.
+        ForeignKeyConstraint(
+            ["portal_id", "categoria_id"],
+            ["categorias.portal_id", "categorias.id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("portal_id", "idioma", "slug", name="uq_categoria_trad_portal_slug"),
     )
-    idioma: Mapped[str] = mapped_column(String, primary_key=True)
+
+    categoria_id: Mapped[str] = mapped_column(String)
+    idioma: Mapped[str] = mapped_column(String)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
     slug: Mapped[str] = mapped_column(String)
     nombre: Mapped[str] = mapped_column(String)
 
@@ -72,9 +151,21 @@ class CategoriaTraduccion(Base):
 
 class Articulo(Base):
     __tablename__ = "articulos"
+    __table_args__ = (
+        # PK compuesta `(portal_id, id)`: el id de artículo es único *por portal*, no
+        # global. Cierra el que dos portales chocasen (o se enumerasen) por un mismo id.
+        PrimaryKeyConstraint("portal_id", "id"),
+        # La categoría del artículo es del mismo portal: FK compuesta a su PK por portal.
+        ForeignKeyConstraint(
+            ["portal_id", "categoria_id"], ["categorias.portal_id", "categorias.id"]
+        ),
+    )
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    categoria_id: Mapped[str] = mapped_column(ForeignKey("categorias.id"))
+    id: Mapped[str] = mapped_column(String)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
+    categoria_id: Mapped[str] = mapped_column(String)
     actualizado: Mapped[date] = mapped_column(Date)
     minutos_lectura: Mapped[int] = mapped_column(Integer)
     destacado: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -87,19 +178,39 @@ class Articulo(Base):
         back_populates="articulo",
         cascade="all, delete-orphan",
         order_by="ArticuloRelacionado.orden",
-        # Dos FKs apuntan a articulos.id (articulo_id y relacionado_id): se fija cuál
-        # define esta relación de "enlaces salientes".
-        foreign_keys="ArticuloRelacionado.articulo_id",
+        # `articulo_relacionados` tiene dos FKs compuestas a `articulos` (articulo_id y
+        # relacionado_id): se fija por cuál va esta relación de "enlaces salientes".
+        primaryjoin=(
+            "and_(Articulo.portal_id == ArticuloRelacionado.portal_id, "
+            "Articulo.id == ArticuloRelacionado.articulo_id)"
+        ),
+        foreign_keys="[ArticuloRelacionado.portal_id, ArticuloRelacionado.articulo_id]",
     )
 
 
 class ArticuloTraduccion(Base):
     __tablename__ = "articulo_traducciones"
-
-    articulo_id: Mapped[str] = mapped_column(
-        ForeignKey("articulos.id", ondelete="CASCADE"), primary_key=True
+    # Slug único por portal e idioma (misma lógica que en categorías): permite reusar
+    # el mismo slug de artículo en portales distintos sin colisionar.
+    __table_args__ = (
+        # La PK lleva `portal_id`: el id de artículo ya no es único global, así que
+        # `(articulo_id, idioma)` podía chocar entre portales.
+        PrimaryKeyConstraint("portal_id", "articulo_id", "idioma"),
+        # FK compuesta a la PK por portal del artículo (sustituye a la simple a
+        # `articulos.id`): la traducción vive en el mismo portal que su artículo.
+        ForeignKeyConstraint(
+            ["portal_id", "articulo_id"],
+            ["articulos.portal_id", "articulos.id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("portal_id", "idioma", "slug", name="uq_articulo_trad_portal_slug"),
     )
-    idioma: Mapped[str] = mapped_column(String, primary_key=True)
+
+    articulo_id: Mapped[str] = mapped_column(String)
+    idioma: Mapped[str] = mapped_column(String)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
     slug: Mapped[str] = mapped_column(String)
     titulo: Mapped[str] = mapped_column(String)
     parrafos: Mapped[list] = mapped_column(JsonType)
@@ -112,21 +223,39 @@ class ArticuloTraduccion(Base):
 
 class ArticuloRelacionado(Base):
     __tablename__ = "articulo_relacionados"
+    __table_args__ = (
+        # Los dos extremos del enlace son del mismo portal: un único `portal_id`
+        # participa en ambas FKs compuestas a `articulos`, así que el enlace no puede
+        # cruzar de portal. La del origen es inmediata.
+        ForeignKeyConstraint(
+            ["portal_id", "articulo_id"],
+            ["articulos.portal_id", "articulos.id"],
+            ondelete="CASCADE",
+        ),
+        # La del destino es diferible: al borrar un artículo se limpian los enlaces que
+        # lo apuntan (ON DELETE CASCADE), y las referencias mutuas/ciclos del seed
+        # funcionan porque la comprobación se aplaza al commit (todas las filas ya están).
+        ForeignKeyConstraint(
+            ["portal_id", "relacionado_id"],
+            ["articulos.portal_id", "articulos.id"],
+            ondelete="CASCADE",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
 
-    articulo_id: Mapped[str] = mapped_column(
-        ForeignKey("articulos.id", ondelete="CASCADE"), primary_key=True
-    )
-    # FK diferible: al borrar un artículo se limpian los enlaces que lo apuntan
-    # (ON DELETE CASCADE), y las referencias mutuas/ciclos del seed funcionan
-    # porque la comprobación se aplaza al commit (todas las filas ya están).
-    relacionado_id: Mapped[str] = mapped_column(
-        ForeignKey("articulos.id", ondelete="CASCADE", deferrable=True, initially="DEFERRED"),
-        primary_key=True,
-    )
+    portal_id: Mapped[str] = mapped_column(String, primary_key=True)
+    articulo_id: Mapped[str] = mapped_column(String, primary_key=True)
+    relacionado_id: Mapped[str] = mapped_column(String, primary_key=True)
     orden: Mapped[int] = mapped_column(Integer, default=0)
 
     articulo: Mapped[Articulo] = relationship(
-        back_populates="relacionados", foreign_keys=[articulo_id]
+        back_populates="relacionados",
+        primaryjoin=(
+            "and_(Articulo.portal_id == ArticuloRelacionado.portal_id, "
+            "Articulo.id == ArticuloRelacionado.articulo_id)"
+        ),
+        foreign_keys="[ArticuloRelacionado.portal_id, ArticuloRelacionado.articulo_id]",
     )
 
 
@@ -134,6 +263,9 @@ class PreguntaSinResolver(Base):
     __tablename__ = "preguntas_sin_resolver"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
     idioma: Mapped[str] = mapped_column(String)
     pregunta: Mapped[str] = mapped_column(String)
     veces: Mapped[int] = mapped_column(Integer)
@@ -146,6 +278,8 @@ class PreguntaSinResolver(Base):
 class Conversacion(Base):
     __tablename__ = "conversaciones"
 
+    # Clave por portal e idioma: cada portal tiene su propia conversación de ejemplo.
+    portal_id: Mapped[str] = mapped_column(ForeignKey("portales.id"), primary_key=True)
     idioma: Mapped[str] = mapped_column(String, primary_key=True)
     mensajes: Mapped[list] = mapped_column(JsonType)
 
@@ -153,6 +287,8 @@ class Conversacion(Base):
 class Metrica(Base):
     __tablename__ = "metricas"
 
+    # Clave por portal, idioma y métrica: las métricas del panel son por portal.
+    portal_id: Mapped[str] = mapped_column(ForeignKey("portales.id"), primary_key=True)
     idioma: Mapped[str] = mapped_column(String, primary_key=True)
     clave: Mapped[str] = mapped_column(String, primary_key=True)
     valor: Mapped[str] = mapped_column(String)
@@ -161,9 +297,19 @@ class Metrica(Base):
 
 class AdminUser(Base):
     __tablename__ = "admin_users"
+    # El correo es único por portal, no globalmente: dos portales pueden tener cada
+    # uno un `admin@ejemplo.com`. El SuperAdmin (nivel 4, transversal) se modela en el
+    # cambio de niveles de acceso; aquí `portal_id` es obligatorio para Editor y
+    # Administrador (acotados a su portal).
+    __table_args__ = (
+        UniqueConstraint("portal_id", "email", name="uq_admin_users_portal_email"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
+    email: Mapped[str] = mapped_column(String, index=True)
     password_hash: Mapped[str] = mapped_column(String)
     # Nivel de acceso: 2 (Editor) o 3 (Administrador). Se guarda el entero de NivelAcceso.
     nivel: Mapped[int] = mapped_column(Integer, nullable=False, default=NivelAcceso.EDITOR.value)
@@ -201,20 +347,29 @@ class RefreshToken(Base):
 
 
 class Ajustes(Base):
-    """Ajustes globales de la instalación. Fila única (`id=1`).
+    """Marca **visual** por portal (una fila por `portal_id`).
 
-    Guarda el campo **[Empresa]** (nombre de marca global editable por Administrador) y la
-    **marca visual**: color de acento, las tres paradas del degradado del banner de
-    inicio y el logotipo (binario + MIME). Los colores llevan por defecto el aspecto
-    índigo actual; el logo es opcional (sin logo, la cabecera cae al recuadro de
-    iniciales y el favicon al de por defecto). Es un singleton a propósito: no es
-    multi-tenant.
+    Guarda el color de acento, las tres paradas del degradado del banner de inicio y el
+    logotipo (binario + MIME). Los colores llevan por defecto el aspecto índigo actual;
+    el logo es opcional (sin logo, la cabecera cae al recuadro de iniciales y el favicon
+    al de por defecto). Cada portal tiene su propia fila (`portal_id` único); el portal
+    `default` conserva la fila histórica (`id=1`).
+
+    El **nombre de empresa** (valor de `[Empresa]`) NO vive aquí: su fuente única es
+    `Portal.nombre_empresa` (cada portal muestra el suyo, ver spec `gestion-portales`).
     """
 
     __tablename__ = "ajustes"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    empresa: Mapped[str] = mapped_column(String, nullable=False)
+    # `id` autoincremental: cada portal tiene su propia fila. La clave real por la que
+    # se busca es `portal_id` (único); el `id` es solo la PK técnica. Antes llevaba
+    # `default=1` (era singleton), lo que forzaba `id=1` en cada inserción y hacía
+    # colisionar la fila de un segundo portal; se quita para que la base autoincremente.
+    # El portal `default` conserva su fila histórica `id=1` (sembrada explícitamente).
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, unique=True
+    )
     # Colores hex `#rrggbb`. Los valores por defecto reproducen el aspecto actual.
     acento: Mapped[str] = mapped_column(String, nullable=False, default="#4338ca")
     banner_desde: Mapped[str] = mapped_column(String, nullable=False, default="#3730a3")
@@ -226,12 +381,15 @@ class Ajustes(Base):
 
 
 class ConfigIA(Base):
-    """Configuración del proveedor de IA. Fila única (`id=1`), editable solo por Administrador.
+    """Configuración del proveedor de IA. Fila única (`id=1`), editable solo por SuperAdmin.
 
     `proveedor_activo` es el proveedor que se usa para las tareas de IA (traducción
     hoy; RAG en el futuro). `claves` mapea proveedor -> clave de API **cifrada en
     reposo** (ver `app.cifrado`); nunca guarda la clave en claro ni la expone al
-    cliente. Es un singleton: la configuración de IA es global a la instalación.
+    cliente. Es un singleton **global a la instalación** (sin `portal_id`): la misma
+    config vale para todos los portales, así que la gestiona el SuperAdmin transversal,
+    no el Administrador de un portal (evita que el admin de un tenant pise la clave de
+    los demás; ver `routers/admin_config_ia.py` y la revisión de Sección 9).
     """
 
     __tablename__ = "config_ia"

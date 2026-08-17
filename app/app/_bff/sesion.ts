@@ -8,6 +8,7 @@ import {
   opcionesBorrado,
   opcionesCookie,
 } from '@/bff/cookies'
+import { CABECERA_PORTAL, hostEntrante } from '@/bff/portal'
 import { BACKEND, backendRefresh } from './backend'
 
 interface Sesion {
@@ -49,6 +50,10 @@ export async function reenviarConSesion(request: NextRequest, rutaBackend: strin
 
   const url = `${BACKEND}${rutaBackend}${request.nextUrl.search}`
   const metodo = request.method
+  // El backend resuelve el portal por el host: se reenvía el host del navegador en
+  // `X-Forwarded-Host` (el `Host` de la URL interna del backend no vale). Del host
+  // entrante de confianza, no de un valor del cliente.
+  const host = hostEntrante(request.headers)
   // Se reenvía como bytes (ArrayBuffer), no como texto: `request.text()` decodifica
   // en UTF-8 y corrompería un binario (p. ej. la subida del logotipo PNG/ICO). Para
   // los cuerpos JSON es indistinto (los mismos bytes con su `content-type`).
@@ -58,6 +63,7 @@ export async function reenviarConSesion(request: NextRequest, rutaBackend: strin
   const llamar = (token?: string): Promise<Response> => {
     const headers: Record<string, string> = {}
     if (tipo) headers['content-type'] = tipo
+    if (host) headers[CABECERA_PORTAL] = host
     if (token) headers.authorization = `Bearer ${token}`
     return fetch(url, { method: metodo, headers, body: cuerpo, cache: 'no-store' })
   }
@@ -67,7 +73,7 @@ export async function reenviarConSesion(request: NextRequest, rutaBackend: strin
 
   // Renueva si no había access token o si el backend lo rechazó (401).
   if ((backendResp === null || backendResp.status === 401) && refresh) {
-    const renov = await backendRefresh(refresh)
+    const renov = await backendRefresh(refresh, host)
     if (renov.ok) {
       const { access_token, refresh_token } = (await renov.json()) as {
         access_token: string

@@ -1,7 +1,9 @@
-"""Ajustes globales de la instalación. Hoy: el campo [Empresa], editable por Administrador.
+"""Ajustes de marca **por portal**. Hoy: el campo [Empresa], la paleta y el logotipo,
+editables por Administrador.
 
 La lectura del nombre de marca es pública (viaja en `GET /api/{idioma}/contenido`);
-aquí vive solo la escritura, reservada a Nivel 3 (Administrador).
+aquí vive solo la escritura, reservada a Nivel 3 (Administrador). La escritura afecta
+siempre a la fila de ajustes **del portal del host**, nunca a la de otro portal.
 """
 
 from __future__ import annotations
@@ -11,11 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.contraste import derivar_degradado_banner, validar_paleta
 from app.database import get_db
-from app.deps import requiere_nivel
+from app.deps import portal_actual, requiere_nivel
 from app.imagenes import MAX_LOGO_BYTES, detectar_mime_logo
-from app.models import Ajustes, NivelAcceso
+from app.models import Ajustes, NivelAcceso, Portal
 from app.schemas import EmpresaIn, EmpresaOut, LogoOut, MarcaIn, MarcaOut
-from app.servicios import AJUSTES_ID, EMPRESA_POR_DEFECTO
+from app.servicios import fila_ajustes
 
 router = APIRouter(
     prefix="/api/admin/ajustes",
@@ -24,30 +26,38 @@ router = APIRouter(
 )
 
 
-def _fila_ajustes(db: Session) -> Ajustes:
-    """Devuelve la fila única de ajustes, creándola si el seed aún no la creó."""
-    ajuste = db.get(Ajustes, AJUSTES_ID)
+def _fila_ajustes(db: Session, portal_id: str) -> Ajustes:
+    """Fila de marca visual **del portal**, creándola si el seed aún no la creó.
+
+    La fila es por portal (`portal_id` único) y su `id` lo autoincrementa la base, así
+    que un portal distinto del `default` obtiene su propia fila de marca sin colisionar.
+    """
+    ajuste = fila_ajustes(db, portal_id)
     if ajuste is None:
-        ajuste = Ajustes(id=AJUSTES_ID, empresa=EMPRESA_POR_DEFECTO)
+        ajuste = Ajustes(portal_id=portal_id)
         db.add(ajuste)
     return ajuste
 
 
 @router.put("/empresa", response_model=EmpresaOut)
-def actualizar_empresa(datos: EmpresaIn, db: Session = Depends(get_db)) -> EmpresaOut:
-    ajuste = db.get(Ajustes, AJUSTES_ID)
-    if ajuste is None:
-        # Si el seed no creó la fila, se crea aquí (idempotente): siempre hay una.
-        ajuste = Ajustes(id=AJUSTES_ID, empresa=datos.empresa)
-        db.add(ajuste)
-    else:
-        ajuste.empresa = datos.empresa
+def actualizar_empresa(
+    datos: EmpresaIn,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> EmpresaOut:
+    # El nombre de empresa es del portal (`Portal.nombre_empresa`), su fuente única; no
+    # vive en los ajustes de marca. Se edita el del portal del host, nunca el de otro.
+    portal.nombre_empresa = datos.empresa
     db.commit()
-    return EmpresaOut(empresa=ajuste.empresa)
+    return EmpresaOut(empresa=portal.nombre_empresa)
 
 
 @router.put("/marca", response_model=MarcaOut)
-def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
+def actualizar_marca(
+    datos: MarcaIn,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> MarcaOut:
     """Guarda la paleta si cumple WCAG AA; si no, rechaza con 422 y no persiste.
 
     El Administrador elige solo el acento: el degradado del banner se **deriva** de él
@@ -68,7 +78,7 @@ def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
                 "minimo": fallo.minimo,
             },
         )
-    ajuste = _fila_ajustes(db)
+    ajuste = _fila_ajustes(db, portal.id)
     ajuste.acento = datos.acento
     ajuste.banner_desde = banner["desde"]
     ajuste.banner_medio = banner["medio"]
@@ -83,7 +93,11 @@ def actualizar_marca(datos: MarcaIn, db: Session = Depends(get_db)) -> MarcaOut:
 
 
 @router.post("/logo", response_model=LogoOut, status_code=status.HTTP_201_CREATED)
-async def subir_logo(request: Request, db: Session = Depends(get_db)) -> LogoOut:
+async def subir_logo(
+    request: Request,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> LogoOut:
     """Sube el logotipo (PNG/ICO/JPEG) como cuerpo binario crudo.
 
     Se recibe el binario directo (sin multipart) para no añadir `python-multipart`: el
@@ -105,7 +119,7 @@ async def subir_logo(request: Request, db: Session = Depends(get_db)) -> LogoOut
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Formato no admitido. Solo se aceptan PNG, ICO o JPEG (no SVG).",
         )
-    ajuste = _fila_ajustes(db)
+    ajuste = _fila_ajustes(db, portal.id)
     ajuste.logo_bin = datos
     ajuste.logo_mime = mime
     db.commit()

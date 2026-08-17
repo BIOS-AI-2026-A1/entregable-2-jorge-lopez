@@ -47,14 +47,27 @@ def test_verify_rechaza_la_cadena_vacia():
 # --- JWT --------------------------------------------------------------------
 
 def test_token_ida_y_vuelta():
-    assert decodificar_token(crear_token("admin@test.local")) == "admin@test.local"
+    datos = decodificar_token(crear_token("admin@test.local", "default"))
+    assert datos is not None
+    assert datos.email == "admin@test.local"
+    assert datos.portal_id == "default"
 
 
-def test_token_lleva_caducidad():
+def test_token_lleva_caducidad_y_portal():
     s = get_settings()
-    payload = jwt.decode(crear_token("x"), s.jwt_secret, algorithms=[s.jwt_algorithm])
+    payload = jwt.decode(crear_token("x", "default"), s.jwt_secret, algorithms=[s.jwt_algorithm])
     assert "exp" in payload
     assert payload["sub"] == "x"
+    # El portal viaja en el token: sin él, un token del portal A serviría en el B.
+    assert payload["portal"] == "default"
+
+
+def test_token_sin_portal_devuelve_none():
+    # Un token bien firmado pero sin `portal` (o con un valor no textual) no identifica
+    # el portal y no puede autorizarse: se descarta como inválido.
+    exp = datetime.now(timezone.utc) + timedelta(minutes=5)
+    assert decodificar_token(_firmar({"sub": "admin@test.local", "exp": exp})) is None
+    assert decodificar_token(_firmar({"sub": "admin@test.local", "portal": 1, "exp": exp})) is None
 
 
 def test_token_ilegible_devuelve_none():
@@ -94,7 +107,9 @@ def test_token_sin_exp_sigue_siendo_valido():
     Se fija el comportamiento actual: si algún día se activa `require=["exp"]`,
     este test debe cambiar y no pasar desapercibido.
     """
-    assert decodificar_token(_firmar({"sub": "admin@test.local"})) == "admin@test.local"
+    datos = decodificar_token(_firmar({"sub": "admin@test.local", "portal": "default"}))
+    assert datos is not None
+    assert datos.email == "admin@test.local"
 
 
 def test_algoritmo_none_rechazado():

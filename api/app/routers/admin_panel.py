@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import requiere_nivel
-from app.models import Articulo, NivelAcceso, PreguntaSinResolver
+from app.deps import portal_actual, requiere_nivel
+from app.models import Articulo, NivelAcceso, Portal, PreguntaSinResolver
 from app.routers.comun import exigir_id_disponible, validar_relacionados
 from app.schemas import ArticuloAdminOut, ArticuloIn, PreguntaAdminOut
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict, pregunta_a_dict
@@ -22,8 +22,12 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[PreguntaAdminOut])
-def listar(idioma: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
-    consulta = db.query(PreguntaSinResolver)
+def listar(
+    idioma: str | None = None,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> list[dict]:
+    consulta = db.query(PreguntaSinResolver).filter(PreguntaSinResolver.portal_id == portal.id)
     if idioma is not None:
         consulta = consulta.filter(PreguntaSinResolver.idioma == idioma)
     filas = consulta.order_by(PreguntaSinResolver.orden).all()
@@ -36,17 +40,28 @@ def listar(idioma: str | None = None, db: Session = Depends(get_db)) -> list[dic
     status_code=status.HTTP_201_CREATED,
 )
 def crear_articulo_desde_pregunta(
-    pregunta_id: int, datos: ArticuloIn, db: Session = Depends(get_db)
+    pregunta_id: int,
+    datos: ArticuloIn,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
 ) -> dict:
-    pregunta = db.get(PreguntaSinResolver, pregunta_id)
+    # La pregunta debe ser del portal del host: una de otro portal responde 404.
+    pregunta = (
+        db.query(PreguntaSinResolver)
+        .filter(
+            PreguntaSinResolver.id == pregunta_id,
+            PreguntaSinResolver.portal_id == portal.id,
+        )
+        .first()
+    )
     if pregunta is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pregunta no encontrada")
     id_normalizado = normalizar_slug(datos.id)
-    exigir_id_disponible(db, id_normalizado)
-    validar_relacionados(db, id_normalizado, datos.relacionados)
+    exigir_id_disponible(db, portal.id, id_normalizado)
+    validar_relacionados(db, portal.id, id_normalizado, datos.relacionados)
 
     a = Articulo()
-    aplicar_datos_articulo(a, datos, incluir_id=True)
+    aplicar_datos_articulo(a, datos, incluir_id=True, portal_id=portal.id)
     db.add(a)
     # Cierra el ciclo KCS: la pregunta queda cubierta por el nuevo artículo.
     pregunta.estado = "cubierta"

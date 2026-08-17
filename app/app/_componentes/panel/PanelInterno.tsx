@@ -22,7 +22,7 @@ import {
   type PreguntaAdmin,
 } from '@/data/admin'
 import { derivarDegradadoBanner, derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
-import { esAdministrador } from '@/auth/nivel'
+import { esAdministrador, esSuperAdmin } from '@/auth/nivel'
 import { fechaLegible } from '@/i18n/fechas'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
@@ -80,6 +80,11 @@ export function PanelInterno({
   const [subiendoLogo, setSubiendoLogo] = useState(false)
 
   const puedeAdministrar = esAdministrador(nivel)
+  // La config de IA es global de la plataforma (una sola clave/proveedor para todos los
+  // portales): solo la gestiona el SuperAdmin. El Administrador de un portal sí ve la
+  // pestaña «Administración» (empresa, marca y logo son suyos), pero no este formulario;
+  // así tampoco dispara un fetch que el backend responde 403.
+  const puedeConfigurarIA = esSuperAdmin(nivel)
 
   // Estado de la clave del proveedor seleccionado en el desplegable. Si tiene clave
   // y no se está editando, el campo se muestra en solo lectura con la pista (últimos
@@ -123,7 +128,7 @@ export function PanelInterno({
   useEffect(() => {
     void cargarPreguntas()
     void cargarCategorias()
-    if (puedeAdministrar) void cargarConfigIA()
+    if (puedeConfigurarIA) void cargarConfigIA()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idioma])
 
@@ -733,6 +738,7 @@ export function PanelInterno({
         </div>
       </form>
 
+      {puedeConfigurarIA && (
       <form onSubmit={guardarConfigIAHandler} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3" aria-labelledby="config-ia-h3">
         <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
           {t('configIA.titulo')}
@@ -840,14 +846,26 @@ export function PanelInterno({
         </div>
         <p className="text-xs text-slate-500">{t('configIA.ayuda')}</p>
       </form>
+      )}
 
-      <Link
-        href={rutas.usuarios(idioma)}
-        className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-      >
-        <Ic.User size={15} />
-        {t('gestionUsuarios.enlace')}
-      </Link>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Link
+          href={rutas.usuarios(idioma)}
+          className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+        >
+          <Ic.User size={15} />
+          {t('gestionUsuarios.enlace')}
+        </Link>
+        {esSuperAdmin(nivel) && (
+          <Link
+            href={rutas.portales(idioma)}
+            className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+          >
+            <Ic.Shield size={15} />
+            {t('gestionPortales.enlace')}
+          </Link>
+        )}
+      </div>
     </section>
   )
 

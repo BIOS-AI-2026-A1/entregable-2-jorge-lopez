@@ -21,6 +21,15 @@ const ES_PROD = process.env.NODE_ENV === 'production'
  * - `frame-ancestors 'none'` + `object-src 'none'` + `base-uri 'self'`: nadie
  *   puede embeber la app, no hay plugins y no se puede reescribir la base de URLs.
  * - `upgrade-insecure-requests` solo en producción (en local se sirve por http).
+ *
+ * Multi-tenant (revisión task 9.1): esta política **ya cubre cada host de portal**
+ * (subdominio `marca.tuapp.com` y dominios propios) sin lista blanca de hosts, porque
+ * es host-relativa: `'self'`/`default-src`/`connect-src` se resuelven contra el host que
+ * sirvió la página, así que las llamadas del cliente de un portal nunca alcanzan el
+ * origen de otro. `frame-ancestors 'none'` deniega el enmarcado de todo portal (no se
+ * necesita ni se quiere enmarcado cruzado). El aislamiento de sesión lo completan las
+ * cookies host-only (`src/bff/cookies.ts`). No hay hosts que enumerar aquí: añadir un
+ * portal no toca la CSP.
  */
 export function construirCSP(nonce: string): string {
   const directivas: Record<string, string[]> = {

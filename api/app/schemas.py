@@ -284,6 +284,45 @@ class UsuarioActualizarIn(BaseModel):
     password: str | None = Field(default=None, min_length=LONGITUD_MINIMA_CONTRASENA)
 
 
+# --- Gestión de portales (solo SuperAdmin) ----------------------------------
+
+# Slug de portal: minúsculas ASCII, dígitos y guiones internos; empieza y acaba en
+# alfanumérico. Es la base del subdominio `<slug>.<base_domain>`, así que se ciñe a lo
+# que admite una etiqueta de host (sin puntos, sin guiones al borde, ≤63 caracteres). La
+# unicidad y la colisión con slugs reservados las valida el router (autoridad del servidor).
+SlugPortal = Annotated[
+    str,
+    Field(min_length=2, max_length=63, pattern=r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"),
+]
+
+
+class PortalCrearIn(BaseModel):
+    """Alta de un portal por el SuperAdmin: sus atributos y su Administrador inicial.
+
+    El portal nace activo, con su fila de marca por defecto y su Administrador (nivel 3)
+    acotado a él. No lleva `es`/`pt`: un portal no es contenido bilingüe.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    slug: SlugPortal
+    nombreEmpresa: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    adminEmail: str = Field(min_length=3)
+    adminPassword: str = Field(min_length=LONGITUD_MINIMA_CONTRASENA)
+
+
+class PortalOut(BaseModel):
+    """Portal para el listado del SuperAdmin: identidad, estado y su host canónico."""
+
+    id: str
+    slug: str
+    nombreEmpresa: str
+    estado: str
+    # Host principal (subdominio) por el que se sirve el portal; `None` si aún no tiene.
+    host: str | None = None
+    creado: str
+
+
 # --- Ajustes: campo [Empresa] -----------------------------------------------
 
 class EmpresaIn(BaseModel):

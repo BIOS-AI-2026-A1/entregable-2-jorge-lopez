@@ -10,6 +10,7 @@ export const NivelAcceso = {
   ANONIMO: 1,
   EDITOR: 2,
   ADMINISTRADOR: 3,
+  SUPERADMIN: 4,
 } as const
 
 export type NivelAcceso = (typeof NivelAcceso)[keyof typeof NivelAcceso]
@@ -25,4 +26,13 @@ export function tieneNivel(actual: number | null | undefined, requerido: NivelAc
 
 export function esAdministrador(nivel: number | null | undefined): boolean {
   return tieneNivel(nivel, NivelAcceso.ADMINISTRADOR)
+}
+
+/**
+ * ¿La sesión es de un SuperAdmin (nivel 4, transversal a los portales)? El SuperAdmin
+ * gestiona portales; no se ata a un portal de contenido. La autoridad sigue siendo el
+ * backend: esto solo decide qué controles muestra la interfaz.
+ */
+export function esSuperAdmin(nivel: number | null | undefined): boolean {
+  return tieneNivel(nivel, NivelAcceso.SUPERADMIN)
 }

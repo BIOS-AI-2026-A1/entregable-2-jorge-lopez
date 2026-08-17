@@ -16,13 +16,46 @@ from app.models import (
     CategoriaTraduccion,
     Conversacion,
     Metrica,
+    Portal,
     PreguntaSinResolver,
 )
 from app.texto import normalizar_slug
 
 IDIOMAS = ("es", "pt")
 
-# Fila única de ajustes y valor de reserva del campo [Empresa] si aún no se sembró.
+# Portal por defecto: alberga el contenido histórico single-tenant tras la migración
+# a multi-tenant. La migración `0006_portales` lo crea y hace *backfill* de todo a él;
+# el seed lo siembra. Su id, slug y host de desarrollo son estables.
+PORTAL_DEFECTO_ID = "default"
+PORTAL_DEFECTO_SLUG = "default"
+PORTAL_DEFECTO_HOST = "localhost"
+
+# Portal de plataforma: hogar reservado del/los SuperAdmin (nivel 4), transversales a
+# los portales de contenido. No sirve contenido, pero SÍ tiene un host de gestión propio
+# (ver `host_plataforma`): el SuperAdmin entra por él para iniciar sesión y gestionar
+# portales. Existe también para que `admin_users.portal_id` (NOT NULL) tenga un valor
+# válido para el SuperAdmin y para que `(portal_id, email)` siga siendo único entre
+# SuperAdmins. Su slug queda reservado (nunca puede pedirlo un portal de cliente). Lo
+# siembra `seed.py` junto al SuperAdmin.
+PORTAL_PLATAFORMA_ID = "platform"
+PORTAL_PLATAFORMA_SLUG = "platform"
+PORTAL_PLATAFORMA_EMPRESA = "Plataforma"
+
+# Host de gestión del portal de plataforma. "admin" es un slug reservado, así que
+# `admin.<base_domain>` NO resuelve por la vía de subdominio (la de slug): necesita una
+# fila explícita en `dominios`, que `resolver_portal` casa por coincidencia exacta antes
+# de mirar el slug. Esa es justamente la puerta del SuperAdmin. En desarrollo se usa
+# `admin.localhost` (Chrome/Firefox resuelven `*.localhost` a 127.0.0.1 sin configurar
+# nada); en producción, `admin.<base_domain>`. El seed crea ambas filas.
+PORTAL_PLATAFORMA_HOST_DEV = "admin.localhost"
+
+
+def host_plataforma(base_domain: str) -> str:
+    """Host canónico de gestión del portal de plataforma en producción: `admin.<base_domain>`."""
+    return f"admin.{base_domain}"
+
+# Fila de ajustes del portal `default` y valor de reserva del campo [Empresa] si aún
+# no se sembró.
 AJUSTES_ID = 1
 EMPRESA_POR_DEFECTO = "[Empresa]"
 
@@ -39,20 +72,32 @@ def _traduccion(entidad, idioma: str):
     return next((t for t in entidad.traducciones if t.idioma == idioma), None)
 
 
-def obtener_empresa(db: Session) -> str:
-    """Valor actual del campo [Empresa]. Reserva un valor por defecto si la fila
-    de ajustes todavía no existe (p. ej. antes del seed)."""
-    ajuste = db.get(Ajustes, AJUSTES_ID)
-    return ajuste.empresa if ajuste is not None else EMPRESA_POR_DEFECTO
+def fila_ajustes(db: Session, portal_id: str) -> Ajustes | None:
+    """Fila de marca del portal, o `None` si aún no existe (p. ej. antes del seed).
 
-
-def obtener_marca(db: Session) -> dict:
-    """Marca visual actual (acento + tres paradas del banner) para el contenido público.
-
-    Reserva los valores por defecto si la fila de ajustes aún no existe. El logo NO
-    viaja aquí (es binario): se sirve por `GET /api/marca/logo`.
+    La marca es **por portal**: se busca por `portal_id` (único), no por el id fijo
+    histórico. Cada portal tiene a lo sumo una fila de ajustes.
     """
-    ajuste = db.get(Ajustes, AJUSTES_ID)
+    return db.query(Ajustes).filter(Ajustes.portal_id == portal_id).first()
+
+
+def obtener_empresa(db: Session, portal_id: str) -> str:
+    """Nombre de empresa (valor de [Empresa]) del portal: su fuente única.
+
+    Vive en `Portal.nombre_empresa`, no en los ajustes de marca (spec `gestion-portales`):
+    cada portal muestra su propia identidad. Reserva un valor por defecto solo si el portal
+    no existiera (situación que `portal_actual` ya descarta con 404 antes de llegar aquí)."""
+    portal = db.get(Portal, portal_id)
+    return portal.nombre_empresa if portal is not None else EMPRESA_POR_DEFECTO
+
+
+def obtener_marca(db: Session, portal_id: str) -> dict:
+    """Marca visual del portal (acento + tres paradas del banner) para el contenido público.
+
+    Reserva los valores por defecto si la fila de ajustes del portal aún no existe. El
+    logo NO viaja aquí (es binario): se sirve por `GET /api/marca/logo`.
+    """
+    ajuste = fila_ajustes(db, portal_id)
     if ajuste is None:
         return {
             "acento": ACENTO_POR_DEFECTO,
@@ -71,10 +116,16 @@ def obtener_marca(db: Session) -> dict:
     }
 
 
-def ensamblar_contenido(db: Session, idioma: str) -> dict:
-    """Devuelve un `ContenidoIdioma` para el idioma, espejo de `obtenerContenido(idioma)`."""
+def ensamblar_contenido(db: Session, idioma: str, portal_id: str) -> dict:
+    """Devuelve un `ContenidoIdioma` para el idioma **del portal**, espejo de
+    `obtenerContenido(idioma)`.
+
+    Todo se filtra por `portal_id`: el portal es la unidad de aislamiento y el contenido
+    de un portal nunca se mezcla con el de otro. El `portal_id` lo resuelve el servidor a
+    partir del host (nunca del cliente), no llega en el cuerpo ni en la query.
+    """
     categorias = []
-    for c in db.query(Categoria).order_by(Categoria.orden).all():
+    for c in db.query(Categoria).filter(Categoria.portal_id == portal_id).order_by(Categoria.orden).all():
         tr = _traduccion(c, idioma)
         if tr is None:
             continue
@@ -83,7 +134,7 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
         )
 
     articulos = []
-    for a in db.query(Articulo).order_by(Articulo.orden).all():
+    for a in db.query(Articulo).filter(Articulo.portal_id == portal_id).order_by(Articulo.orden).all():
         tr = _traduccion(a, idioma)
         if tr is None:
             continue
@@ -104,12 +155,19 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
             }
         )
 
-    conv = db.query(Conversacion).filter(Conversacion.idioma == idioma).first()
+    conv = (
+        db.query(Conversacion)
+        .filter(Conversacion.portal_id == portal_id, Conversacion.idioma == idioma)
+        .first()
+    )
     conversacion = conv.mensajes if conv else []
 
     metricas = [
         {"clave": m.clave, "valor": m.valor}
-        for m in db.query(Metrica).filter(Metrica.idioma == idioma).order_by(Metrica.orden).all()
+        for m in db.query(Metrica)
+        .filter(Metrica.portal_id == portal_id, Metrica.idioma == idioma)
+        .order_by(Metrica.orden)
+        .all()
     ]
 
     # `preguntasSinResolver` NO viaja aquí: es el texto literal de lo que escriben
@@ -118,8 +176,8 @@ def ensamblar_contenido(db: Session, idioma: str) -> dict:
     return {
         # El nombre de marca y la paleta los ve todo visitante anónimo: son públicos.
         # El acento y las paradas del banner alimentan los tokens CSS en SSR.
-        "empresa": obtener_empresa(db),
-        **obtener_marca(db),
+        "empresa": obtener_empresa(db, portal_id),
+        **obtener_marca(db, portal_id),
         "categorias": categorias,
         "articulos": articulos,
         "conversacion": conversacion,
@@ -182,14 +240,17 @@ def categoria_a_admin_dict(c: Categoria) -> dict:
     }
 
 
-def aplicar_datos_categoria(c: Categoria, datos, *, incluir_id: bool) -> None:
+def aplicar_datos_categoria(c: Categoria, datos, *, incluir_id: bool, portal_id: str) -> None:
     """Vuelca los campos de un `CategoriaIn`/`CategoriaUpdateIn` en la entidad ORM.
 
     Atómico bilingüe: escribe siempre ambas traducciones (es+pt). El id es la clave
     estable entre idiomas y se normaliza en el servidor (autoridad), como en artículos.
+    El `portal_id` lo fija el servidor (nunca el cliente) en la categoría y en cada
+    traducción, para que el aislamiento por portal se sostenga también en la escritura.
     """
     if incluir_id:
         c.id = normalizar_slug(datos.id)
+    c.portal_id = portal_id
     c.icono = datos.icono
     c.fondo = datos.fondo
     c.texto = datos.texto
@@ -201,6 +262,7 @@ def aplicar_datos_categoria(c: Categoria, datos, *, incluir_id: bool) -> None:
         c.traducciones.append(
             CategoriaTraduccion(
                 idioma=idioma,
+                portal_id=portal_id,
                 slug=normalizar_slug(t.slug),
                 nombre=t.nombre,
             )
@@ -221,12 +283,17 @@ def pregunta_a_dict(p: PreguntaSinResolver) -> dict:
     }
 
 
-def aplicar_datos_articulo(a: Articulo, datos, *, incluir_id: bool) -> None:
-    """Vuelca los campos de un `ArticuloIn`/`ArticuloUpdateIn` en la entidad ORM."""
+def aplicar_datos_articulo(a: Articulo, datos, *, incluir_id: bool, portal_id: str) -> None:
+    """Vuelca los campos de un `ArticuloIn`/`ArticuloUpdateIn` en la entidad ORM.
+
+    El `portal_id` lo fija el servidor (nunca el cliente) en el artículo y en cada
+    traducción, para sostener el aislamiento por portal también en la escritura.
+    """
     if incluir_id:
         # El id es la clave estable entre idiomas: se normaliza en el servidor
         # (autoridad) igual que en el cliente, no se confía en el valor crudo.
         a.id = normalizar_slug(datos.id)
+    a.portal_id = portal_id
     a.categoria_id = datos.categoria
     # La fecha de actualización la sella el servidor a hoy en cada guardado (crear o
     # editar); no se confía en el valor del cliente, que solo lo muestra de lectura.
@@ -244,6 +311,7 @@ def aplicar_datos_articulo(a: Articulo, datos, *, incluir_id: bool) -> None:
         a.traducciones.append(
             ArticuloTraduccion(
                 idioma=idioma,
+                portal_id=portal_id,
                 slug=normalizar_slug(t.slug),
                 titulo=t.titulo,
                 parrafos=t.parrafos,

@@ -15,42 +15,68 @@ from sqlalchemy.orm import Session
 from app.models import Articulo, Categoria
 
 
-def obtener_articulo_o_404(db: Session, articulo_id: str) -> Articulo:
-    """Devuelve el artículo o corta con 404."""
-    a = db.get(Articulo, articulo_id)
+def obtener_articulo_o_404(db: Session, portal_id: str, articulo_id: str) -> Articulo:
+    """Devuelve el artículo **del portal** o corta con 404.
+
+    El filtro por `portal_id` es la barrera de aislamiento: pedir por id directo un
+    artículo de otro portal responde 404 (inexistente) y no revela su existencia.
+    """
+    a = (
+        db.query(Articulo)
+        .filter(Articulo.id == articulo_id, Articulo.portal_id == portal_id)
+        .first()
+    )
     if a is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Artículo no encontrado")
     return a
 
 
-def exigir_id_disponible(db: Session, articulo_id: str) -> None:
-    """Corta con 409 si ya hay un artículo con ese identificador."""
-    if db.get(Articulo, articulo_id) is not None:
+def exigir_id_disponible(db: Session, portal_id: str, articulo_id: str) -> None:
+    """Corta con 409 si el portal ya tiene un artículo con ese identificador."""
+    existe = (
+        db.query(Articulo)
+        .filter(Articulo.id == articulo_id, Articulo.portal_id == portal_id)
+        .first()
+    )
+    if existe is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un artículo con ese identificador")
 
 
-def obtener_categoria_o_404(db: Session, categoria_id: str) -> Categoria:
-    """Devuelve la categoría o corta con 404."""
-    c = db.get(Categoria, categoria_id)
+def obtener_categoria_o_404(db: Session, portal_id: str, categoria_id: str) -> Categoria:
+    """Devuelve la categoría **del portal** o corta con 404 (aislamiento por portal)."""
+    c = (
+        db.query(Categoria)
+        .filter(Categoria.id == categoria_id, Categoria.portal_id == portal_id)
+        .first()
+    )
     if c is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Categoría no encontrada")
     return c
 
 
-def exigir_categoria_id_disponible(db: Session, categoria_id: str) -> None:
-    """Corta con 409 si ya hay una categoría con ese identificador (id/slug duplicado)."""
-    if db.get(Categoria, categoria_id) is not None:
+def exigir_categoria_id_disponible(db: Session, portal_id: str, categoria_id: str) -> None:
+    """Corta con 409 si el portal ya tiene una categoría con ese identificador."""
+    existe = (
+        db.query(Categoria)
+        .filter(Categoria.id == categoria_id, Categoria.portal_id == portal_id)
+        .first()
+    )
+    if existe is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una categoría con ese identificador")
 
 
-def exigir_categoria_sin_articulos(db: Session, categoria_id: str) -> None:
-    """Corta con 409 si la categoría todavía tiene artículos asignados.
+def exigir_categoria_sin_articulos(db: Session, portal_id: str, categoria_id: str) -> None:
+    """Corta con 409 si la categoría todavía tiene artículos asignados en el portal.
 
     Integridad referencial en la aplicación: el borrado nunca deja artículos sin
     categoría. La FK `articulos.categoria_id` no tiene cascada, así que esto refuerza
     a nivel de aplicación lo que la base ya impediría.
     """
-    n = db.query(Articulo).filter(Articulo.categoria_id == categoria_id).count()
+    n = (
+        db.query(Articulo)
+        .filter(Articulo.categoria_id == categoria_id, Articulo.portal_id == portal_id)
+        .count()
+    )
     if n > 0:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -59,20 +85,27 @@ def exigir_categoria_sin_articulos(db: Session, categoria_id: str) -> None:
         )
 
 
-def validar_relacionados(db: Session, articulo_id: str, relacionados: Iterable[str]) -> None:
+def validar_relacionados(
+    db: Session, portal_id: str, articulo_id: str, relacionados: Iterable[str]
+) -> None:
     """Corta con 422 si algún relacionado es inválido.
 
     Un relacionado es inválido si es el propio artículo (auto-referencia) o si no
-    corresponde a un artículo existente. Se comprueba en el servidor para dar un
-    error de validación claro en vez de un 500 por la FK (que además, al ser
-    diferible, solo saltaría al hacer commit)."""
+    corresponde a un artículo existente **del mismo portal** (no se enlaza contenido de
+    otro portal). Se comprueba en el servidor para dar un error de validación claro en
+    vez de un 500 por la FK (que además, al ser diferible, solo saltaría al commit)."""
     for rid in relacionados:
         if rid == articulo_id:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 f"Un artículo no puede relacionarse consigo mismo: «{rid}».",
             )
-        if db.get(Articulo, rid) is None:
+        existe = (
+            db.query(Articulo)
+            .filter(Articulo.id == rid, Articulo.portal_id == portal_id)
+            .first()
+        )
+        if existe is None:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 f"El artículo relacionado no existe: «{rid}».",

@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import requiere_nivel
-from app.models import Articulo, NivelAcceso
+from app.deps import portal_actual, requiere_nivel
+from app.models import Articulo, NivelAcceso, Portal
 from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404, validar_relacionados
 from app.schemas import (
     ArticuloAdminOut,
@@ -30,14 +30,25 @@ router = APIRouter(
 
 
 @router.get("", response_model=list[ArticuloAdminOut])
-def listar(db: Session = Depends(get_db)) -> list[dict]:
-    articulos = db.query(Articulo).order_by(Articulo.orden).all()
+def listar(
+    db: Session = Depends(get_db), portal: Portal = Depends(portal_actual)
+) -> list[dict]:
+    articulos = (
+        db.query(Articulo)
+        .filter(Articulo.portal_id == portal.id)
+        .order_by(Articulo.orden)
+        .all()
+    )
     return [articulo_a_admin_dict(a) for a in articulos]
 
 
 @router.get("/{articulo_id}", response_model=ArticuloAdminOut)
-def obtener(articulo_id: str, db: Session = Depends(get_db)) -> dict:
-    return articulo_a_admin_dict(obtener_articulo_o_404(db, articulo_id))
+def obtener(
+    articulo_id: str,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> dict:
+    return articulo_a_admin_dict(obtener_articulo_o_404(db, portal.id, articulo_id))
 
 
 @router.post("/traducir", response_model=TraduccionArticuloIn)
@@ -56,13 +67,17 @@ def traducir(
 
 
 @router.post("", response_model=ArticuloAdminOut, status_code=status.HTTP_201_CREATED)
-def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
+def crear(
+    datos: ArticuloIn,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> dict:
     # Se comprueba la disponibilidad con el id ya normalizado (el mismo que persiste).
     id_normalizado = normalizar_slug(datos.id)
-    exigir_id_disponible(db, id_normalizado)
-    validar_relacionados(db, id_normalizado, datos.relacionados)
+    exigir_id_disponible(db, portal.id, id_normalizado)
+    validar_relacionados(db, portal.id, id_normalizado, datos.relacionados)
     a = Articulo()
-    aplicar_datos_articulo(a, datos, incluir_id=True)
+    aplicar_datos_articulo(a, datos, incluir_id=True, portal_id=portal.id)
     db.add(a)
     db.commit()
     db.refresh(a)
@@ -70,16 +85,25 @@ def crear(datos: ArticuloIn, db: Session = Depends(get_db)) -> dict:
 
 
 @router.put("/{articulo_id}", response_model=ArticuloAdminOut)
-def actualizar(articulo_id: str, datos: ArticuloUpdateIn, db: Session = Depends(get_db)) -> dict:
-    a = obtener_articulo_o_404(db, articulo_id)
-    validar_relacionados(db, articulo_id, datos.relacionados)
-    aplicar_datos_articulo(a, datos, incluir_id=False)
+def actualizar(
+    articulo_id: str,
+    datos: ArticuloUpdateIn,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> dict:
+    a = obtener_articulo_o_404(db, portal.id, articulo_id)
+    validar_relacionados(db, portal.id, articulo_id, datos.relacionados)
+    aplicar_datos_articulo(a, datos, incluir_id=False, portal_id=portal.id)
     db.commit()
     db.refresh(a)
     return articulo_a_admin_dict(a)
 
 
 @router.delete("/{articulo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar(articulo_id: str, db: Session = Depends(get_db)) -> None:
-    db.delete(obtener_articulo_o_404(db, articulo_id))
+def eliminar(
+    articulo_id: str,
+    db: Session = Depends(get_db),
+    portal: Portal = Depends(portal_actual),
+) -> None:
+    db.delete(obtener_articulo_o_404(db, portal.id, articulo_id))
     db.commit()
