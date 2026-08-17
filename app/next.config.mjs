@@ -3,11 +3,6 @@
 // frontend) e ignora `src/` para el enrutado, así que `src/pages/*` de la SPA
 // no se interpreta como Pages Router.
 
-/**
- * Origen del backend FastAPI. En desarrollo, `next dev` reescribe `/api/*` a
- * este origen, sustituyendo al proxy de Vite. En despliegue se fija por entorno.
- */
-const BACKEND = process.env.BACKEND_ORIGIN ?? 'http://127.0.0.1:8000'
 const ES_PROD = process.env.NODE_ENV === 'production'
 
 /**
@@ -36,24 +31,11 @@ const nextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: CABECERAS_SEGURIDAD }]
   },
-  async rewrites() {
-    // El contenido público (por idioma) y el logotipo de marca se reenvían directo
-    // al backend. Las rutas `/api/admin/*` y `/api/auth/*` las sirven los Route
-    // Handlers del BFF (adjuntan la cookie de sesión); nunca deben pasar por aquí.
-    return [
-      {
-        source: '/api/:idioma(es|pt)/:path*',
-        destination: `${BACKEND}/api/:idioma/:path*`,
-      },
-      {
-        // Logotipo público (cabecera + favicon): binario servido por la API, sin
-        // cookie. Sin este rewrite, `/api/marca/logo` cae en Next (404) y la
-        // imagen aparece rota en desarrollo.
-        source: '/api/marca/:path*',
-        destination: `${BACKEND}/api/marca/:path*`,
-      },
-    ]
-  },
+  // Sin rewrites: todo `/api/*` lo atienden Route Handlers que reenvían al backend el
+  // host del portal (`X-Forwarded-Host`), imprescindible en multi-tenant para resolver el
+  // portal por host. El contenido público por idioma lo sirve `app/api/[idioma]/contenido`
+  // (cliente) o `src/data/servidor.ts` (SSR); la marca, `app/api/marca/*`; la sesión, el
+  // BFF (`/api/admin/*`, `/api/auth/*`). Un rewrite no puede fijar esa cabecera.
 }
 
 export default nextConfig

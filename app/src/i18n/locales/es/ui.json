@@ -133,6 +133,12 @@
     "errorAyuda": "Comprueba tu conexión o que el servidor esté disponible, y vuelve a intentarlo.",
     "reintentar": "Reintentar"
   },
+  "portal": {
+    "noEncontradoTitulo": "Este centro de ayuda no existe",
+    "noEncontradoAyuda": "La dirección con la que llegaste no corresponde a ningún centro de ayuda. Revisa el enlace o contacta con quien te lo compartió.",
+    "noDisponibleTitulo": "Este centro de ayuda no está disponible",
+    "noDisponibleAyuda": "El centro de ayuda de esta dirección está suspendido temporalmente. Vuelve a intentarlo más tarde."
+  },
   "panelGestion": {
     "titulo": "Gestión de artículos",
     "nuevo": "Nuevo artículo",
@@ -277,6 +283,7 @@
     "nivel": "Nivel de acceso",
     "nivelEditor": "Editor",
     "nivelAdministrador": "Administrador",
+    "nivelSuperAdmin": "SuperAdmin",
     "estadoActivo": "Activo",
     "estadoInactivo": "Inactivo",
     "correo": "Correo electrónico",
@@ -301,6 +308,49 @@
     "errorGuardar": "No se pudo guardar. Revisa los campos e inténtalo de nuevo.",
     "errorConflicto": "No se pudo guardar: el correo ya está en uso o la operación dejaría al sistema sin un usuario Administrador activo.",
     "errorSalvaguarda": "No se pudo cambiar el estado: no puedes desactivar tu propia cuenta ni dejar al sistema sin un usuario Administrador activo.",
+    "errorRed": "No se pudo conectar con el servidor."
+  },
+  "gestionPortales": {
+    "seccion": "Plataforma",
+    "titulo": "Gestión de portales",
+    "subtitulo": "Da de alta portales, asigna su Administrador y suspéndelos o reactívalos",
+    "volver": "Volver al panel",
+    "enlace": "Gestionar portales",
+    "lista": "Portales",
+    "nuevo": "Nuevo portal",
+    "vacio": "Todavía no hay portales.",
+    "tablaAria": "Portales y su estado",
+    "columnas": {
+      "portal": "Portal",
+      "host": "Dirección",
+      "estado": "Estado",
+      "accion": "Acción"
+    },
+    "estadoActivo": "Activo",
+    "estadoSuspendido": "Suspendido",
+    "form": {
+      "slug": "Identificador (slug)",
+      "slugAyuda": "Minúsculas, números y guiones. Será la base del subdominio del portal.",
+      "nombreEmpresa": "Nombre de empresa",
+      "adminEmail": "Correo del Administrador",
+      "adminPassword": "Contraseña del Administrador",
+      "adminPasswordAyuda": "Mínimo 12 caracteres. Con ella iniciará sesión en su portal."
+    },
+    "crear": "Crear portal",
+    "creando": "Creando…",
+    "cancelar": "Cancelar",
+    "suspender": "Suspender",
+    "suspenderAria": "Suspender el portal {{empresa}}",
+    "reactivar": "Reactivar",
+    "reactivarAria": "Reactivar el portal {{empresa}}",
+    "confirmarSuspender": "¿Suspender el portal {{empresa}}? Su contenido y sus usuarios quedarán inaccesibles hasta reactivarlo (no se borra nada).",
+    "creado": "Portal {{empresa}} creado.",
+    "suspendido": "Portal suspendido.",
+    "reactivado": "Portal reactivado.",
+    "errorCargar": "No se pudo cargar la lista de portales.",
+    "errorGuardar": "No se pudo completar la operación. Inténtalo de nuevo.",
+    "errorConflicto": "No se pudo crear: ese identificador ya está en uso o está reservado.",
+    "errorValidacion": "Revisa los campos: el identificador solo admite minúsculas, números y guiones, y la contraseña necesita al menos 12 caracteres.",
     "errorRed": "No se pudo conectar con el servidor."
   },
   "configIA": {

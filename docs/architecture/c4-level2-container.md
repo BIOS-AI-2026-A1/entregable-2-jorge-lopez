@@ -1,9 +1,10 @@
 # C4 · Nivel 2 — Diagrama de contenedores
 
-**Última revisión:** 2026-08-10 · **Rama:** `panel-pestanas` (cambio OpenSpec `migrar-frontend-nextjs`)
+**Última revisión:** 2026-08-17 · **Rama:** `multi-tenant-portales` (cambio OpenSpec `multi-tenant-portales`)
 
 > Revisar este diagrama al modificar `app/package.json`, `app/next.config.mjs`, `app/proxy.ts`,
-> `api/pyproject.toml`, `docker-compose.yml`, `api/app/routers/` o `app/src/data/`.
+> `api/pyproject.toml`, `docker-compose.yml`, `api/app/routers/`, `api/app/portales.py`,
+> `app/src/bff/portal.ts` o `app/src/data/`.
 
 Detalle interno del sistema descrito en [`c4-level1-context.md`](./c4-level1-context.md).
 
@@ -15,6 +16,13 @@ marcado con `%% TODO: confirmar`.
 > **Migración en curso (`migrar-frontend-nextjs`):** el frontend pasó de SPA (React + Vite + react-router,
 > token en `localStorage`) a **Next.js con renderizado en servidor y sesión en cookie `httpOnly` (BFF)**.
 > El navegador ya no custodia el token ni envía el `Bearer`: lo hace la propia app Next en el servidor.
+
+> **Multi-tenant por portal (`multi-tenant-portales`):** la misma imagen y la misma base de datos sirven a
+> varios clientes. Cada petición se atribuye a un **portal (tenant)** resolviendo su **host**: el borde de
+> Next lo resuelve (`app/proxy.ts`, `src/bff/portal.ts`) y lo reenvía al backend en `X-Forwarded-Host`; el
+> backend lo revalida (`app/portales.py`) como **única** fuente del portal (nunca del cliente). Todos los
+> datos se discriminan por `portal_id` y toda consulta filtra por él; la marca (logo, acento, empresa) y la
+> sesión se acotan al portal. Un cuarto nivel **SuperAdmin** gestiona los portales.
 
 ## Cómo leer este diagrama
 
@@ -36,9 +44,9 @@ C4Container
     Person(administrador, "Personal administrador", "Equipo interno que mantiene el contenido")
 
     System_Boundary(centroAyuda, "Centro de Ayuda") {
-        Container(web, "Aplicación web", "Next.js 16 App Router (React 19) renderiza en servidor · i18next traduce · Tailwind v4 estiliza · Route Handlers actúan de BFF · Node sirve en el puerto 3000", "App bilingüe con SSR del contenido público; el panel interno usa sesión en cookie httpOnly y guardias en servidor (proxy.ts + sesionActual)")
-        Container(api, "API del Centro de Ayuda", "FastAPI enruta y valida · SQLAlchemy 2 persiste · Alembic migra · argon2 y JWT autentican · uvicorn sirve en el puerto 8000", "Expone el contenido público por idioma y el CRUD bilingüe de artículos tras autenticación")
-        ContainerDb(db, "Base de datos", "PostgreSQL 16 almacena · pgvector reservado para el RAG · Docker Compose la levanta en el puerto 5432", "Guarda el contenido bilingüe, las preguntas sin resolver, las métricas y el usuario administrador")
+        Container(web, "Aplicación web", "Next.js 16 App Router (React 19) renderiza en servidor · i18next traduce · Tailwind v4 estiliza · Route Handlers actúan de BFF · Node sirve en el puerto 3000", "App bilingüe con SSR del contenido público; resuelve el portal por host (proxy.ts + src/bff/portal.ts) y lo reenvía en X-Forwarded-Host; el panel interno usa sesión en cookie httpOnly acotada al portal y guardias en servidor (proxy.ts + sesionActual)")
+        Container(api, "API del Centro de Ayuda", "FastAPI enruta y valida · SQLAlchemy 2 persiste · Alembic migra · argon2 y JWT autentican · uvicorn sirve en el puerto 8000", "Multi-tenant por portal: revalida el host como única fuente del portal (portales.py) y filtra todo por portal_id; expone el contenido público por idioma, el CRUD bilingüe de artículos y la gestión de portales (SuperAdmin) tras autenticación por niveles")
+        ContainerDb(db, "Base de datos", "PostgreSQL 16 almacena · pgvector reservado para el RAG · Docker Compose la levanta en el puerto 5432", "Guarda los portales y sus dominios, y el contenido bilingüe, las preguntas sin resolver, la marca, las métricas y los usuarios discriminados por portal_id")
 
         Boundary(herramientas, "Herramientas de datos - tiempo de construcción", "Se ejecutan a mano antes de levantar el sistema") {
             Container(exportador, "Exportador de contenido", "Node ejecuta el TypeScript sin compilarlo", "Vuelca los módulos de contenido del frontend a JSON para que el backend pueda sembrarlos")
@@ -51,9 +59,9 @@ C4Container
     Rel(personaUsuaria, web, "Navega categorías y lee artículos (HTML renderizado en servidor)", "HTTPS")
     Rel(administrador, web, "Inicia sesión y usa el Panel Interno", "HTTPS")
 
-    Rel(web, api, "Carga el contenido del idioma en servidor: GET /api/es/contenido y /api/pt/contenido", "JSON/HTTP")
-    Rel(web, api, "Autentica al administrador (BFF): POST /api/auth/login; el token queda en cookie httpOnly, no en el navegador", "JSON/HTTP")
-    Rel(web, api, "Reenvía lecturas y escrituras del panel: /api/admin/* con el Bearer adjuntado en el servidor", "JSON/HTTP + Authorization Bearer JWT")
+    Rel(web, api, "Carga el contenido del idioma y del portal resuelto en servidor: GET /api/es/contenido y /api/pt/contenido con X-Forwarded-Host", "JSON/HTTP")
+    Rel(web, api, "Autentica al administrador (BFF): POST /api/auth/login; el token queda en cookie httpOnly acotada al portal, no en el navegador", "JSON/HTTP")
+    Rel(web, api, "Reenvía lecturas y escrituras del panel: /api/admin/* con el Bearer adjuntado y el portal en X-Forwarded-Host", "JSON/HTTP + Authorization Bearer JWT")
 
     Rel(api, db, "Lee y escribe contenido, administración y preguntas", "SQLAlchemy 2 sobre psycopg 3 - postgresql+psycopg")
 
@@ -144,7 +152,15 @@ Lo que no se puede deducir del código. No son suposiciones: son preguntas abier
   (`GET /api/auth/me`), sin descodificar el JWT en el cliente. La autorización real (nivel, `activo`) la
   impone el backend en cada petición a `/api/admin/*`.
 - **La sesión vive en cookies `httpOnly`.** `ca_sesion` (access JWT) y `ca_refresh` (refresh opaco
-  rotatorio) las fija y renueva el BFF (`app/src/bff/cookies.ts`); el token nunca llega a JavaScript.
+  rotatorio) las fija y renueva el BFF (`app/src/bff/cookies.ts`); el token nunca llega a JavaScript. Con
+  multi-tenant, la cookie se **acota al host del portal** y no autoriza en otro portal.
+- **El portal se resuelve del host, siempre en servidor.** El borde de Next (`app/proxy.ts`,
+  `app/src/bff/portal.ts`) resuelve el portal del `Host` del navegador y lo reenvía al backend en
+  `X-Forwarded-Host`; el backend lo revalida (`api/app/portales.py`, `deps.py::portal_actual`) como **única**
+  fuente del portal, ignorando cualquier `portal_id` del cliente. Host desconocido → 404, portal suspendido
+  → 503; toda consulta filtra por `portal_id` y un recurso de otro portal por id directo responde 404. La
+  seguridad del esquema depende de que el backend **nunca sea alcanzable sin pasar por el borde de confianza**
+  (ver `api/README.md`, "Resolución de portal y proxy de confianza").
 - **`POST /api/auth/logout` sí se consume ahora**: el cierre de sesión revoca la familia del refresh token
   en el backend y borra las cookies (antes el logout era local). Siguen sin consumirse `GET /api/salud` y
   `GET /api/admin/articulos` (el panel lista desde el contenido público).
@@ -170,8 +186,8 @@ Lo que no se puede deducir del código. No son suposiciones: son preguntas abier
 
 | Contenedor | Archivos clave |
 | --- | --- |
-| Aplicación web | `app/package.json`, `app/next.config.mjs`, `app/proxy.ts`, `app/app/[idioma]/`, `app/app/api/`, `app/src/data/servidor.ts`, `app/src/bff/`, `app/src/data/admin.ts` |
-| API | `api/pyproject.toml`, `api/app/main.py`, `api/app/routers/`, `api/app/security.py`, `api/app/deps.py`, `api/app/servicios.py` |
-| Base de datos | `docker-compose.yml`, `api/app/database.py`, `api/app/models.py`, `api/alembic/versions/0001_inicial.py` |
+| Aplicación web | `app/package.json`, `app/next.config.mjs`, `app/proxy.ts`, `app/app/[idioma]/`, `app/app/api/`, `app/src/data/servidor.ts`, `app/src/bff/`, `app/src/bff/portal.ts`, `app/src/data/admin.ts` |
+| API | `api/pyproject.toml`, `api/app/main.py`, `api/app/routers/`, `api/app/routers/admin_portales.py`, `api/app/portales.py`, `api/app/security.py`, `api/app/deps.py`, `api/app/servicios.py` |
+| Base de datos | `docker-compose.yml`, `api/app/database.py`, `api/app/models.py`, `api/alembic/versions/0001_inicial.py`, `api/alembic/versions/0006_portales.py` |
 | Exportador | `app/scripts/exportar-datos.mjs` |
 | Siembra | `api/seed.py` |

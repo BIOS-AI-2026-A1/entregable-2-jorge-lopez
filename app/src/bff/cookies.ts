@@ -7,6 +7,14 @@
  * no puede exfiltrar la sesión. `SameSite=Lax` corta el envío en peticiones de
  * terceros. `Secure` solo en producción: en `http://localhost` de desarrollo una
  * cookie `Secure` no se almacenaría.
+ *
+ * **Alcance por host (multi-tenant).** Las cookies NO llevan atributo `Domain`: son
+ * *host-only*, atadas al host exacto que las emitió (`cliente-a.tuapp.com`). Así la
+ * sesión de un portal nunca viaja al host de otro. Poner `Domain=.tuapp.com` la
+ * compartiría entre todos los subdominios (fuga de sesión entre portales), justo lo
+ * contrario de lo que buscamos: por eso la omisión de `domain` es deliberada, no un
+ * olvido. `SameSite` no basta para aislar —`cliente-a` y `cliente-b` son *same-site*
+ * bajo el mismo dominio registrable—; el aislamiento lo da el alcance host-only.
  */
 
 export const COOKIE_ACCESS = 'ca_sesion'

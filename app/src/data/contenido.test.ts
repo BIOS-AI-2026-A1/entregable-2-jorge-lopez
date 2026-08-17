@@ -24,6 +24,14 @@ import { articuloPorId, articuloPorSlug, articulosDestacados, buscarArticulos, c
  * que un enlace roto o un artículo que solo existe en un idioma se propaga a la
  * API. Las comprobaciones son invariantes del contenido, no del texto concreto:
  * añadir o traducir artículos no rompe estos tests; olvidarse de un idioma sí.
+ *
+ * **Alcance por portal (multi-tenant).** Tras el cambio a multi-tenant este contenido
+ * estático es el **seed del portal `default`**: la paridad es/pt es un invariante *por
+ * portal*, y aquí se comprueba la del `default`. La paridad de los demás portales —que
+ * se pueblan por el panel, no por este seed— la garantiza en el servidor el CRUD
+ * bilingüe atómico (crear/editar exige es+pt juntos; ningún artículo persiste en un solo
+ * idioma), probado en `api/tests/test_admin_articulos.py` y, por portal aislado, en
+ * `api/tests/test_aislamiento.py`.
  */
 
 const contenidos: Record<Idioma, ContenidoIdioma> = {
@@ -244,7 +252,9 @@ describe.each([...IDIOMAS])('contenido de %s', idioma => {
 
 // --- Paridad entre idiomas --------------------------------------------------
 
-describe('paridad es/pt', () => {
+// Paridad es/pt **del portal `default`** (este seed). Para los demás portales el mismo
+// invariante lo impone el CRUD bilingüe atómico del backend, no este fichero.
+describe('paridad es/pt (portal default)', () => {
   const es = contenidos.es
   const pt = contenidos.pt
 

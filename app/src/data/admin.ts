@@ -213,6 +213,43 @@ export function desactivarUsuario(id: number): Promise<Response> {
   return apiFetch(`/api/admin/usuarios/${id}/desactivar`, { method: 'POST' })
 }
 
+// ── Gestión de portales (solo SuperAdmin) ───────────────────────────────────
+
+/** Portal que devuelve `/api/admin/portales`, para el listado del SuperAdmin. */
+export interface PortalAdmin {
+  id: string
+  slug: string
+  nombreEmpresa: string
+  estado: string
+  /** Host principal (subdominio) del portal, o null si aún no lo tiene. */
+  host: string | null
+  creado: string
+}
+
+/** Datos de alta de un portal: sus atributos y su Administrador inicial. */
+export interface PortalPayload {
+  slug: string
+  nombreEmpresa: string
+  adminEmail: string
+  adminPassword: string
+}
+
+export function listarPortales(): Promise<Response> {
+  return apiFetch('/api/admin/portales')
+}
+
+export function crearPortal(payload: PortalPayload): Promise<Response> {
+  return apiFetch('/api/admin/portales', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function suspenderPortal(id: string): Promise<Response> {
+  return apiFetch(`/api/admin/portales/${encodeURIComponent(id)}/suspender`, { method: 'POST' })
+}
+
+export function reactivarPortal(id: string): Promise<Response> {
+  return apiFetch(`/api/admin/portales/${encodeURIComponent(id)}/reactivar`, { method: 'POST' })
+}
+
 // ── Campo [Empresa] (solo Administrador) ────────────────────────────────────
 
 export function guardarEmpresa(empresa: string): Promise<Response> {

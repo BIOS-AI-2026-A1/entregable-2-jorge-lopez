@@ -14,6 +14,14 @@ describe('opciones de cookie del BFF', () => {
     expect(o.maxAge).toBe(MAX_AGE_ACCESS)
   })
 
+  it('la cookie es host-only: no lleva Domain (aísla la sesión entre portales)', () => {
+    // Sin `Domain`, la cookie queda atada al host exacto que la emitió, de modo que la
+    // sesión de `cliente-a.tuapp.com` nunca se envía a `cliente-b.tuapp.com`. Un
+    // `Domain=.tuapp.com` la filtraría entre subdominios: se comprueba que nunca aparece.
+    expect(opcionesCookie(MAX_AGE_ACCESS)).not.toHaveProperty('domain')
+    expect(opcionesBorrado()).not.toHaveProperty('domain')
+  })
+
   it('Secure se activa solo en producción', () => {
     vi.stubEnv('NODE_ENV', 'production')
     expect(opcionesCookie(1).secure).toBe(true)

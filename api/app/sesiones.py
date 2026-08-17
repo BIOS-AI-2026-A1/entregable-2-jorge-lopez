@@ -62,12 +62,17 @@ def _revocar_familia(db: Session, familia: str) -> None:
     )
 
 
-def rotar_sesion(db: Session, refresh_token: str) -> tuple[AdminUser, str]:
+def rotar_sesion(db: Session, refresh_token: str, portal_id: str) -> tuple[AdminUser, str]:
     """Consume el refresh token y emite uno nuevo en su familia.
 
     Devuelve `(admin, nuevo_refresh_token)`. Ante cualquier problema lanza
     `SesionInvalida`. Si el token ya se había usado, es reutilización: se revoca
     la familia entera (el atacante y el legítimo pierden la sesión).
+
+    `portal_id` es el portal del host desde el que llega la renovación: el refresh
+    solo rota dentro de su propio portal. Un token presentado en otro host se rechaza
+    **sin quemarlo** (es una petición mal enrutada, no necesariamente un robo), así que
+    la sesión legítima sigue viva en su portal.
     """
     fila = db.query(RefreshToken).filter(RefreshToken.token_hash == hash_refresh(refresh_token)).first()
     if fila is None or fila.revocado:
@@ -84,6 +89,12 @@ def rotar_sesion(db: Session, refresh_token: str) -> tuple[AdminUser, str]:
 
     admin = db.get(AdminUser, fila.admin_id)
     if admin is None or not admin.activo:
+        raise SesionInvalida
+
+    # El refresh no cruza de portal: pertenece al portal de su administrador. No se
+    # marca `usado` antes de esta comprobación, para no invalidar la sesión legítima
+    # por una renovación que llegó al host equivocado.
+    if admin.portal_id != portal_id:
         raise SesionInvalida
 
     fila.usado = True

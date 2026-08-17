@@ -7,6 +7,7 @@ import {
   opcionesBorrado,
   opcionesCookie,
 } from '@/bff/cookies'
+import { hostEntrante } from '@/bff/portal'
 import { construirCSP } from '@/seguridad/csp'
 import { backendRefresh } from './app/_bff/backend'
 
@@ -44,7 +45,8 @@ async function guardarPanel(
   if (access) return NextResponse.next({ request: { headers: requestHeaders } })
   if (!refresh) return aLogin(request, idioma)
 
-  const renov = await backendRefresh(refresh)
+  // El refresh también resuelve el portal por el host: se reenvía el del navegador.
+  const renov = await backendRefresh(refresh, hostEntrante(request.headers))
   if (!renov.ok) return aLogin(request, idioma)
 
   const { access_token, refresh_token } = (await renov.json()) as {
@@ -76,6 +78,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   const csp = construirCSP(nonce)
+  // Se copian las cabeceras entrantes (incluido `Host`) hacia el render: los Server
+  // Components leen ese host con `next/headers` y lo reenvían al backend para resolver
+  // el portal (task 3.2). El portal se resuelve por el host, no por la ruta ni el idioma.
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('content-security-policy', csp)

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { hostEntrante } from '@/bff/portal'
 import { backendLogin } from '../../../_bff/backend'
 import { fijarSesion } from '../../../_bff/sesion'
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ detail: 'Correo y contraseña requeridos' }, { status: 400 })
   }
 
-  const resp = await backendLogin(email, password)
+  const resp = await backendLogin(email, password, hostEntrante(request.headers))
   if (!resp.ok) {
     const texto = await resp.text()
     return new NextResponse(texto, {

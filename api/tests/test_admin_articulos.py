@@ -300,24 +300,31 @@ def test_fk_diferible_permite_ciclo_en_una_transaccion(db_session):
     conn = db_session.connection()
     conn.execute(
         text(
-            "INSERT INTO articulos (id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
-            " VALUES ('uno','cuenta','2026-07-25',1,0,0)"
+            "INSERT INTO articulos (id, portal_id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
+            " VALUES ('uno','default','cuenta','2026-07-25',1,0,0)"
         )
     )
     # El destino 'dos' aún no existe: con FK inmediata esto fallaría aquí.
     conn.execute(
-        text("INSERT INTO articulo_relacionados (articulo_id, relacionado_id, orden) VALUES ('uno','dos',0)")
-    )
-    conn.execute(
         text(
-            "INSERT INTO articulos (id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
-            " VALUES ('dos','cuenta','2026-07-25',1,0,1)"
+            "INSERT INTO articulo_relacionados (portal_id, articulo_id, relacionado_id, orden)"
+            " VALUES ('default','uno','dos',0)"
         )
     )
     conn.execute(
-        text("INSERT INTO articulo_relacionados (articulo_id, relacionado_id, orden) VALUES ('dos','uno',0)")
+        text(
+            "INSERT INTO articulos (id, portal_id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
+            " VALUES ('dos','default','cuenta','2026-07-25',1,0,1)"
+        )
+    )
+    conn.execute(
+        text(
+            "INSERT INTO articulo_relacionados (portal_id, articulo_id, relacionado_id, orden)"
+            " VALUES ('default','dos','uno',0)"
+        )
     )
     db_session.commit()  # la comprobación diferida se aplica aquí y pasa
 
-    assert db_session.get(Articulo, "uno") is not None
-    assert db_session.get(Articulo, "dos") is not None
+    # La PK es compuesta `(portal_id, id)`: se busca por la tupla completa.
+    assert db_session.get(Articulo, ("default", "uno")) is not None
+    assert db_session.get(Articulo, ("default", "dos")) is not None

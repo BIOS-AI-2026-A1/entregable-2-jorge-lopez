@@ -7,8 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Proyecto capstone: una aplicación de **Centro de Ayuda**. El **frontend** vive en `app/` (las 4 pantallas,
 bilingüe), migrado a **Next.js (App Router) con renderizado en servidor y sesión en cookie httpOnly**
 (cambio OpenSpec `migrar-frontend-nextjs`), y el **backend** en `api/` (FastAPI) incluye el control de
-acceso en tres niveles Anonymous / Editor / Administrador. Varias secciones de este documento se irán completando
-a medida que se construya.
+acceso en cuatro niveles Anonymous / Editor / Administrador / SuperAdmin. La aplicación es **multi-tenant
+por portal** (cambio OpenSpec `multi-tenant-portales`): una sola instalación y una sola base de datos
+sirven a varios clientes, cada uno con su propia URL (subdominio, con dominios propios preparados en el
+modelo); todos los datos se discriminan por `portal_id` y el portal se resuelve **del host de la petición
+en el servidor**. Varias secciones de este documento se irán completando a medida que se construya.
 
 ## Stack
 
@@ -49,15 +52,26 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
   JSONB; métricas del panel derivadas por consulta.
 - **Autenticación de administrador:** correo + contraseña con hash **argon2** y sesión **JWT**. Protege
   `/api/admin/*` y restringe el Panel Interno (`/:idioma/panel`) a sesión válida.
-- **Control de acceso en tres niveles jerárquicos:** Anonymous (sin sesión, solo centro de ayuda),
-  Editor (panel + funciones de producto) y Administrador (además gestión de usuarios y campo `[Empresa]`). La
-  dependencia `requiere_nivel` aplica la autorización **en el servidor** (403 por nivel insuficiente),
-  leyendo nivel y estado `activo` de la base en cada petición (no del JWT), para revocar acceso al instante.
+- **Control de acceso en cuatro niveles jerárquicos:** Anonymous (sin sesión, solo centro de ayuda),
+  Editor (panel + funciones de producto), Administrador (además gestión de usuarios y marca del portal) y
+  SuperAdmin (dueño de la plataforma: gestiona portales y asigna su Administrador). La dependencia
+  `requiere_nivel` aplica la autorización **en el servidor** (403 por nivel insuficiente), leyendo nivel y
+  estado `activo` de la base en cada petición (no del JWT), para revocar acceso al instante. Enum de niveles
+  `SUPERADMIN=4 > ADMINISTRADOR=3 > EDITOR=2 > ANONIMO=1` (backend `models.py`, frontend `src/auth/nivel.ts`).
+- **Aislamiento multi-tenant por portal (server-side):** el `portal_id` se resuelve **del host** (nunca del
+  cuerpo, la ruta ni una cabecera que fije el cliente) y toda lectura/escritura filtra por él;
+  `requiere_nivel` exige, además del nivel, que el recurso pertenezca al portal del host. Acceder a un
+  recurso de otro portal por id directo responde **404** (no revela existencia). Administrador y Editor
+  quedan acotados a su propio portal; SuperAdmin es transversal a la plataforma.
 - **Consumo desde el frontend** con **Server Components de Next**: el contenido público se carga en el
   servidor (`src/data/servidor.ts`) y el panel usa el BFF por cookie (`src/bff/apiFetch.ts`), sin tocar
   componentes ni su ARIA.
+- **Marca por portal:** logo, color de acento (con las paradas del banner) y nombre de empresa dejan de ser
+  globales y pasan a ser ajustes **por portal**; el SSR carga la marca del portal resuelto y sirve su favicon
+  desde el propio host, sin fuga ni parpadeo entre portales.
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
-  usuarios (Administrador) y campo `[Empresa]` (valor de marca global) ahora; **RAG solo diseñado**, no construido.
+  usuarios (Administrador), marca por portal, resolución de portal por host y gestión de portales
+  (SuperAdmin) ahora; **RAG solo diseñado**, no construido.
 
 ## Convenciones
 
@@ -72,14 +86,20 @@ Lo establecido hasta ahora:
 - Color de acento expuesto como token `--acento` para poder recambiar la marca sin tocar componentes.
 - **CRUD de artículos bilingüe atómico:** crear o editar un artículo exige español y portugués juntos; nunca
   se persiste un artículo en un solo idioma.
-- **Acceso jerárquico estricto (`Administrador ⊃ Editor ⊃ Anonymous`):** la autorización se aplica **en el
-  servidor**, no solo ocultando controles en la interfaz; un usuario nunca alcanza un recurso por encima de
-  su nivel, ni por petición directa.
+- **Acceso jerárquico estricto (`SuperAdmin ⊃ Administrador ⊃ Editor ⊃ Anonymous`):** la autorización se
+  aplica **en el servidor**, no solo ocultando controles en la interfaz; un usuario nunca alcanza un recurso
+  por encima de su nivel, ni por petición directa.
+- **Aislamiento estricto entre portales (multi-tenant):** el `portal_id` se resuelve **del host de la
+  petición en el servidor** y nunca del cliente; toda consulta filtra por él. Un usuario de un portal jamás
+  ve ni alcanza datos de otro (acceso por id directo → **404**, no 403, para no revelar existencia). La
+  sesión (cookie del BFF) se acota al host del portal y no autoriza en otro. SuperAdmin es la única
+  identidad transversal a la plataforma.
 - **`[Empresa]` es el identificador interno del campo de marca**, no un marcador de posición: se conserva
   tal cual en el modelo de datos, la API y las claves de código (p. ej. `guardarEmpresa`, rutas y esquemas).
   En la **interfaz de administración** ya no se muestra ese literal: el campo se rotula "Nombre de empresa"
   (pt "Nome da empresa") y los avisos de guardado y error muestran el valor que el administrador guardó
-  (interpolado como `{{empresa}}`), no el texto `[Empresa]`.
+  (interpolado como `{{empresa}}`), no el texto `[Empresa]`. Con multi-tenant, ese valor es el
+  `nombre_empresa` **del portal resuelto** (atributo del portal), no un ajuste global de la instalación.
 - **Secretos fuera del repo:** cadena de conexión, secreto de firma JWT y credenciales de administrador van
   en variables de entorno (`.env` ignorado), con un `.env.example` sin valores reales.
 - **Licencia: Business Source License 1.1** (`LICENSE`, con `license: "BUSL-1.1"` en `app/package.json` y
@@ -97,17 +117,17 @@ Naming, formato, estrategia de tests y estructura de carpetas de código: _por d
 
 ```
 app/                  Frontend Next.js (App Router)
-  app/[idioma]/       Rutas por idioma: inicio, artículo, login, panel, usuarios, error y 404
+  app/[idioma]/       Rutas por idioma: inicio, artículo, login, panel, usuarios, portales (SuperAdmin), error y 404
   app/api/            Route Handlers del BFF (auth y proxy de /api/admin/* con la cookie)
-  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next
-  proxy.ts            Guardia del panel en el borde + CSP con nonce (antes middleware.ts)
+  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next (incl. GestionPortales)
+  proxy.ts            Guardia del panel en el borde + resolución de portal por host + CSP con nonce (antes middleware.ts)
   src/components/     Componentes reutilizados (Tabs, Modal, formularios, chips, iconos, acordeón)
-  src/bff/            Cookies httpOnly y cliente del panel (apiFetch)
+  src/bff/            Cookies httpOnly, cliente del panel (apiFetch) y resolución de portal por host (portal.ts)
   src/seguridad/      Construcción de la CSP
-  src/data/{es,pt}/   Contenido tipado por idioma (alimenta el seed y los tests de paridad)
+  src/data/{es,pt}/   Contenido tipado por idioma (alimenta el seed y los tests de paridad, por portal)
   src/i18n/           i18next: traductor isomórfico, traducciones y rutas
   src/types.ts        Contrato de datos
-api/                  Backend FastAPI (modelos, routers, auth, seed, tests; ver api/README.md)
+api/                  Backend FastAPI (modelos, routers, portales.py, admin_portales, auth, seed, tests; ver api/README.md)
 docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
 .claude/agents/       Subagentes del proyecto (vacío, reservado)
 .claude/skills/       Skills del proyecto: crear-pr (flujo de PR) y los de OpenSpec
@@ -130,6 +150,17 @@ ejecutar nada.
 `prompts/prompt_diseno_centro_ayuda.md` es la fuente de la verdad del diseño: define las 4 pantallas
 (inicio, artículo, chatbot con citas, panel interno de preguntas sin resolver), el sistema de diseño y
 los requisitos de accesibilidad. Consultarlo antes de proponer UI.
+
+### Índice de código (para optimizar tokens)
+
+El repositorio está **indexado como grafo de conocimiento** por el servidor MCP `codebase-memory-mcp`
+(se refresca en segundo plano). Para descubrir estructura de código —qué símbolos existen, quién llama
+a qué, dependencias, fragmentos exactos— **usar primero sus herramientas de grafo** (`search_graph`,
+`trace_path`, `get_code_snippet`, `query_graph`, `get_architecture`) en lugar de leer archivos enteros o
+hacer `grep` amplios: devuelven solo lo pertinente y ahorran contexto. Se cae a lectura de archivos o
+búsqueda por texto cuando la cobertura del grafo no basta o para texto no-código. Está disponible también
+como skill (`codebase-memory`) y como subagentes (`codebase-memory`, `-auditor`, `-scout`). La cobertura
+es orientativa, nunca prueba de exhaustividad: verificar cada ruta citada antes de afirmar sobre ella.
 
 ## Comandos
 

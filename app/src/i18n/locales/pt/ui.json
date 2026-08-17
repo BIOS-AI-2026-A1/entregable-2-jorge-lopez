@@ -133,6 +133,12 @@
     "errorAyuda": "Verifique sua conexão ou se o servidor está disponível e tente novamente.",
     "reintentar": "Tentar novamente"
   },
+  "portal": {
+    "noEncontradoTitulo": "Esta central de ajuda não existe",
+    "noEncontradoAyuda": "O endereço pelo qual você chegou não corresponde a nenhuma central de ajuda. Verifique o link ou entre em contato com quem o compartilhou.",
+    "noDisponibleTitulo": "Esta central de ajuda não está disponível",
+    "noDisponibleAyuda": "A central de ajuda deste endereço está suspensa temporariamente. Tente novamente mais tarde."
+  },
   "panelGestion": {
     "titulo": "Gestão de artigos",
     "nuevo": "Novo artigo",
@@ -277,6 +283,7 @@
     "nivel": "Nível de acesso",
     "nivelEditor": "Editor",
     "nivelAdministrador": "Administrador",
+    "nivelSuperAdmin": "SuperAdmin",
     "estadoActivo": "Ativo",
     "estadoInactivo": "Inativo",
     "correo": "E-mail",
@@ -301,6 +308,49 @@
     "errorGuardar": "Não foi possível salvar. Revise os campos e tente novamente.",
     "errorConflicto": "Não foi possível salvar: o e-mail já está em uso ou a operação deixaria o sistema sem um usuário Administrador ativo.",
     "errorSalvaguarda": "Não foi possível alterar o estado: você não pode desativar sua própria conta nem deixar o sistema sem um usuário Administrador ativo.",
+    "errorRed": "Não foi possível conectar ao servidor."
+  },
+  "gestionPortales": {
+    "seccion": "Plataforma",
+    "titulo": "Gestão de portais",
+    "subtitulo": "Cadastre portais, designe o Administrador de cada um e suspenda-os ou reative-os",
+    "volver": "Voltar ao painel",
+    "enlace": "Gerir portais",
+    "lista": "Portais",
+    "nuevo": "Novo portal",
+    "vacio": "Ainda não há portais.",
+    "tablaAria": "Portais e seu estado",
+    "columnas": {
+      "portal": "Portal",
+      "host": "Endereço",
+      "estado": "Estado",
+      "accion": "Ação"
+    },
+    "estadoActivo": "Ativo",
+    "estadoSuspendido": "Suspenso",
+    "form": {
+      "slug": "Identificador (slug)",
+      "slugAyuda": "Minúsculas, números e hifens. Será a base do subdomínio do portal.",
+      "nombreEmpresa": "Nome da empresa",
+      "adminEmail": "E-mail do Administrador",
+      "adminPassword": "Senha do Administrador",
+      "adminPasswordAyuda": "Mínimo de 12 caracteres. Com ela fará login no seu portal."
+    },
+    "crear": "Criar portal",
+    "creando": "Criando…",
+    "cancelar": "Cancelar",
+    "suspender": "Suspender",
+    "suspenderAria": "Suspender o portal {{empresa}}",
+    "reactivar": "Reativar",
+    "reactivarAria": "Reativar o portal {{empresa}}",
+    "confirmarSuspender": "Suspender o portal {{empresa}}? Seu conteúdo e seus usuários ficarão inacessíveis até a reativação (nada é apagado).",
+    "creado": "Portal {{empresa}} criado.",
+    "suspendido": "Portal suspenso.",
+    "reactivado": "Portal reativado.",
+    "errorCargar": "Não foi possível carregar a lista de portais.",
+    "errorGuardar": "Não foi possível concluir a operação. Tente novamente.",
+    "errorConflicto": "Não foi possível criar: esse identificador já está em uso ou está reservado.",
+    "errorValidacion": "Revise os campos: o identificador só admite minúsculas, números e hifens, e a senha precisa de pelo menos 12 caracteres.",
     "errorRed": "Não foi possível conectar ao servidor."
   },
   "configIA": {

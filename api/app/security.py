@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -13,6 +14,21 @@ from argon2.exceptions import VerifyMismatchError
 from app.config import get_settings
 
 _hasher = PasswordHasher()
+
+
+@dataclass(frozen=True)
+class DatosToken:
+    """Identidad que porta el access token: a quién y **en qué portal**.
+
+    El portal viaja en el propio token (no solo el correo) porque el correo es único
+    por portal, no globalmente: dos portales pueden tener cada uno un `admin@x.com`.
+    Sin el portal en el token, uno emitido en el portal A serviría para autenticarse
+    como el homónimo del portal B. `admin_actual` exige que este `portal_id` coincida
+    con el portal del host.
+    """
+
+    email: str
+    portal_id: str
 
 
 def hash_password(password: str) -> str:
@@ -26,23 +42,29 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
-def crear_token(subject: str) -> str:
+def crear_token(subject: str, portal_id: str) -> str:
     s = get_settings()
     payload = {
         "sub": subject,
+        "portal": portal_id,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=s.jwt_expire_minutes),
     }
     return jwt.encode(payload, s.jwt_secret, algorithm=s.jwt_algorithm)
 
 
-def decodificar_token(token: str) -> str | None:
+def decodificar_token(token: str) -> DatosToken | None:
     s = get_settings()
     try:
         payload = jwt.decode(token, s.jwt_secret, algorithms=[s.jwt_algorithm])
     except jwt.PyJWTError:
         return None
     sub = payload.get("sub")
-    return sub if isinstance(sub, str) else None
+    portal = payload.get("portal")
+    # Ambos deben ser texto: un token sin `portal` (o con un valor no textual) no
+    # identifica el portal y no puede autorizarse; se descarta como inválido.
+    if not isinstance(sub, str) or not isinstance(portal, str):
+        return None
+    return DatosToken(email=sub, portal_id=portal)
 
 
 # --- Refresh tokens opacos -------------------------------------------------

@@ -9,6 +9,7 @@ import jwt
 from app.config import get_settings
 from app.models import AdminUser
 from app.security import crear_token, decodificar_token
+from app.servicios import PORTAL_DEFECTO_ID
 from tests.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
 
@@ -55,7 +56,11 @@ def test_login_de_usuario_desactivado_rechazado(client, db_session):
 
 
 def test_el_token_emitido_identifica_al_administrador(token):
-    assert decodificar_token(token) == ADMIN_EMAIL
+    datos = decodificar_token(token)
+    assert datos is not None
+    assert datos.email == ADMIN_EMAIL
+    # El token queda atado al portal del host donde se emitió (`default` en los tests).
+    assert datos.portal_id == PORTAL_DEFECTO_ID
 
 
 def test_admin_sin_token_rechazado(client):
@@ -81,7 +86,7 @@ def test_admin_con_token_caducado_rechazado(client):
 
 def test_admin_con_token_de_usuario_inexistente_rechazado(client):
     # Token bien firmado, pero de un administrador que no está en la base.
-    fantasma = crear_token("fantasma@test.local")
+    fantasma = crear_token("fantasma@test.local", PORTAL_DEFECTO_ID)
     r = client.get("/api/admin/articulos", headers={"Authorization": f"Bearer {fantasma}"})
     assert r.status_code == 401
 

@@ -10,5 +10,6 @@ export const rutas = {
   articulo: (idioma: Idioma, slug: string) => `/${idioma}/articulo/${slug}`,
   panel: (idioma: Idioma) => `/${idioma}/panel`,
   usuarios: (idioma: Idioma) => `/${idioma}/panel/usuarios`,
+  portales: (idioma: Idioma) => `/${idioma}/panel/portales`,
   login: (idioma: Idioma) => `/${idioma}/login`,
 }
