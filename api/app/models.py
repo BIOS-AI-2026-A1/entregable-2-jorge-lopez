@@ -21,6 +21,7 @@ from sqlalchemy import (
     LargeBinary,
     PrimaryKeyConstraint,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -28,9 +29,29 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.rag import EMBEDDING_DIM
 
 # JSONB en Postgres, JSON en el resto (permite testear en SQLite sin pgvector).
 JsonType = JSON().with_variant(JSONB(), "postgresql")
+
+
+def _vector_type():
+    """Tipo de columna para embeddings.
+
+    En Postgres es `pgvector.Vector(N)` (índice HNSW, distancia coseno). En
+    SQLite (tests) cae a `JSON` para que los modelos se puedan importar sin la
+    extensión: los tests no ejercitan distancia vectorial, solo lógica de
+    troceo, estado y aislamiento por portal (con dobles del proveedor de
+    embeddings). Espeja el patrón de `JsonType` con JSONB.
+    """
+    try:
+        from pgvector.sqlalchemy import Vector
+    except ImportError:  # pragma: no cover - dependencia opcional en el import de tests
+        return JSON()
+    return JSON().with_variant(Vector(EMBEDDING_DIM), "postgresql")
+
+
+VectorType = _vector_type()
 
 
 class NivelAcceso(enum.IntEnum):
@@ -378,6 +399,106 @@ class Ajustes(Base):
     # Logotipo subido (PNG/ICO). Nulo mientras no se suba ninguno.
     logo_bin: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     logo_mime: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class Documento(Base):
+    """Documento subido para el índice RAG.
+
+    Guarda **solo metadatos**: nombre, mime, idioma declarado, estado de la
+    ingesta y bytes del original (para diagnóstico y auditoría). El binario se
+    **descarta** tras extraer texto (ver design.md D7); si más adelante se
+    quisiera re-trocear sin re-subir, habría que persistirlo (patrón `marca.py`).
+
+    `portal_id` es obligatorio: el aislamiento por tenant se aplica al RAG
+    igual que al resto. La PK es entero autoincremental (el patrón de
+    `admin_users`/`preguntas_sin_resolver`): el id no tiene semántica de
+    negocio, así que no vale la pena hacerlo compuesto con portal.
+    """
+
+    __tablename__ = "documentos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String, nullable=False)
+    mime: Mapped[str] = mapped_column(String, nullable=False)
+    # `es`, `pt` o `ambos`. Se usará al filtrar por idioma en la recuperación
+    # futura; por defecto `ambos` (indexa contra ambos idiomas de artículos).
+    idioma: Mapped[str] = mapped_column(String, nullable=False, default="ambos")
+    # Ciclo: `pendiente` (recién creado) → `procesando` (extrayendo/embebiendo)
+    # → `listo` (todos los fragmentos indexados) | `error`. Si la ingesta falla
+    # la transacción hace rollback: no quedan fragmentos parciales del doc.
+    estado: Mapped[str] = mapped_column(String, nullable=False, default="pendiente")
+    error_detalle: Mapped[str | None] = mapped_column(String, nullable=True)
+    bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    fragmentos: Mapped[list[DocumentoChunk]] = relationship(
+        back_populates="documento", cascade="all, delete-orphan"
+    )
+
+
+class DocumentoChunk(Base):
+    """Fragmento de texto de un `Documento` con su embedding.
+
+    `ON DELETE CASCADE` desde el documento: borrar el documento arrastra sus
+    fragmentos y sus embeddings (se cumple el requisito «sin huérfanos»).
+    `portal_id` denormalizado desde el padre para acotar consultas por tenant
+    sin joins.
+    """
+
+    __tablename__ = "documento_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
+    documento_id: Mapped[int] = mapped_column(
+        ForeignKey("documentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    orden: Mapped[int] = mapped_column(Integer, nullable=False)
+    contenido: Mapped[str] = mapped_column(Text, nullable=False)
+    # `Vector(EMBEDDING_DIM)` en Postgres, JSON en SQLite (tests). El índice
+    # HNSW vive en la migración; el modelo no lo declara.
+    embedding: Mapped[list[float]] = mapped_column(VectorType, nullable=False)
+
+    documento: Mapped[Documento] = relationship(back_populates="fragmentos")
+
+
+class ArticuloChunk(Base):
+    """Fragmento de texto de un `Articulo` por idioma con su embedding.
+
+    Los artículos son bilingües (es/pt); el troceo produce una fila por idioma
+    y fragmento. La FK es **compuesta** hacia la PK por portal de `articulos`
+    (`(portal_id, articulo_id) → articulos(portal_id, id)`), no simple, porque
+    `articulos.pk = (portal_id, id)` desde la migración multi-tenant `0006`.
+    `ON DELETE CASCADE` cierra el requisito «al borrar un artículo, sus
+    fragmentos también».
+    """
+
+    __tablename__ = "articulo_chunks"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["portal_id", "articulo_id"],
+            ["articulos.portal_id", "articulos.id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id"), nullable=False, index=True
+    )
+    articulo_id: Mapped[str] = mapped_column(String, nullable=False)
+    # `es` | `pt`. Cada artículo tiene ambas traducciones (paridad obligatoria).
+    idioma: Mapped[str] = mapped_column(String, nullable=False)
+    orden: Mapped[int] = mapped_column(Integer, nullable=False)
+    contenido: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(VectorType, nullable=False)
 
 
 class ConfigIA(Base):

@@ -375,7 +375,13 @@ class LogoOut(BaseModel):
 # Proveedores admitidos. Anthropic (Claude) es el de por defecto. Anthropic y
 # DeepSeek tienen motor de traducción real; Google Translate queda como opción
 # listada sin motor (ver design.md del cambio `proveedor-deepseek-traduccion`).
-ProveedorIA = Literal["anthropic", "google", "deepseek"]
+# `voyage` (Voyage AI, adquirida por Anthropic en 2025) y `openai` se añaden
+# como proveedores de **embeddings** para el RAG (ingesta): NO tienen motor de
+# traducción activo aquí, solo la clave que consume `crear_embedder` (ver
+# design.md D4 del cambio `rag-ingesta`; DeepSeek no expone `/embeddings` y
+# Anthropic tampoco, así que el RAG usa Voyage por defecto —vía Anthropic— a
+# través de la misma abstracción OpenAI-compatible).
+ProveedorIA = Literal["anthropic", "google", "deepseek", "openai", "voyage"]
 
 
 class ProveedorEstado(BaseModel):
@@ -411,6 +417,37 @@ class ConfigIAIn(BaseModel):
     proveedorActivo: ProveedorIA
     proveedor: ProveedorIA | None = None
     clave: str | None = None
+
+
+# --- RAG: gestión de documentos (solo Administrador) ------------------------
+
+# Estado del ciclo de ingesta expuesto al panel. La transición la controla el
+# servidor: `pendiente` → `procesando` → `listo` | `error`.
+EstadoDocumento = Literal["pendiente", "procesando", "listo", "error"]
+
+# Idioma del documento cargado. `ambos` (por defecto) indica que el contenido
+# debe indexarse contra ambos idiomas de recuperación (es/pt).
+IdiomaDocumento = Literal["es", "pt", "ambos"]
+
+
+class DocumentoOut(BaseModel):
+    """Documento devuelto por el panel: metadatos y estado de la ingesta.
+
+    NUNCA incluye el binario (ya no existe: se descarta tras extraer texto) ni
+    los embeddings (irrelevantes para el panel). Las fechas viajan como ISO 8601.
+    """
+
+    id: int
+    nombre: str
+    mime: str
+    idioma: str
+    estado: EstadoDocumento
+    # `None` mientras el estado no es `error`; texto legible cuando falla la ingesta.
+    errorDetalle: str | None = None
+    # Tamaño del archivo original en bytes (para orientar al Administrador).
+    bytes: int
+    creado: str
+    actualizado: str
 
 
 # --- Traducción asistida por IA ---------------------------------------------

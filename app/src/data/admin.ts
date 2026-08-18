@@ -291,6 +291,58 @@ export function subirLogo(archivo: File): Promise<Response> {
   })
 }
 
+// ── Gestión de documentos (RAG, solo Administrador) ─────────────────────────
+
+/** Estado de la ingesta de un documento. Coincide con el enum del backend. */
+export type EstadoDocumento = 'pendiente' | 'procesando' | 'listo' | 'error'
+
+/** Documento devuelto por el backend. NUNCA lleva binario ni embeddings. */
+export interface DocumentoAdmin {
+  id: number
+  nombre: string
+  mime: string
+  idioma: 'es' | 'pt' | 'ambos'
+  estado: EstadoDocumento
+  errorDetalle: string | null
+  bytes: number
+  creado: string
+  actualizado: string
+}
+
+export function listarDocumentos(): Promise<Response> {
+  return apiFetch('/api/admin/documentos')
+}
+
+/**
+ * Consulta el estado de un documento. Se usa para hacer polling mientras la
+ * ingesta está en `procesando` (el POST responde antes de terminar).
+ */
+export function estadoDocumento(id: number): Promise<Response> {
+  return apiFetch(`/api/admin/documentos/${id}`)
+}
+
+/**
+ * Sube un documento como cuerpo binario crudo (patrón `subirLogo`). Se fija el
+ * `Content-Type` explícito para que `apiFetch` no lo trate como JSON; el nombre
+ * viaja en `Content-Disposition` para que el servidor lo guarde tal cual, y el
+ * idioma como query param.
+ */
+export function subirDocumento(archivo: File, idioma: 'es' | 'pt' | 'ambos' = 'ambos'): Promise<Response> {
+  const nombreCodificado = encodeURIComponent(archivo.name)
+  return apiFetch(`/api/admin/documentos?idioma=${idioma}`, {
+    method: 'POST',
+    body: archivo,
+    headers: {
+      'Content-Type': archivo.type || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename*=UTF-8''${nombreCodificado}`,
+    },
+  })
+}
+
+export function eliminarDocumento(id: number): Promise<Response> {
+  return apiFetch(`/api/admin/documentos/${id}`, { method: 'DELETE' })
+}
+
 // ── Traducción asistida por IA ──────────────────────────────────────────────
 
 /**

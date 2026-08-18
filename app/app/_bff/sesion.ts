@@ -28,7 +28,19 @@ export function limpiarSesion(resp: NextResponse): void {
   resp.cookies.set(COOKIE_REFRESH, '', opcionesBorrado())
 }
 
+// Códigos HTTP que, por RFC 9110, NO pueden llevar cuerpo. Undici valida esto
+// al construir la `Response`: pasar un `texto` (aunque sea `""`) con status 204
+// tira `TypeError: Response with null body status cannot have body`, que Next
+// convierte en 500 antes de que la respuesta llegue al cliente. Se pasa `null`
+// explícitamente para estos códigos (típicamente el 204 del DELETE).
+const STATUS_SIN_CUERPO = new Set([101, 204, 205, 304])
+
 function respuestaDesde(backendResp: Response, texto: string): NextResponse {
+  if (STATUS_SIN_CUERPO.has(backendResp.status)) {
+    // Sin cuerpo ni content-type: RFC 9110 §6.4.1 (una respuesta 204 no lleva
+    // cuerpo, y `content-type` sin cuerpo es semánticamente ambiguo).
+    return new NextResponse(null, { status: backendResp.status })
+  }
   return new NextResponse(texto, {
     status: backendResp.status,
     headers: { 'content-type': backendResp.headers.get('content-type') ?? 'application/json' },

@@ -65,6 +65,26 @@ cd api
 pytest                                            # SQLite en memoria, no requiere Postgres
 ```
 
+## Poblado inicial del índice RAG de artículos
+
+Tras aplicar la migración `0008_rag_chunks` (que crea `documentos`,
+`documento_chunks` y `articulo_chunks`), los **artículos existentes** no tienen
+todavía fragmentos indexados: el hook automático de `admin_articulos.py` solo
+cubre altas y ediciones a partir de ese momento. Para llenar el índice con los
+artículos que ya estaban:
+
+```powershell
+cd api
+.venv\Scripts\Activate.ps1
+python reindexar_articulos.py
+```
+
+Recorre todos los portales y todos sus artículos y regenera fragmentos e
+embeddings usando el proveedor configurado en `ConfigIA` (OpenAI, que
+SuperAdmin ha de haber configurado por el panel de IA). Es **idempotente**:
+volver a correrlo no duplica nada. También sirve como operación de
+mantenimiento si se cambia el modelo de embeddings (`EMBEDDING_DIM`).
+
 ## Resolución de portal y proxy de confianza (multi-tenant)
 
 El backend es **multi-tenant por host**: cada petición se atribuye a un portal (tenant) resolviendo su

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import portal_actual, requiere_nivel
+from app.ingesta import borrar_fragmentos_articulo, reindexar_articulo
 from app.models import Articulo, NivelAcceso, Portal
 from app.routers.comun import exigir_id_disponible, obtener_articulo_o_404, validar_relacionados
 from app.schemas import (
@@ -69,6 +70,7 @@ def traducir(
 @router.post("", response_model=ArticuloAdminOut, status_code=status.HTTP_201_CREATED)
 def crear(
     datos: ArticuloIn,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     portal: Portal = Depends(portal_actual),
 ) -> dict:
@@ -81,6 +83,10 @@ def crear(
     db.add(a)
     db.commit()
     db.refresh(a)
+    # Re-embedido en background: no penaliza la latencia de guardar. Si la
+    # clave de OpenAI no está configurada, la ingesta lo registra y no rompe
+    # la escritura del artículo (design.md D5/D8 del cambio `rag-ingesta`).
+    background.add_task(reindexar_articulo, portal.id, a.id)
     return articulo_a_admin_dict(a)
 
 
@@ -88,6 +94,7 @@ def crear(
 def actualizar(
     articulo_id: str,
     datos: ArticuloUpdateIn,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     portal: Portal = Depends(portal_actual),
 ) -> dict:
@@ -96,6 +103,7 @@ def actualizar(
     aplicar_datos_articulo(a, datos, incluir_id=False, portal_id=portal.id)
     db.commit()
     db.refresh(a)
+    background.add_task(reindexar_articulo, portal.id, a.id)
     return articulo_a_admin_dict(a)
 
 
@@ -105,5 +113,9 @@ def eliminar(
     db: Session = Depends(get_db),
     portal: Portal = Depends(portal_actual),
 ) -> None:
+    # Borrado explícito de fragmentos antes de la fila del artículo: cierra
+    # el requisito «sin huérfanos» incluso donde `ON DELETE CASCADE` no aplique
+    # (p. ej. SQLite sin PRAGMA), y lo hace observable en tests.
+    borrar_fragmentos_articulo(portal.id, articulo_id)
     db.delete(obtener_articulo_o_404(db, portal.id, articulo_id))
     db.commit()

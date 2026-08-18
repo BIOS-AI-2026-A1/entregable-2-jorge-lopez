@@ -27,7 +27,14 @@ from app.schemas import ConfigIAIn, ConfigIAOut, ProveedorEstado
 from app.servicios_ia import CONFIG_IA_ID, PROVEEDOR_POR_DEFECTO
 
 # Proveedores admitidos (coincide con el Literal `ProveedorIA` de schemas).
-PROVEEDORES: tuple[str, ...] = ("anthropic", "google", "deepseek")
+# `voyage` (Voyage AI, la vía canónica de embeddings recomendada por Anthropic)
+# y `openai` se listan para que SuperAdmin pueda guardar sus claves —usadas por
+# la ingesta RAG para generar embeddings (design.md D4 de `rag-ingesta`)—; NO
+# tienen motor de traducción, así que seleccionar cualquiera como
+# `proveedorActivo` de traducción devolverá `ProveedorNoConfigurado` como ya
+# ocurre con `google`. El embedder efectivo se toma de `voyage` por defecto
+# (ver `PROVEEDOR_EMBEDDINGS` en `servicios_ia.py`).
+PROVEEDORES: tuple[str, ...] = ("anthropic", "google", "deepseek", "openai", "voyage")
 
 # Nº de caracteres finales que se revelan como pista y longitud mínima de clave
 # para revelarlos: por debajo de este umbral, mostrar el final descubriría casi

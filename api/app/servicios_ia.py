@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.cifrado import CifradoNoConfigurado, descifrar
 from app.database import get_db
 from app.models import ConfigIA
+from app.rag import EMBEDDING_MODELO, URL_BASE_EMBEDDINGS
 from app.schemas import TraduccionArticuloIn
 
 # Proveedor efectivo por defecto si aún no hay fila de configuración.
@@ -203,6 +204,89 @@ def crear_proveedor(db: Session) -> ProveedorTraduccion:
 def obtener_traductor(db: Session = Depends(get_db)) -> ProveedorTraduccion:
     """Dependencia de FastAPI. Se sustituye en tests con `dependency_overrides`."""
     return crear_proveedor(db)
+
+
+# --- Embeddings (RAG) -------------------------------------------------------
+# Ninguno de los proveedores con motor de traducción activo expone embeddings:
+#   - DeepSeek: HTTP 404 en `/embeddings` (verificado contra la API real).
+#   - Anthropic: no ofrece endpoint de embeddings; su propia documentación
+#     recomienda Voyage AI como proveedor de embeddings para RAG con Claude.
+# La ingesta RAG usa **Voyage AI** (adquirida por Anthropic en 2025) a través
+# de la misma abstracción OpenAI-compatible: Voyage expone `POST /v1/embeddings`
+# con el mismo shape que OpenAI, así que reutilizamos el SDK de `openai`
+# apuntando a la `base_url` de Voyage (ver `app.rag.URL_BASE_EMBEDDINGS`). La
+# clave se guarda cifrada bajo el proveedor "voyage" en `ConfigIA.claves`
+# (SuperAdmin la introduce por el panel de configuración de IA).
+
+# Proveedor efectivo del que se toman los embeddings. No se lee de
+# `proveedor_activo` porque ese campo determina la **traducción**: el RAG usa
+# siempre Voyage, con su propia entrada en `claves`.
+PROVEEDOR_EMBEDDINGS = "voyage"
+
+
+class ProveedorEmbeddings(Protocol):
+    """Contrato de un proveedor de embeddings OpenAI-compatible.
+
+    `embeber` recibe una lista de textos y devuelve una lista de vectores de
+    la misma longitud, cada vector con `EMBEDDING_DIM` componentes. Los tests
+    lo sustituyen por un doble determinista (vectores fijos por longitud del
+    texto o similares) para no llamar a la red ni exigir clave real.
+    """
+
+    def embeber(self, textos: list[str]) -> list[list[float]]: ...
+
+
+class ProveedorEmbeddingsCompatible:
+    """Embeddings vía un proveedor con endpoint OpenAI-compatible.
+
+    Sirve para Voyage AI (proveedor por defecto tras adquisición por Anthropic),
+    OpenAI o cualquier otro proveedor que exponga `POST /v1/embeddings` con el
+    mismo shape. Importa el SDK de `openai` de forma perezosa (como los
+    proveedores de traducción) para que el módulo se pueda importar aunque el
+    paquete no esté instalado (p. ej. en tests que sustituyen el proveedor).
+    Un solo `create` acepta la lista de textos completa, así que la ingesta
+    manda todos los fragmentos de un documento en una única llamada por lote.
+    """
+
+    def __init__(self, api_key: str, base_url: str = URL_BASE_EMBEDDINGS) -> None:
+        self._api_key = api_key
+        self._base_url = base_url
+
+    def embeber(self, textos: list[str]) -> list[list[float]]:
+        if not textos:
+            return []
+        try:
+            from openai import OpenAI
+        except ImportError as exc:  # pragma: no cover - depende del entorno
+            raise ErrorProveedor("El SDK de OpenAI no está instalado.") from exc
+        cliente = OpenAI(api_key=self._api_key, base_url=self._base_url)
+        try:
+            respuesta = cliente.embeddings.create(
+                model=EMBEDDING_MODELO,
+                input=textos,
+            )
+        except Exception as exc:  # red, autenticación, límite del proveedor
+            raise ErrorProveedor(str(exc)) from exc
+        # La respuesta preserva el orden de la entrada; `data[i]` es el
+        # embedding de `textos[i]`.
+        return [dato.embedding for dato in respuesta.data]
+
+
+def crear_embedder(db: Session) -> ProveedorEmbeddings:
+    """Resuelve el proveedor de embeddings a partir de `ConfigIA`.
+
+    Toma la clave del proveedor "voyage" (que SuperAdmin configura por el panel
+    de IA). Si no hay clave, levanta `ProveedorNoConfigurado("voyage")`: el
+    router lo mapea a un `error_detalle` legible en el documento.
+    """
+    config = db.get(ConfigIA, CONFIG_IA_ID)
+    clave = _clave_del_proveedor(config, PROVEEDOR_EMBEDDINGS)
+    return ProveedorEmbeddingsCompatible(clave)
+
+
+def obtener_embedder(db: Session = Depends(get_db)) -> ProveedorEmbeddings:
+    """Dependencia de FastAPI. Se sustituye en tests con `dependency_overrides`."""
+    return crear_embedder(db)
 
 
 def _longitud_lista(valor: object) -> int:
