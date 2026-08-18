@@ -289,6 +289,122 @@ def obtener_embedder(db: Session = Depends(get_db)) -> ProveedorEmbeddings:
     return crear_embedder(db)
 
 
+# --- Chat (RAG) -------------------------------------------------------------
+# El chat del centro de ayuda con RAG usa el mismo proveedor que la traducción
+# (DeepSeek por defecto, salvo que SuperAdmin lo cambie): son dos usos del
+# mismo LLM. El proveedor se resuelve de `ConfigIA.proveedor_activo` y
+# `ConfigIA.modelo_chat` (fallback `deepseek-chat`); el chat NO usa la lista
+# de proveedores de embeddings (esa la controla `crear_embedder`). La separación
+# entre proveedor de chat y proveedor de embeddings en la UI de SuperAdmin queda
+# para un cambio posterior (ver design.md D6 del cambio `chat-rag-portal`).
+
+# Modelo del chat efectivo cuando `ConfigIA.modelo_chat` es NULL. Coincide con
+# `MODELO_DEEPSEEK` a propósito: DeepSeek es el proveedor por defecto para el
+# chat (el elegido durante el diseño); si SuperAdmin cambia el proveedor activo
+# a Anthropic, el modelo cae al de traducción de ese proveedor.
+MODELO_CHAT_POR_DEFECTO = MODELO_DEEPSEEK
+# Temperatura por defecto del chat cuando `ConfigIA.temperatura_chat` es NULL.
+# Baja a propósito: el chat cita fuentes y no debe inventar.
+TEMPERATURA_CHAT_POR_DEFECTO = 0.2
+# Techo de tokens de salida del chat. Suficiente para una respuesta larga con
+# citas; corta desbordes de coste.
+MAX_TOKENS_CHAT = 1024
+# Timeout HTTP para la llamada al proveedor de chat. Corto: el usuario espera
+# en pantalla; si el proveedor tarda más, es mejor devolver `escalar` que colgar.
+TIMEOUT_CHAT_SEG = 30.0
+
+
+class ProveedorChat(Protocol):
+    """Contrato mínimo para un proveedor de completions estilo chat (OpenAI-compatible).
+
+    `completar` recibe la lista completa de mensajes (`role` + `content`) que el
+    pipeline del chat compone con separación instrucción/dato, y devuelve el
+    contenido del primer choice como string. `response_format_json=True` fuerza
+    salida JSON cuando el proveedor lo soporta. `temperature` y `max_tokens`
+    son parámetros por llamada porque el clasificador de scope y la generación
+    usan distintos valores.
+    """
+
+    def completar(
+        self,
+        messages: list[dict],
+        *,
+        response_format_json: bool,
+        temperature: float,
+        max_tokens: int,
+    ) -> str: ...
+
+
+class ProveedorChatDeepSeek:
+    """Chat con DeepSeek (OpenAI-compatible), reutilizando el patrón de
+    `ProveedorDeepSeek` (traducción). Importa el SDK de forma perezosa para que
+    el módulo se pueda importar aunque el paquete no esté instalado (tests que
+    sustituyen el proveedor)."""
+
+    def __init__(self, api_key: str, modelo: str) -> None:
+        self._api_key = api_key
+        self._modelo = modelo
+
+    def completar(
+        self,
+        messages: list[dict],
+        *,
+        response_format_json: bool,
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
+        try:
+            from openai import OpenAI
+        except ImportError as exc:  # pragma: no cover - depende del entorno
+            raise ErrorProveedor("El SDK de OpenAI (para DeepSeek) no está instalado.") from exc
+
+        cliente = OpenAI(
+            api_key=self._api_key,
+            base_url=URL_BASE_DEEPSEEK,
+            timeout=TIMEOUT_CHAT_SEG,
+        )
+        kwargs: dict = {
+            "model": self._modelo,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if response_format_json:
+            kwargs["response_format"] = {"type": "json_object"}
+        try:
+            respuesta = cliente.chat.completions.create(**kwargs)
+        except Exception as exc:  # red, autenticación, límite del proveedor
+            raise ErrorProveedor(str(exc)) from exc
+        return respuesta.choices[0].message.content or ""
+
+
+def crear_chat(db: Session) -> ProveedorChat:
+    """Resuelve el proveedor de chat a partir de `ConfigIA`.
+
+    Toma el proveedor activo (`ConfigIA.proveedor_activo`) y su clave; el modelo
+    sale de `ConfigIA.modelo_chat` con fallback a `MODELO_CHAT_POR_DEFECTO`. Un
+    proveedor no soportado o sin clave levanta `ProveedorNoConfigurado`, que el
+    router mapea a 409 (patrón simétrico a `crear_proveedor`).
+    """
+    config = db.get(ConfigIA, CONFIG_IA_ID)
+    proveedor = config.proveedor_activo if config is not None else PROVEEDOR_POR_DEFECTO
+    clave = _clave_del_proveedor(config, proveedor)
+    modelo = (config.modelo_chat if config is not None else None) or MODELO_CHAT_POR_DEFECTO
+    if proveedor == "deepseek":
+        return ProveedorChatDeepSeek(clave, modelo)
+    # Anthropic y el resto podrían implementarse detrás del mismo Protocol. Por
+    # ahora el chat solo soporta DeepSeek; la traducción sigue disponible con
+    # Anthropic. Si SuperAdmin cambia el proveedor activo a Anthropic sin
+    # implementar `ProveedorChatAnthropic`, el chat responde "no configurado"
+    # y la traducción sigue funcionando.
+    raise ProveedorNoConfigurado(proveedor)
+
+
+def obtener_chat(db: Session = Depends(get_db)) -> ProveedorChat:
+    """Dependencia de FastAPI. Se sustituye en tests con `dependency_overrides`."""
+    return crear_chat(db)
+
+
 def _longitud_lista(valor: object) -> int:
     """Longitud si es lista; -1 si no lo es (para que nunca coincida con una lista real)."""
     return len(valor) if isinstance(valor, list) else -1

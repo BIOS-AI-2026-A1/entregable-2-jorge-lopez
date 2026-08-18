@@ -32,13 +32,35 @@ def _host_de_confianza(request: Request) -> str:
     (llamada directa, como en los tests), se cae al `Host`. Se toma solo el primer valor
     de la lista `X-Forwarded-Host` (el del cliente, no los saltos intermedios).
 
-    Nota de despliegue: que el backend no sea alcanzable sin pasar por el proxy de confianza
-    —para que `X-Forwarded-Host` no se pueda suplantar y con él el portal— se documenta en
-    `api/README.md` › «Resolución de portal y proxy de confianza».
+    `X-Forwarded-Host` solo se acepta cuando el peer inmediato está en
+    `proxies_confiables`: un cliente que llegue directo al puerto del backend
+    (bypassing el proxy) no puede suplantar el portal fabricando esa cabecera.
+    Los tests que llaman al `TestClient` de Starlette ven `request.client=None`
+    y caen al `Host`, así el aislamiento del test se mantiene igual.
     """
-    reenviado = request.headers.get("x-forwarded-host")
-    bruto = reenviado.split(",", 1)[0] if reenviado else request.headers.get("host")
+    if _peer_confiable(request):
+        reenviado = request.headers.get("x-forwarded-host")
+        bruto = reenviado.split(",", 1)[0] if reenviado else request.headers.get("host")
+    else:
+        bruto = request.headers.get("host")
     return normalizar_host(bruto)
+
+
+def _peer_confiable(request: Request) -> bool:
+    """`True` si el salto inmediato ante el backend está en `proxies_confiables`.
+
+    Cuando FastAPI se accede por `TestClient` (`request.client is None`) se
+    permite: los tests son entorno confiable y llaman a la app en proceso; no
+    hay red que suplantar. En Windows y con uvicorn dual-stack, un cliente
+    IPv4 puede llegar como IPv4-mapeada-en-IPv6 (`::ffff:127.0.0.1`); se
+    normaliza para que el peer confiable no dependa de la representación.
+    """
+    if request.client is None:
+        return True
+    peer = request.client.host
+    if peer.startswith("::ffff:"):
+        peer = peer[len("::ffff:") :]
+    return peer in get_settings().proxies_confiables_set
 
 
 def portal_actual(request: Request, db: Session = Depends(get_db)) -> Portal:

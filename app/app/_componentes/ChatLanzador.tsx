@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import type { ContenidoIdioma, Idioma } from '@/types'
+import type { Idioma } from '@/types'
 import { traducir } from '@/i18n/traducir'
 import { Ic } from '@/components/iconos'
 import { ChatWidget } from './ChatWidget'
@@ -9,8 +9,11 @@ import { ChatWidget } from './ChatWidget'
 /**
  * Botón flotante + diálogo del asistente. Mantiene el estado de apertura y
  * devuelve el foco al botón al cerrar (antes vivía en el `Layout` de la SPA).
+ *
+ * El widget ya no necesita `ContenidoIdioma`: las citas y las fuentes vienen del
+ * backend (`/api/{idioma}/chat/consultar`), no del contenido del portal.
  */
-export function ChatLanzador({ idioma, contenido }: { idioma: Idioma; contenido: ContenidoIdioma }) {
+export function ChatLanzador({ idioma }: { idioma: Idioma }) {
   const t = traducir(idioma)
   const [abierto, setAbierto] = useState(false)
   const botonRef = useRef<HTMLButtonElement>(null)
@@ -22,7 +25,7 @@ export function ChatLanzador({ idioma, contenido }: { idioma: Idioma; contenido:
 
   return (
     <>
-      {abierto && <ChatWidget idioma={idioma} contenido={contenido} onClose={cerrar} />}
+      {abierto && <ChatWidget idioma={idioma} onClose={cerrar} />}
 
       {!abierto && (
         <button

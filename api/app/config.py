@@ -60,6 +60,48 @@ class Settings(BaseSettings):
     #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     clave_cifrado_ia: str | None = None
 
+    # --- Chat con RAG por portal ---------------------------------------------
+    # Los valores por defecto se calibraron con `voyage-3` (1024 dims) y `deepseek-chat`:
+    # umbral y top-k son la mínima ceremonia para distinguir «sin resultados» de un
+    # hit real; los límites de entrada, historial y tasa cortan payloads y abuso antes
+    # de tocar al proveedor (ver spec `chat-generativo-rag`).
+
+    # Similitud mínima (coseno) que un fragmento debe superar para considerarse
+    # relevante. Por debajo se descarta y el pipeline devuelve `sin_resultados`
+    # en lugar de improvisar.
+    rag_umbral_similitud: float = 0.28
+    # Cota superior de fragmentos que el recuperador devuelve al pipeline.
+    rag_top_k: int = 6
+
+    # Máximo de caracteres aceptado en la consulta del usuario antes de invocar al
+    # proveedor. Corta consultas desmesuradas (defensa contra abuso e inyección).
+    chat_max_consulta_chars: int = 500
+    # Últimos turnos de historial que el pipeline conserva al componer el prompt.
+    chat_max_historial_turnos: int = 10
+    # Nº de `sin_resultados` consecutivos por sesión tras el que se escala a soporte.
+    chat_umbral_turnos_sin_resultados: int = 2
+    # Vida útil de una sesión de chat en memoria del proceso (segundos). Al vencer,
+    # el contador de turnos sin resultados se pierde y se emite un `session_id` nuevo.
+    chat_ttl_sesion_seg: int = 1800
+    # Techo de peticiones por IP y minuto al endpoint público del chat.
+    chat_limite_tasa_min: int = 30
+    # Interruptor de mantenimiento: `false` responde 503 sin invocar al proveedor.
+    chat_habilitado: bool = True
+
+    # --- Proxies de confianza (X-Forwarded-*) --------------------------------
+    # Lista separada por comas de IPs del salto inmediato ante el backend cuyo
+    # `X-Forwarded-For` y `X-Forwarded-Host` se aceptan como fuente del cliente
+    # y del portal. Cualquier otra IP peer se ignora: se cae al socket para la
+    # IP y al `Host` para el portal, previniendo suplantación por un cliente
+    # que fabrique esas cabeceras y llegue directo al puerto del backend.
+    # Default: loopback (dev con Next → uvicorn en la misma máquina). En
+    # producción, la IP del reverse proxy (nginx/traefik/etc.) debe estar aquí.
+    proxies_confiables: str = "127.0.0.1,::1"
+
+    @property
+    def proxies_confiables_set(self) -> frozenset[str]:
+        return frozenset(p.strip() for p in self.proxies_confiables.split(",") if p.strip())
+
 
 @lru_cache
 def get_settings() -> Settings:
