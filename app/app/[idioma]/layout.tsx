@@ -118,7 +118,7 @@ export default async function LayoutIdioma({
               <SkipLink idioma={idioma} />
               <AppHeader idioma={idioma} empresa={contenido?.empresa} logo={contenido?.logo} />
               {children}
-              {contenido && <ChatLanzador idioma={idioma} contenido={contenido} />}
+              {contenido && <ChatLanzador idioma={idioma} />}
             </>
           )}
         </div>

@@ -459,3 +459,95 @@ class TraduccionPeticionIn(BaseModel):
 
     origen: Idioma
     contenido: TraduccionArticuloIn
+
+
+# --- Chat con RAG (endpoint público) ----------------------------------------
+
+# Roles del historial que el cliente envía. `usuario` y `asistente` en lugar de
+# `user`/`assistant` para mantener la nomenclatura del resto de la API.
+#
+# El input del cliente SOLO admite `usuario`. Aceptar `asistente` permitiría a un
+# atacante inyectar un turno de "asistente anterior" que el LLM tiende a tratar
+# como contexto autoritativo (fake-history prompt injection). El historial de
+# asistente en la conversación devuelta al cliente (para el mailto de
+# escalamiento) sigue existiendo, pero se serializa desde el server, no viene
+# del cliente. Persistir historial server-side ligado a `session_id` queda para
+# el cambio posterior `historial-chat-server`.
+RolTurnoIn = Literal["usuario"]
+RolTurno = Literal["usuario", "asistente"]
+
+# Longitud máxima de un turno del historial que el cliente adjunta. Espeja
+# `CHAT_MAX_CONSULTA_CHARS` (500) pero se declara aquí como cota estructural
+# para cortar payloads antes de invocar al pipeline.
+MAX_TURNO_CHARS = 500
+
+
+class TurnoChatIn(BaseModel):
+    """Turno del historial que el cliente adjunta a la consulta. Solo `usuario`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rol: RolTurnoIn
+    texto: str = Field(min_length=1, max_length=MAX_TURNO_CHARS)
+
+
+class TurnoChat(BaseModel):
+    """Turno serializado que devuelve el endpoint (conversación para escalamiento)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rol: RolTurno
+    texto: str = Field(min_length=1, max_length=MAX_TURNO_CHARS)
+
+
+class FuenteChatOut(BaseModel):
+    """Fuente citada en la respuesta del chat, para renderizar el bloque de fuentes."""
+
+    n: int
+    tipo: Literal["articulo", "documento"]
+    titulo: str
+    # `slug` está presente para artículos (permite construir el enlace en el
+    # cliente vía `rutas.articulo(idioma, slug)`); vacío para documentos.
+    slug: str = ""
+
+
+VeredictoChat = Literal["respondida", "sin_resultados", "fuera_de_scope", "escalar"]
+RazonEscalamientoChat = Literal[
+    "solicitud_usuaria", "sin_resultados", "tope_turnos", "error_proveedor"
+]
+
+
+class ChatConsultaIn(BaseModel):
+    """Entrada del endpoint público de chat. El `portal_id` NO se acepta: el
+    servidor lo resuelve del host y cualquier valor que envíe el cliente se
+    ignora silenciosamente (extra=`ignore`)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    # Longitud validada estructuralmente aquí y de nuevo en el pipeline (para
+    # que la función `responder` sea autosuficiente en tests unitarios).
+    consulta: str = Field(min_length=1, max_length=MAX_TURNO_CHARS)
+    # `session_id` opaco emitido por el servidor. `None` en la primera consulta.
+    session_id: str | None = None
+    # Historial que el cliente conserva localmente (el servidor no lo persiste).
+    # Cotas estructurales: 50 turnos máx (el pipeline se queda con los últimos N).
+    # Solo turnos de `usuario`: ver `TurnoChatIn`.
+    historial: list[TurnoChatIn] = Field(default_factory=list, max_length=50)
+    # Bandera de escalamiento explícito desde el widget ("contactar soporte").
+    solicitar_soporte: bool = False
+
+
+class ChatConsultaOut(BaseModel):
+    """Salida del endpoint público de chat.
+
+    `session_id` viaja siempre (emitido o renovado). `fuentes` solo trae valores
+    con `veredicto: respondida`. `razon` y `conversacion` solo con
+    `veredicto: escalar`. `fuera_de_scope` no lleva ni fuentes ni conversación.
+    """
+
+    veredicto: VeredictoChat
+    mensaje: str
+    session_id: str
+    fuentes: list[FuenteChatOut] = Field(default_factory=list)
+    razon: RazonEscalamientoChat | None = None
+    conversacion: list[TurnoChat] = Field(default_factory=list)

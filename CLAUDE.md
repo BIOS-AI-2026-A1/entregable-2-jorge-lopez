@@ -69,9 +69,19 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
 - **Marca por portal:** logo, color de acento (con las paradas del banner) y nombre de empresa dejan de ser
   globales y pasan a ser ajustes **por portal**; el SSR carga la marca del portal resuelto y sirve su favicon
   desde el propio host, sin fuga ni parpadeo entre portales.
+- **Chat con RAG por portal** (cambio OpenSpec `chat-rag-portal`): endpoint público Anonymous
+  `POST /api/{idioma}/chat/consultar` que responde SOLO con base en los artículos y documentos indexados
+  del portal resuelto por host. Pipeline en `app/chat.py`: clasificador de scope (LLM con temperatura 0)
+  → recuperación vectorial acotada al portal (`app/recuperador.py`, pgvector coseno con fallback SQLite
+  para tests) → generación con JSON estricto y validación de citas contra fragmentos y `portal_id`. Sesión
+  efímera en memoria (`app/sesiones_chat.py`) con TTL; escalamiento a soporte por umbral de
+  `sin_resultados` o petición explícita (`solicitar_soporte: true`). Aún se contempla implementación
+  única en DeepSeek para el motor de chat; Voyage AI para embeddings; Anthropic y DeepSeek para
+  traducción. El refactor de la configuración de IA para separar los tres roles queda en el cambio
+  posterior `separar-proveedores-ia`.
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
-  usuarios (Administrador), marca por portal, resolución de portal por host y gestión de portales
-  (SuperAdmin) ahora; **RAG solo diseñado**, no construido.
+  usuarios (Administrador), marca por portal, resolución de portal por host, gestión de portales
+  (SuperAdmin), ingesta RAG por portal y **chat con RAG por portal** ahora.
 
 ## Convenciones
 
@@ -102,6 +112,20 @@ Lo establecido hasta ahora:
   `nombre_empresa` **del portal resuelto** (atributo del portal), no un ajuste global de la instalación.
 - **Secretos fuera del repo:** cadena de conexión, secreto de firma JWT y credenciales de administrador van
   en variables de entorno (`.env` ignorado), con un `.env.example` sin valores reales.
+- **Guardarraíles del chat generativo:** el chat público es Anonymous y NO responde nada fuera de los
+  artículos/documentos indexados del portal resuelto por host. Separación estricta instrucción/dato: el
+  prompt de sistema lleva solo reglas; consulta y fragmentos viajan como `role: user` dentro de un
+  delimitador `<contenido_no_confiable_<nonce>>` con **nonce aleatorio por petición** (para que un atacante
+  no pueda cerrar la etiqueta y reabrir instrucciones). El cliente **solo puede enviar turnos de
+  `usuario`** en el historial (`TurnoChatIn`, schema); aceptar `asistente` permitiría inyectar un
+  "asistente anterior" que el LLM trataría como contexto autoritativo. La salida del LLM se valida con
+  Pydantic strict (`extra="forbid"`), y las citas se cruzan contra los fragmentos recuperados **y** el
+  `portal_id` del host (defensa en profundidad frente a cita cruzada de portal → `sin_resultados`).
+- **Proxies confiables (`X-Forwarded-*`):** el backend solo confía en `X-Forwarded-Host` (fuente del
+  portal) y `X-Forwarded-For` (IP del cliente para el rate limit) cuando el peer inmediato está en la
+  allow-list `PROXIES_CONFIABLES`. Sin esta comprobación, un cliente que llegase directo al puerto del
+  backend podría suplantar el portal o colapsar toda la audiencia bajo la IP del proxy y disparar
+  denegaciones cruzadas. Default `127.0.0.1,::1` (dev); en producción, la IP del reverse proxy y NADA más.
 - **Licencia: Business Source License 1.1** (`LICENSE`, con `license: "BUSL-1.1"` en `app/package.json` y
   `api/pyproject.toml`). Se eligió por el objetivo declarado de convertir esto en un producto/negocio
   propio (SaaS con capa gratuita) sin renunciar al espíritu de código abierto: el código es visible y
@@ -118,16 +142,22 @@ Naming, formato, estrategia de tests y estructura de carpetas de código: _por d
 ```
 app/                  Frontend Next.js (App Router)
   app/[idioma]/       Rutas por idioma: inicio, artículo, login, panel, usuarios, portales (SuperAdmin), error y 404
-  app/api/            Route Handlers del BFF (auth y proxy de /api/admin/* con la cookie)
-  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next (incl. GestionPortales)
+  app/api/            Route Handlers del BFF: auth, proxy de /api/admin/* con la cookie, y BFF Anonymous
+                      del chat público en app/api/[idioma]/chat/consultar/route.ts (reenvía X-Forwarded-Host
+                      + X-Forwarded-For sin adjuntar cookie)
+  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next (incl. ChatWidget, GestionPortales)
   proxy.ts            Guardia del panel en el borde + resolución de portal por host + CSP con nonce (antes middleware.ts)
   src/components/     Componentes reutilizados (Tabs, Modal, formularios, chips, iconos, acordeón)
   src/bff/            Cookies httpOnly, cliente del panel (apiFetch) y resolución de portal por host (portal.ts)
   src/seguridad/      Construcción de la CSP
   src/data/{es,pt}/   Contenido tipado por idioma (alimenta el seed y los tests de paridad, por portal)
+  src/data/chat.ts    Cliente del BFF del chat, tipos (`TurnoChat`, `RespuestaChat`, veredicto discriminado)
+                      y serializador de conversación para el mailto de escalamiento
   src/i18n/           i18next: traductor isomórfico, traducciones y rutas
   src/types.ts        Contrato de datos
-api/                  Backend FastAPI (modelos, routers, portales.py, admin_portales, auth, seed, tests; ver api/README.md)
+api/                  Backend FastAPI (modelos, routers, portales.py, admin_portales, auth, seed, tests, y
+                      pipeline de chat en app/chat.py + app/recuperador.py + app/sesiones_chat.py +
+                      app/routers/chat.py; ver api/README.md)
 docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
 .claude/agents/       Subagentes del proyecto (vacío, reservado)
 .claude/skills/       Skills del proyecto: crear-pr (flujo de PR) y los de OpenSpec

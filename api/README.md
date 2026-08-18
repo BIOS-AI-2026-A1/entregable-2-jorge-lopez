@@ -1,12 +1,12 @@
 # Backend — Centro de Ayuda API
 
-FastAPI + PostgreSQL (pgvector). Sirve el contenido bilingüe, el CRUD de artículos y la autenticación del
-panel interno. Es **multi-tenant por portal** (cambio OpenSpec `multi-tenant-portales`): una sola instalación
-sirve a varios clientes discriminando todos los datos por `portal_id`, y el portal se resuelve **del host de
-la petición** (ver "Resolución de portal y proxy de confianza"). El control de acceso tiene cuatro niveles
-jerárquicos `SUPERADMIN=4 > ADMINISTRADOR=3 > EDITOR=2 > ANONIMO=1`; `requiere_nivel` exige nivel suficiente
-**y** pertenencia al portal del host (recurso de otro portal por id directo → 404). El RAG queda diseñado
-(ver `../docs/plans/rag-centro-ayuda-preliminar.md`), no construido.
+FastAPI + PostgreSQL (pgvector). Sirve el contenido bilingüe, el CRUD de artículos, la autenticación del
+panel interno, la ingesta RAG por portal y el **chat generativo con RAG por portal** (cambio OpenSpec
+`chat-rag-portal`). Es **multi-tenant por portal** (cambio OpenSpec `multi-tenant-portales`): una sola
+instalación sirve a varios clientes discriminando todos los datos por `portal_id`, y el portal se resuelve
+**del host de la petición** (ver "Resolución de portal y proxy de confianza"). El control de acceso tiene
+cuatro niveles jerárquicos `SUPERADMIN=4 > ADMINISTRADOR=3 > EDITOR=2 > ANONIMO=1`; `requiere_nivel` exige
+nivel suficiente **y** pertenencia al portal del host (recurso de otro portal por id directo → 404).
 
 ## Arranque diario (cada sesión)
 
@@ -85,6 +85,63 @@ SuperAdmin ha de haber configurado por el panel de IA). Es **idempotente**:
 volver a correrlo no duplica nada. También sirve como operación de
 mantenimiento si se cambia el modelo de embeddings (`EMBEDDING_DIM`).
 
+## Chat generativo con RAG por portal
+
+Endpoint público Anonymous `POST /api/{idioma}/chat/consultar` (`app/routers/chat.py`). El pipeline
+(`app/chat.py::responder`) responde SOLO con base en los fragmentos indexados del portal resuelto por
+host:
+
+1. **Validación estructural** (schema `ChatConsultaIn`): consulta con longitud acotada
+   (`CHAT_MAX_CONSULTA_CHARS`), historial con máximo 50 turnos y **solo `rol: usuario`** (schema
+   `TurnoChatIn`; aceptar `asistente` permitiría inyectar un "asistente falso" que el LLM trataría como
+   contexto autoritativo). Cualquier `portal_id` en el cuerpo se ignora.
+2. **Interruptor de mantenimiento** (`CHAT_HABILITADO=false` → 503) y **límite de tasa por IP** con
+   ventana deslizante en memoria (`CHAT_LIMITE_TASA_MIN` req/min, dict acotado a 10 000 IPs con purga
+   perezosa).
+3. **Corto-circuito `solicitar_soporte: true`** → `veredicto: escalar`, `razon: solicitud_usuaria`, sin
+   llamar al proveedor.
+4. **Clasificador de scope** (LLM, temperatura 0, ~5 tokens): `EN_SCOPE` / `FUERA_DE_SCOPE`. Si la salida
+   es otra, se asume `EN_SCOPE` (política conservadora). `FUERA_DE_SCOPE` → rechazo sin recuperar ni
+   generar.
+5. **Recuperación vectorial** (`app/recuperador.py::recuperar`): embedding de la consulta con Voyage AI
+   por defecto, búsqueda en `articulo_chunks` (filtrada por `portal_id` **e** `idioma`) unida con
+   `documento_chunks` (filtrada por `portal_id`), coseno pgvector (o cálculo en Python bajo SQLite para
+   los tests), umbral `RAG_UMBRAL_SIMILITUD` y tope `RAG_TOP_K`. Sin fragmentos por encima del umbral →
+   `sin_resultados`; el contador de la sesión (`app/sesiones_chat.py`) se incrementa y a los
+   `CHAT_UMBRAL_TURNOS_SIN_RESULTADOS` seguidos escala con `razon: tope_turnos`.
+6. **Generación con JSON estricto**: `role: system` con reglas + formato; `role: user` con cada turno
+   histórico envuelto en el delimitador; `role: user` con la consulta y los fragmentos numerados.
+7. **Validación de la salida**: parseo Pydantic `extra="forbid"`; cada `[n]` citada existe en los
+   fragmentos entregados **y** pertenece al `portal_id` del host (defensa en profundidad contra cita
+   cruzada); ante fallo → `sin_resultados`. `respondida` resetea el contador de la sesión.
+8. **Ninguna salida cruda del LLM llega al cliente**: los errores del proveedor caen a
+   `veredicto: escalar razon: error_proveedor` con mensaje bilingüe genérico.
+
+### Guardarraíles contra inyección de prompts
+
+- **Separación instrucción/dato**: prompt de sistema con solo reglas; consulta, historial y fragmentos
+  como `role: user` dentro de `<contenido_no_confiable_<nonce>>` con **nonce aleatorio por petición**
+  (`secrets.token_urlsafe`). Un atacante que quiera cerrar la etiqueta necesitaría adivinar el nonce.
+- **Saneo del literal base**: `_sanear()` elimina cualquier ocurrencia de `</?contenido_no_confiable*>`
+  del texto no confiable (belt + suspenders sobre el nonce).
+- **Historial de solo usuario** en el schema (`TurnoChatIn`); la conversación completa con turnos de
+  asistente sigue viajando de vuelta al cliente en `RespuestaChat.conversacion` para el mailto de
+  escalamiento, serializada en el servidor.
+- **Aislamiento por portal end-to-end**: `portal_id` resuelto del host + validación de citas contra
+  `portal_id` del fragmento; el schema del recuperador filtra por `portal_id` en cada consulta a pgvector.
+
+Persistir el historial server-side ligado a `session_id` (para prescindir del envío de historial por
+parte del cliente) queda para el cambio posterior `historial-chat-server`.
+
+### Configuración de proveedores de IA
+
+`ConfigIA` (singleton) guarda `proveedor_activo` + `claves` (dict cifrado con Fernet por proveedor).
+Hoy: chat solo implementado con **DeepSeek** (OpenAI-compatible), embeddings **siempre Voyage AI**
+(hardcoded en `PROVEEDOR_EMBEDDINGS`), traducción con **Anthropic** o **DeepSeek**. Para que el chat
+responda, SuperAdmin ha de configurar la clave DeepSeek por el panel y dejar `proveedor_activo=deepseek`.
+La separación de los tres roles (chat / traducción / embeddings) con selectores independientes queda en
+el cambio posterior `separar-proveedores-ia`.
+
 ## Resolución de portal y proxy de confianza (multi-tenant)
 
 El backend es **multi-tenant por host**: cada petición se atribuye a un portal (tenant) resolviendo su
@@ -103,41 +160,82 @@ lista, el del cliente). En llamadas directas sin proxy (p. ej. los tests) se cae
 
 ### Configuración del proxy de confianza (producción) — evitar suplantación de portal
 
-`X-Forwarded-Host` es **suplantable por definición**: cualquier cliente puede enviarlo. La resolución de
-portal es segura **solo si el backend nunca es alcanzable sin pasar por el proxy de confianza**, de modo que
-ese valor lo fije siempre el borde a partir del `Host` real y no un atacante. Configuración requerida al
-desplegar:
+`X-Forwarded-Host` y `X-Forwarded-For` son **suplantables por definición**: cualquier cliente puede
+enviarlos. El backend solo los honra cuando el peer inmediato (`request.client.host`) está en la lista
+`PROXIES_CONFIABLES` (`config.py::proxies_confiables_set`). Sin esa allow-list, un cliente que llegase
+directo al puerto del backend podría suplantar el portal (fabricando `X-Forwarded-Host`) o **colapsar
+todo el rate limit** bajo la IP del proxy (fabricando `X-Forwarded-For`) y disparar denegaciones cruzadas
+entre visitantes que no se conocen. Configuración requerida al desplegar:
 
 1. **El backend no se expone a Internet.** Escucha en loopback o en una red privada; el único que puede
    llegar a él es el frontend de Next (Route Handlers del BFF). Si el backend fuera público, un cliente
    podría mandar `X-Forwarded-Host: portal-victima.tuapp.com` y leer/escribir en el portal de otro.
-2. **El borde reescribe `X-Forwarded-Host` desde el `Host` real**, sin propagar el que mandara el cliente:
-   `cabecerasPortal()` lo construye a partir del `Host` entrante de confianza (el host público servido por
-   el proveedor), no de un `X-Forwarded-Host` recibido. Si se antepone otro proxy (CDN/balanceador), debe
-   **descartar** cualquier `X-Forwarded-Host`/`X-Forwarded-*` entrante del cliente y ponerlo él.
-3. **Un solo salto de confianza.** Se lee solo el primer valor de `X-Forwarded-Host`; no se encadenan
-   proxies que añadan saltos no confiables antes del borde.
+2. **`PROXIES_CONFIABLES` contiene EXACTAMENTE la IP del reverse proxy** (nginx/traefik/CDN) y nada más.
+   Default `127.0.0.1,::1` sirve para desarrollo local (Next → uvicorn en la misma máquina). Cualquier
+   petición cuyo peer no esté aquí ve ignoradas las cabeceras: cae a `Host` para el portal y al socket
+   para la IP del rate limit.
+3. **El borde reescribe `X-Forwarded-Host` desde el `Host` real y añade `X-Forwarded-For` con la IP del
+   cliente**, sin propagar los valores que mandara el cliente: `cabecerasPortal()` y el BFF del chat en
+   `app/api/[idioma]/chat/consultar/route.ts` los construyen a partir del `Host` y de la IP entrantes de
+   confianza. Si se antepone otro proxy (CDN/balanceador), debe **descartar** cualquier
+   `X-Forwarded-Host`/`X-Forwarded-For`/`X-Forwarded-*` entrante del cliente y ponerlo él.
+4. **Un solo salto de confianza.** Se lee solo el primer valor de las cabeceras `X-Forwarded-*`; no se
+   encadenan proxies que añadan saltos no confiables antes del borde.
 
-Con esas tres condiciones, el host efectivo es siempre el que el proveedor asignó al portal, no uno elegido
-por el cliente. El comodín TLS `*.tuapp.com` y el diseño de dominios propios (ACME por dominio) quedan como
-fase posterior (ver `infraestructura-despliegue`).
+Con esas cuatro condiciones, el host efectivo es siempre el que el proveedor asignó al portal y la IP
+del rate limit es siempre la del visitante real, no un valor elegido por el cliente. El comodín TLS
+`*.tuapp.com` y el diseño de dominios propios (ACME por dominio) quedan como fase posterior (ver
+`infraestructura-despliegue`).
+
+## Variables de entorno
+
+Todas viven en `.env` (nunca en el repo) con la lista comentada en `.env.example`. Las obligatorias sin
+default son las que codifican secretos (`JWT_SECRET`, `ADMIN_PASSWORD`). El resto tiene default sensato
+en `config.py::Settings`. Grupos:
+
+- **Base**: `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
+  `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` (opcional), `EMPRESA_INICIAL`, `BASE_DOMAIN`,
+  `CLAVE_CIFRADO_IA` (Fernet, cifra las claves de los proveedores de IA en `ConfigIA`).
+- **Chat + RAG** (todas con default): `RAG_UMBRAL_SIMILITUD` (0.28, calibrado para `voyage-3`),
+  `RAG_TOP_K` (6), `CHAT_MAX_CONSULTA_CHARS` (500), `CHAT_MAX_HISTORIAL_TURNOS` (10),
+  `CHAT_UMBRAL_TURNOS_SIN_RESULTADOS` (2), `CHAT_TTL_SESION_SEG` (1800), `CHAT_LIMITE_TASA_MIN` (30),
+  `CHAT_HABILITADO` (true).
+- **Proxies confiables** (default `127.0.0.1,::1`): `PROXIES_CONFIABLES`. Ver sección anterior.
 
 ## Estructura
 
 ```
 app/
   main.py            App FastAPI y montaje de routers
-  config.py          Configuración por entorno (pydantic-settings)
+  config.py          Configuración por entorno (pydantic-settings); expone `proxies_confiables_set`
   database.py        Motor, sesión y Base declarativa
-  models.py          Modelos SQLAlchemy (patrón bilingüe; Portal + portal_id en todas las entidades)
-  schemas.py         Esquemas Pydantic (reproducen app/src/types.ts)
+  models.py          Modelos SQLAlchemy (patrón bilingüe; Portal + portal_id en todas las entidades;
+                     ConfigIA con proveedor_activo + claves cifradas + modelo_chat/temperatura_chat)
+  schemas.py         Esquemas Pydantic (reproducen app/src/types.ts). `TurnoChatIn` (solo rol usuario,
+                     input del chat) vs `TurnoChat` (ambos roles, output para la conversación)
   security.py        Hash argon2 + JWT; enum de niveles (SUPERADMIN..ANONIMO)
-  deps.py            Dependencias: admin_actual, requiere_nivel y portal_actual (resuelve el portal del host)
+  deps.py            Dependencias: admin_actual, requiere_nivel, portal_actual (host → portal) con
+                     `_peer_confiable` gateando X-Forwarded-Host por la allow-list de PROXIES_CONFIABLES
   portales.py        Resolución host → portal (dominios, subdominio base, slugs reservados)
   servicios.py       Ensamblado de contenido y escritura de artículos (acotado al portal)
+  servicios_ia.py    ProveedorTraduccion (Anthropic/DeepSeek), ProveedorEmbeddings (Voyage/OpenAI),
+                     ProveedorChat (DeepSeek); factories `crear_chat`/`crear_embedder`/`crear_proveedor`
+  cifrado.py         Fernet para cifrar/descifrar las claves de API guardadas en ConfigIA
+  chat.py            Pipeline del chat: `responder()`, clasificador de scope, generación con JSON estricto,
+                     delimitador con nonce aleatorio, validación de citas contra portal_id
+  recuperador.py     Recuperador vectorial acotado al portal (pgvector coseno + fallback SQLite en tests)
+  sesiones_chat.py   Sesiones efímeras en memoria con TTL para el contador de turnos_sin_resultados
+  ingesta.py         Ingesta RAG: troceo → embedding → escritura de articulo_chunks/documento_chunks
+  troceo.py          Trocea contenido de artículo/documento en fragmentos con solape controlado
+  rag.py             Constantes del RAG (dimensión, modelo, URL base de embeddings)
   routers/           contenido, comun, marca, auth, admin_articulos, admin_categorias, admin_usuarios,
-                     admin_ajustes, admin_config_ia, admin_panel, admin_portales (gestión SuperAdmin)
-alembic/             Migraciones (0001: extensión vector + tablas … 0006 portales, 0007 empresa en portal)
+                     admin_ajustes, admin_config_ia, admin_panel, admin_portales (gestión SuperAdmin),
+                     admin_documentos (ingesta RAG por portal) y chat (POST /api/{idioma}/chat/consultar,
+                     Anonymous, rate limit por IP con allow-list de proxies confiables)
+alembic/             Migraciones (0001…0009: la 0008 crea las tablas del RAG y la 0009 añade modelo_chat
+                     y temperatura_chat a config_ia)
 seed.py              Carga seed_data/*.json bajo el portal `default` y siembra su Administrador
-tests/               pytest (contenido, auth, CRUD, aislamiento y gestión de portales)
+reindexar_articulos.py  Reindexa el RAG de artículos existentes (idempotente)
+tests/               pytest (contenido, auth, CRUD, aislamiento, portales, chat_endpoint,
+                     chat_pipeline, chat_recuperador, config_ia, traducción, troceo, security)
 ```

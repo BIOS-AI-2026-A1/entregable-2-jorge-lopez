@@ -519,3 +519,9 @@ class ConfigIA(Base):
     proveedor_activo: Mapped[str] = mapped_column(String, nullable=False, default="anthropic")
     # {proveedor: token_cifrado}. JSONB en Postgres, JSON en SQLite (tests).
     claves: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    # Modelo y temperatura del chat del centro de ayuda (RAG). Nullable a propósito:
+    # `None` deja que el pipeline caiga a los valores por defecto (`deepseek-chat`, 0.2)
+    # sin tocar la fila. SuperAdmin podrá editar estos campos desde el panel en un
+    # cambio posterior; por ahora se leen aquí y se escriben con SQL/seed.
+    modelo_chat: Mapped[str | None] = mapped_column(String, nullable=True)
+    temperatura_chat: Mapped[float | None] = mapped_column(Float, nullable=True)
