@@ -11,6 +11,7 @@ from app.routers import (
     admin_articulos,
     admin_categorias,
     admin_config_ia,
+    admin_documentos,
     admin_panel,
     admin_portales,
     admin_usuarios,
@@ -36,6 +37,7 @@ app.include_router(admin_usuarios.router)
 app.include_router(admin_portales.router)
 app.include_router(admin_ajustes.router)
 app.include_router(admin_config_ia.router)
+app.include_router(admin_documentos.router)
 
 
 # Errores de traducción -> HTTP. Se registran a nivel de app para que el mapeo valga

@@ -11,5 +11,6 @@ export const rutas = {
   panel: (idioma: Idioma) => `/${idioma}/panel`,
   usuarios: (idioma: Idioma) => `/${idioma}/panel/usuarios`,
   portales: (idioma: Idioma) => `/${idioma}/panel/portales`,
+  documentos: (idioma: Idioma) => `/${idioma}/panel/documentos`,
   login: (idioma: Idioma) => `/${idioma}/login`,
 }

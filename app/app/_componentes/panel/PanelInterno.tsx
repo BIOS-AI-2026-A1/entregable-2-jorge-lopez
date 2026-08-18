@@ -757,6 +757,13 @@ export function PanelInterno({
               <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
               <option value="deepseek">{t('configIA.proveedores.deepseek')}</option>
               <option value="google">{t('configIA.proveedores.google')}</option>
+              {/* Voyage AI (recomendado por Anthropic) y OpenAI se listan para
+                  poder guardar sus claves (las usa la ingesta RAG para
+                  embeddings); NO tienen motor de traducción activo, así que
+                  seleccionar cualquiera como proveedor activo hará que la
+                  traducción responda 409 hasta que se elija otro. */}
+              <option value="voyage">{t('configIA.proveedores.voyage')}</option>
+              <option value="openai">{t('configIA.proveedores.openai')}</option>
             </select>
           </div>
           <div>
@@ -855,6 +862,13 @@ export function PanelInterno({
         >
           <Ic.User size={15} />
           {t('gestionUsuarios.enlace')}
+        </Link>
+        <Link
+          href={rutas.documentos(idioma)}
+          className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-500 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+        >
+          <Ic.FileText size={15} />
+          {t('gestionDocumentos.enlace')}
         </Link>
         {esSuperAdmin(nivel) && (
           <Link

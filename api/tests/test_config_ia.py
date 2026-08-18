@@ -19,8 +19,18 @@ def test_superadmin_ve_anthropic_por_defecto(superadmin_client, superadmin_auth)
     cuerpo = r.json()
     assert cuerpo["proveedorActivo"] == "anthropic"
     # Sin claves configuradas todavía; ninguna clave viaja en la respuesta.
+    # `voyage` y `openai` están listados porque la ingesta RAG los usa para
+    # embeddings (cambio `rag-ingesta`); SuperAdmin guarda la clave por el
+    # mismo panel, aunque no tengan motor de traducción activo. El proveedor
+    # de embeddings por defecto es `voyage` (recomendado por Anthropic).
     por_id = {p["id"]: p["configurada"] for p in cuerpo["proveedores"]}
-    assert por_id == {"anthropic": False, "google": False, "deepseek": False}
+    assert por_id == {
+        "anthropic": False,
+        "google": False,
+        "deepseek": False,
+        "openai": False,
+        "voyage": False,
+    }
 
 
 def test_deepseek_es_proveedor_admitido(superadmin_client, superadmin_auth):
@@ -113,10 +123,37 @@ def test_clave_vacia_significa_no_cambiar(superadmin_client, superadmin_auth):
 
 
 def test_proveedor_no_admitido_es_422(superadmin_client, superadmin_auth):
+    # `openai` sí está admitido desde el cambio `rag-ingesta` (embeddings del RAG);
+    # se usa aquí un proveedor verdaderamente inexistente para probar el rechazo.
     r = superadmin_client.put(
-        "/api/admin/config-ia", json={"proveedorActivo": "openai"}, headers=superadmin_auth
+        "/api/admin/config-ia", json={"proveedorActivo": "ollama"}, headers=superadmin_auth
     )
     assert r.status_code == 422
+
+
+def test_voyage_es_proveedor_admitido_para_embeddings(superadmin_client, superadmin_auth):
+    """Voyage AI aparece entre los proveedores seleccionables y su clave se
+    guarda por el mismo panel: la ingesta RAG la lee para generar embeddings
+    (es el proveedor por defecto para el RAG, recomendado por Anthropic), aunque
+    Voyage no tenga motor de traducción activo aquí."""
+    r = superadmin_client.get("/api/admin/config-ia", headers=superadmin_auth)
+    ids = {p["id"] for p in r.json()["proveedores"]}
+    assert "voyage" in ids
+    assert "openai" in ids  # openai también sigue listado (proveedor alternativo)
+
+    guardado = superadmin_client.put(
+        "/api/admin/config-ia",
+        json={
+            "proveedorActivo": "anthropic",
+            "proveedor": "voyage",
+            "clave": "pa-voyage-de-prueba-12345",
+        },
+        headers=superadmin_auth,
+    )
+    assert guardado.status_code == 200
+    por_id = {p["id"]: p["configurada"] for p in guardado.json()["proveedores"]}
+    assert por_id["voyage"] is True
+    assert guardado.json()["proveedorActivo"] == "anthropic"  # activo no se cambió
 
 
 def test_administrador_de_portal_no_accede(client, auth):

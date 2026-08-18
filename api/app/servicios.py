@@ -15,6 +15,7 @@ from app.models import (
     Categoria,
     CategoriaTraduccion,
     Conversacion,
+    Documento,
     Metrica,
     Portal,
     PreguntaSinResolver,
@@ -182,6 +183,21 @@ def ensamblar_contenido(db: Session, idioma: str, portal_id: str) -> dict:
         "articulos": articulos,
         "conversacion": conversacion,
         "metricas": metricas,
+    }
+
+
+def documento_a_dict(d: Documento) -> dict:
+    """Serializa un documento para el panel. NUNCA expone binario ni embeddings."""
+    return {
+        "id": d.id,
+        "nombre": d.nombre,
+        "mime": d.mime,
+        "idioma": d.idioma,
+        "estado": d.estado,
+        "errorDetalle": d.error_detalle,
+        "bytes": d.bytes,
+        "creado": d.created_at.isoformat() if d.created_at is not None else "",
+        "actualizado": d.updated_at.isoformat() if d.updated_at is not None else "",
     }
 
 

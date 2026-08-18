@@ -310,6 +310,46 @@
     "errorSalvaguarda": "No se pudo cambiar el estado: no puedes desactivar tu propia cuenta ni dejar al sistema sin un usuario Administrador activo.",
     "errorRed": "No se pudo conectar con el servidor."
   },
+  "gestionDocumentos": {
+    "seccion": "Administración",
+    "titulo": "Gestión de documentos",
+    "subtitulo": "Sube documentos (PDF, DOCX, Markdown o TXT) para alimentar el índice del asistente",
+    "volver": "Volver al panel",
+    "enlace": "Gestionar documentos",
+    "lista": "Documentos",
+    "subir": "Subir documento",
+    "subiendo": "Subiendo…",
+    "vacio": "Todavía no hay documentos. Sube el primero para empezar.",
+    "tablaAria": "Documentos indexados y su estado",
+    "columnas": {
+      "nombre": "Nombre",
+      "idioma": "Idioma",
+      "estado": "Estado",
+      "tamano": "Tamaño",
+      "accion": "Acción"
+    },
+    "idiomas": {
+      "es": "Español",
+      "pt": "Portugués",
+      "ambos": "Ambos"
+    },
+    "estados": {
+      "pendiente": "Pendiente",
+      "procesando": "Procesando",
+      "listo": "Listo",
+      "error": "Error"
+    },
+    "eliminar": "Eliminar",
+    "eliminarAria": "Eliminar el documento {{nombre}}",
+    "confirmarEliminar": "¿Eliminar «{{nombre}}»? Se borrarán también sus fragmentos indexados.",
+    "subido": "«{{nombre}}» se está procesando.",
+    "eliminado": "«{{nombre}}» eliminado.",
+    "errorCargar": "No se pudo cargar la lista de documentos.",
+    "errorFormato": "Formato no admitido o archivo demasiado grande. Solo se aceptan PDF, DOCX, Markdown o TXT.",
+    "errorSinProveedor": "No hay un proveedor de embeddings configurado. Pide al SuperAdmin que configure la clave de Voyage AI en la configuración de IA.",
+    "errorGuardar": "No se pudo subir el documento. Inténtalo de nuevo.",
+    "errorEliminar": "No se pudo eliminar el documento. Inténtalo de nuevo."
+  },
   "gestionPortales": {
     "seccion": "Plataforma",
     "titulo": "Gestión de portales",
@@ -373,7 +413,9 @@
     "proveedores": {
       "anthropic": "Claude (Anthropic)",
       "deepseek": "DeepSeek",
-      "google": "Google Translate"
+      "google": "Google Translate",
+      "voyage": "Voyage AI (embeddings del RAG, recomendado por Anthropic)",
+      "openai": "OpenAI (embeddings del RAG, alternativa)"
     }
   }
 }
