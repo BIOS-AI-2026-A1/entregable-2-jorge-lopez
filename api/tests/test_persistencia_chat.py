@@ -24,8 +24,12 @@ from app import persistencia_chat, sesiones_chat
 from app.chat import responder
 from app.models import ChatInteraccion
 from app.recuperador import FragmentoRecuperado, ResultadoRecuperacion
+from app.servicios import PORTAL_DEFECTO_UUID
 
-PORTAL_A = "default"
+# `str(...)`: el pipeline del chat trata `portal_id` como texto de punta a
+# punta (lo resuelve así el router); el portal `default` sembrado por
+# `_sembrar_minimo` usa el UUID fijo `PORTAL_DEFECTO_UUID`.
+PORTAL_A = str(PORTAL_DEFECTO_UUID)
 
 
 class _ChatDoble:
@@ -102,7 +106,7 @@ def test_una_respuesta_persiste_una_fila_con_metadatos(
     filas = db_session.query(ChatInteraccion).all()
     assert len(filas) == 1
     fila = filas[0]
-    assert fila.portal_id == PORTAL_A
+    assert str(fila.portal_id) == PORTAL_A
     assert fila.chat_id == resp.chat_id
     assert fila.turno == 1
     assert fila.idioma == "es"

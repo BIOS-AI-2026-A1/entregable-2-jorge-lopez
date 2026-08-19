@@ -43,6 +43,8 @@ def verify_password(password_hash: str, password: str) -> bool:
 
 
 def crear_token(subject: str, portal_id: str) -> str:
+    # `portal_id` debe llegar ya como `str`: `Portal.id` es un `uuid.UUID` (columna
+    # `Uuid`) y `jwt.encode` no lo serializa por sí solo (el llamador hace `str(...)`).
     s = get_settings()
     payload = {
         "sub": subject,

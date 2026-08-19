@@ -21,7 +21,7 @@ from tests.conftest import (
     ADMIN_PASSWORD,
     SEGUNDO_ADMIN_PASSWORD,
     SEGUNDO_PORTAL_HOST,
-    SEGUNDO_PORTAL_ID,
+    SEGUNDO_PORTAL_UUID,
     articulo_valido,
     sembrar_portal_secundario,
 )

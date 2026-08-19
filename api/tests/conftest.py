@@ -17,6 +17,7 @@ from cryptography.fernet import Fernet  # noqa: E402
 
 os.environ.setdefault("CLAVE_CIFRADO_IA", Fernet.generate_key().decode())
 
+import uuid  # noqa: E402
 from datetime import date  # noqa: E402
 
 import pytest  # noqa: E402
@@ -44,11 +45,11 @@ from app.security import hash_password  # noqa: E402
 from app.servicios import (  # noqa: E402
     AJUSTES_ID,
     PORTAL_DEFECTO_HOST,
-    PORTAL_DEFECTO_ID,
     PORTAL_DEFECTO_SLUG,
+    PORTAL_DEFECTO_UUID,
     PORTAL_PLATAFORMA_HOST_DEV,
-    PORTAL_PLATAFORMA_ID,
     PORTAL_PLATAFORMA_SLUG,
+    PORTAL_PLATAFORMA_UUID,
 )
 
 
@@ -86,25 +87,25 @@ def _sembrar_minimo(db) -> None:
     # de aislamiento cree otro.
     db.add(
         Portal(
-            id=PORTAL_DEFECTO_ID,
+            id=PORTAL_DEFECTO_UUID,
             slug=PORTAL_DEFECTO_SLUG,
             nombre_empresa=EMPRESA_INICIAL,
             estado="activo",
         )
     )
-    db.add(Dominio(host=PORTAL_DEFECTO_HOST, portal_id=PORTAL_DEFECTO_ID, principal=True))
+    db.add(Dominio(host=PORTAL_DEFECTO_HOST, portal_id=PORTAL_DEFECTO_UUID, principal=True))
     db.flush()
     db.add(
         Categoria(
-            id="cuenta", portal_id=PORTAL_DEFECTO_ID, icono="usuario",
+            id="cuenta", portal_id=PORTAL_DEFECTO_UUID, icono="usuario",
             fondo="bg-indigo-50", texto="text-indigo-700", orden=0,
         )
     )
-    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=PORTAL_DEFECTO_ID, idioma="es", slug="cuenta", nombre="Cuenta"))
-    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=PORTAL_DEFECTO_ID, idioma="pt", slug="conta", nombre="Conta"))
+    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=PORTAL_DEFECTO_UUID, idioma="es", slug="cuenta", nombre="Cuenta"))
+    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=PORTAL_DEFECTO_UUID, idioma="pt", slug="conta", nombre="Conta"))
     db.add(
         AdminUser(
-            portal_id=PORTAL_DEFECTO_ID,
+            portal_id=PORTAL_DEFECTO_UUID,
             email=ADMIN_EMAIL,
             password_hash=hash_password(ADMIN_PASSWORD),
             nivel=NivelAcceso.ADMINISTRADOR.value,
@@ -113,7 +114,7 @@ def _sembrar_minimo(db) -> None:
     )
     db.add(
         AdminUser(
-            portal_id=PORTAL_DEFECTO_ID,
+            portal_id=PORTAL_DEFECTO_UUID,
             email=EDITOR_EMAIL,
             password_hash=hash_password(EDITOR_PASSWORD),
             nivel=NivelAcceso.EDITOR.value,
@@ -122,17 +123,17 @@ def _sembrar_minimo(db) -> None:
     )
     # El nombre de empresa vive en `Portal.nombre_empresa` (ya sembrado arriba); esta
     # fila guarda solo la marca visual (acento/banner/logo), con sus valores por defecto.
-    db.add(Ajustes(id=AJUSTES_ID, portal_id=PORTAL_DEFECTO_ID))
+    db.add(Ajustes(id=AJUSTES_ID, portal_id=PORTAL_DEFECTO_UUID))
     db.add(
         PreguntaSinResolver(
-            portal_id=PORTAL_DEFECTO_ID,
+            portal_id=PORTAL_DEFECTO_UUID,
             idioma="es", pregunta="¿Cómo cambio mi contraseña?", veces=10,
             similitud=0.5, fecha=date(2026, 7, 20), estado="nueva", orden=0,
         )
     )
     for idioma in ("es", "pt"):
-        db.add(Conversacion(portal_id=PORTAL_DEFECTO_ID, idioma=idioma, mensajes=[{"autor": "usuario", "texto": "hola"}]))
-        db.add(Metrica(portal_id=PORTAL_DEFECTO_ID, idioma=idioma, clave="sinResolver", valor="34", orden=0))
+        db.add(Conversacion(portal_id=PORTAL_DEFECTO_UUID, idioma=idioma, mensajes=[{"autor": "usuario", "texto": "hola"}]))
+        db.add(Metrica(portal_id=PORTAL_DEFECTO_UUID, idioma=idioma, clave="sinResolver", valor="34", orden=0))
     db.commit()
 
 
@@ -205,7 +206,7 @@ def editor_auth(editor_token) -> dict:
 # Un portal aparte del `default`, con su propio host y su Administrador. El correo del
 # admin coincide a propósito con el del `default` (`admin@test.local`): así se prueba
 # que `(portal_id, email)` es único por portal y que una sesión no cruza de portal.
-SEGUNDO_PORTAL_ID = "otra-marca"
+SEGUNDO_PORTAL_UUID = uuid.UUID("00000000-0000-0000-0000-000000000003")
 SEGUNDO_PORTAL_SLUG = "otra-marca"
 SEGUNDO_PORTAL_HOST = "otra-marca.test"
 SEGUNDO_ADMIN_EMAIL = ADMIN_EMAIL
@@ -216,17 +217,17 @@ def sembrar_portal_secundario(db) -> None:
     """Crea un segundo portal activo con su host y su Administrador (para aislamiento)."""
     db.add(
         Portal(
-            id=SEGUNDO_PORTAL_ID,
+            id=SEGUNDO_PORTAL_UUID,
             slug=SEGUNDO_PORTAL_SLUG,
             nombre_empresa="Otra Marca",
             estado="activo",
         )
     )
-    db.add(Dominio(host=SEGUNDO_PORTAL_HOST, portal_id=SEGUNDO_PORTAL_ID, principal=True))
+    db.add(Dominio(host=SEGUNDO_PORTAL_HOST, portal_id=SEGUNDO_PORTAL_UUID, principal=True))
     db.flush()
     db.add(
         AdminUser(
-            portal_id=SEGUNDO_PORTAL_ID,
+            portal_id=SEGUNDO_PORTAL_UUID,
             email=SEGUNDO_ADMIN_EMAIL,
             password_hash=hash_password(SEGUNDO_ADMIN_PASSWORD),
             nivel=NivelAcceso.ADMINISTRADOR.value,
@@ -240,12 +241,12 @@ def sembrar_portal_secundario(db) -> None:
     # portales reusan el mismo id/slug de categoría sin colisionar.
     db.add(
         Categoria(
-            id="cuenta", portal_id=SEGUNDO_PORTAL_ID, icono="usuario",
+            id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, icono="usuario",
             fondo="bg-teal-50", texto="text-teal-700", orden=0,
         )
     )
-    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=SEGUNDO_PORTAL_ID, idioma="es", slug="cuenta", nombre="Cuenta B"))
-    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=SEGUNDO_PORTAL_ID, idioma="pt", slug="conta", nombre="Conta B"))
+    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, idioma="es", slug="cuenta", nombre="Cuenta B"))
+    db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, idioma="pt", slug="conta", nombre="Conta B"))
     db.commit()
 
 
@@ -261,17 +262,17 @@ def sembrar_plataforma(db) -> None:
     """Crea el portal de plataforma, su host de gestión de desarrollo y su SuperAdmin."""
     db.add(
         Portal(
-            id=PORTAL_PLATAFORMA_ID,
+            id=PORTAL_PLATAFORMA_UUID,
             slug=PORTAL_PLATAFORMA_SLUG,
             nombre_empresa="Plataforma",
             estado="activo",
         )
     )
-    db.add(Dominio(host=PORTAL_PLATAFORMA_HOST_DEV, portal_id=PORTAL_PLATAFORMA_ID, principal=True))
+    db.add(Dominio(host=PORTAL_PLATAFORMA_HOST_DEV, portal_id=PORTAL_PLATAFORMA_UUID, principal=True))
     db.flush()
     db.add(
         AdminUser(
-            portal_id=PORTAL_PLATAFORMA_ID,
+            portal_id=PORTAL_PLATAFORMA_UUID,
             email=SUPERADMIN_EMAIL,
             password_hash=hash_password(SUPERADMIN_PASSWORD),
             nivel=NivelAcceso.SUPERADMIN.value,

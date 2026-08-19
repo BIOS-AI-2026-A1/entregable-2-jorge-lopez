@@ -93,8 +93,9 @@ def rotar_sesion(db: Session, refresh_token: str, portal_id: str) -> tuple[Admin
 
     # El refresh no cruza de portal: pertenece al portal de su administrador. No se
     # marca `usado` antes de esta comprobación, para no invalidar la sesión legítima
-    # por una renovación que llegó al host equivocado.
-    if admin.portal_id != portal_id:
+    # por una renovación que llegó al host equivocado. `str(...)`: `admin.portal_id`
+    # es un `uuid.UUID` (columna `Uuid`); `portal_id` llega como `str` desde el router.
+    if str(admin.portal_id) != portal_id:
         raise SesionInvalida
 
     fila.usado = True

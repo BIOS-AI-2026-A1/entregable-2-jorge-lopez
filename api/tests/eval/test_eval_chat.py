@@ -50,6 +50,7 @@ from app.models import (
     Portal,
 )
 from app.security import hash_password
+from app.servicios import PORTAL_DEFECTO_UUID
 from tests.eval.proveedor_doble import (
     EmbedderDoble,
     ProveedorChatDoble,
@@ -64,8 +65,15 @@ DIR_EVAL = Path(__file__).resolve().parent
 DIR_REPORTS = DIR_EVAL / "reports"
 FILE_BASELINE = DIR_EVAL / "baseline.json"
 
-PORTAL_EVAL = "default"
 PORTAL_HOST = "localhost"
+# El id ya no es el slug legible ("default"): es un UUID (migración
+# `0012_portal_uuid`); se reutiliza la constante fija del portal `default` para
+# que el fixture no dependa de un UUID inventado.
+PORTAL_EVAL_SLUG = "default"
+PORTAL_EVAL_UUID = PORTAL_DEFECTO_UUID
+# El campo `portal` de cada caso del dataset (`casos_{es,pt}.jsonl`) es una
+# etiqueta legible, no el id real: se traduce al UUID que sembró el fixture.
+_PORTAL_UUID_POR_ETIQUETA = {PORTAL_EVAL_SLUG: str(PORTAL_EVAL_UUID)}
 
 # Regex barato para detectar el formato de pasos en línea (`paso 1 > paso 2 > ...`).
 # Se acepta cualquier separador con un ` > ` entre segmentos: contamos 1 acierto si
@@ -153,31 +161,31 @@ def db_eval(casos, corpus_vectores):
     # Portal + host + categoría + admin mínimos (misma forma que `_sembrar_minimo`).
     db.add(
         Portal(
-            id=PORTAL_EVAL,
-            slug=PORTAL_EVAL,
+            id=PORTAL_EVAL_UUID,
+            slug=PORTAL_EVAL_SLUG,
             nombre_empresa="Eval",
             estado="activo",
         )
     )
-    db.add(Dominio(host=PORTAL_HOST, portal_id=PORTAL_EVAL, principal=True))
+    db.add(Dominio(host=PORTAL_HOST, portal_id=PORTAL_EVAL_UUID, principal=True))
     db.flush()
     db.add(
         Categoria(
-            id="cuenta", portal_id=PORTAL_EVAL, icono="usuario",
+            id="cuenta", portal_id=PORTAL_EVAL_UUID, icono="usuario",
             fondo="bg-indigo-50", texto="text-indigo-700", orden=0,
         )
     )
     for idioma, slug, nombre in (("es", "cuenta", "Cuenta"), ("pt", "conta", "Conta")):
         db.add(CategoriaTraduccion(
-            categoria_id="cuenta", portal_id=PORTAL_EVAL,
+            categoria_id="cuenta", portal_id=PORTAL_EVAL_UUID,
             idioma=idioma, slug=slug, nombre=nombre,
         ))
     db.add(AdminUser(
-        portal_id=PORTAL_EVAL, email="eval@test.local",
+        portal_id=PORTAL_EVAL_UUID, email="eval@test.local",
         password_hash=hash_password("secreto-de-eval"),
         nivel=NivelAcceso.ADMINISTRADOR.value, activo=True,
     ))
-    db.add(Ajustes(id=1, portal_id=PORTAL_EVAL))
+    db.add(Ajustes(id=1, portal_id=PORTAL_EVAL_UUID))
     # Flush explícito antes del bucle de artículos: SQLAlchemy no siempre ordena
     # correctamente el insert de `Articulo` (FK compuesta `(portal_id,
     # categoria_id) → categorias(portal_id, id)`) respecto al de `Categoria` en
@@ -196,17 +204,17 @@ def db_eval(casos, corpus_vectores):
         idioma = caso["idioma"]
         vector = articulo_a_vector[articulo_id]
         db.add(Articulo(
-            id=articulo_id, portal_id=PORTAL_EVAL, categoria_id="cuenta",
+            id=articulo_id, portal_id=PORTAL_EVAL_UUID, categoria_id="cuenta",
             actualizado=date(2026, 1, 1), minutos_lectura=1, destacado=False,
         ))
         db.flush()
         db.add(ArticuloTraduccion(
-            articulo_id=articulo_id, portal_id=PORTAL_EVAL, idioma=idioma,
+            articulo_id=articulo_id, portal_id=PORTAL_EVAL_UUID, idioma=idioma,
             slug=slug, titulo=f"Artículo {articulo_id}",
             parrafos=[], how_to={"titulo": "", "pasos": []}, nota=None, faq=[],
         ))
         db.add(ArticuloChunk(
-            portal_id=PORTAL_EVAL, articulo_id=articulo_id, idioma=idioma,
+            portal_id=PORTAL_EVAL_UUID, articulo_id=articulo_id, idioma=idioma,
             orden=0, contenido=f"Fragmento del caso {articulo_id}",
             embedding=list(vector),
         ))
@@ -266,7 +274,7 @@ def _ejecutar_caso(caso: dict, db) -> ResultadoCaso:
             consulta=caso["consulta"],
             idioma=caso["idioma"],
             historial=[],
-            portal_id=caso["portal"],
+            portal_id=_PORTAL_UUID_POR_ETIQUETA[caso["portal"]],
             chat_id=None,
             solicitar_soporte=bool(caso.get("solicitar_soporte", False)),
             db=db,

@@ -77,6 +77,9 @@ export interface FiltrosChats {
   hasta?: string
   limit?: number
   cursor?: string
+  // Índice de tipo: sin él, `FiltrosChats` no es asignable a
+  // `Record<string, string | number | undefined>` en `construirQuery`.
+  [clave: string]: string | number | undefined
 }
 
 function construirQuery(params: Record<string, string | number | undefined>): string {

@@ -7,10 +7,12 @@ SuperAdmin; un Administrador de portal recibe 403).
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.servicios import PORTAL_DEFECTO_ID
+from app.servicios import PORTAL_DEFECTO_SLUG, PORTAL_DEFECTO_UUID
 
 # El host de un portal recién creado es `<slug>.<base_domain>`; el base_domain de test es
 # el de por defecto (`tuapp.com`), ya que conftest no lo sobrescribe.
@@ -49,8 +51,9 @@ def test_superadmin_lista_los_portales_de_contenido(superadmin_client, superadmi
     r = superadmin_client.get("/api/admin/portales", headers=superadmin_auth)
     assert r.status_code == 200, r.text
     ids = [p["id"] for p in r.json()]
-    # Ve el portal `default`; el de plataforma NO aparece (no es gestionable).
-    assert PORTAL_DEFECTO_ID in ids
+    # Ve el portal `default`; el de plataforma NO aparece (no es gestionable). El `id`
+    # que devuelve la API es texto (UUID serializado), así que se compara como texto.
+    assert str(PORTAL_DEFECTO_UUID) in ids
     assert "platform" not in ids
 
 
@@ -63,6 +66,7 @@ def test_superadmin_crea_portal_con_su_administrador(superadmin_client, superadm
     assert cuerpo["slug"] == NUEVO_SLUG
     assert cuerpo["estado"] == "activo"
     assert cuerpo["host"] == f"{NUEVO_SLUG}.{BASE_DOMAIN}"
+    assert cuerpo["adminEmail"] == NUEVO_ADMIN_EMAIL
 
     # El portal nace con su host, así que su Administrador puede iniciar sesión ahí.
     en_el_nuevo = TestClient(app, base_url=f"http://{NUEVO_SLUG}.{BASE_DOMAIN}")
@@ -74,6 +78,16 @@ def test_superadmin_crea_portal_con_su_administrador(superadmin_client, superadm
     contenido = en_el_nuevo.get("/api/es/contenido")
     assert contenido.status_code == 200
     assert contenido.json()["empresa"] == "Cliente Nuevo"
+
+
+def test_el_id_del_portal_creado_es_uuid_distinto_del_slug(superadmin_client, superadmin_auth):
+    # `Portal.id` es un UUID opaco separado del `slug` (migración `0012_portal_uuid`):
+    # nunca coincide con el slug legible, a diferencia del modelo anterior (`id == slug`).
+    r = superadmin_client.post("/api/admin/portales", headers=superadmin_auth, json=_payload())
+    assert r.status_code == 201, r.text
+    cuerpo = r.json()
+    assert cuerpo["id"] != cuerpo["slug"]
+    assert uuid.UUID(cuerpo["id"]) is not None
 
 
 def test_el_administrador_del_nuevo_portal_no_gestiona_portales(superadmin_client, superadmin_auth):
@@ -90,9 +104,9 @@ def test_el_administrador_del_nuevo_portal_no_gestiona_portales(superadmin_clien
 # --- Validaciones de slug ----------------------------------------------------
 
 def test_slug_duplicado_se_rechaza(superadmin_client, superadmin_auth):
-    # `default` ya existe como portal.
+    # `default` ya existe como portal (por su slug: id y slug ya no son lo mismo).
     r = superadmin_client.post(
-        "/api/admin/portales", headers=superadmin_auth, json=_payload(slug=PORTAL_DEFECTO_ID)
+        "/api/admin/portales", headers=superadmin_auth, json=_payload(slug=PORTAL_DEFECTO_SLUG)
     )
     assert r.status_code == 409
 
@@ -124,7 +138,7 @@ def test_suspender_veta_el_portal_y_reactivar_lo_restaura(superadmin_client, sup
     assert en_default.get("/api/es/contenido").status_code == 200
 
     r = superadmin_client.post(
-        f"/api/admin/portales/{PORTAL_DEFECTO_ID}/suspender", headers=superadmin_auth
+        f"/api/admin/portales/{PORTAL_DEFECTO_UUID}/suspender", headers=superadmin_auth
     )
     assert r.status_code == 200, r.text
     assert r.json()["estado"] == "suspendido"
@@ -132,7 +146,7 @@ def test_suspender_veta_el_portal_y_reactivar_lo_restaura(superadmin_client, sup
     assert en_default.get("/api/es/contenido").status_code == 503
 
     r = superadmin_client.post(
-        f"/api/admin/portales/{PORTAL_DEFECTO_ID}/reactivar", headers=superadmin_auth
+        f"/api/admin/portales/{PORTAL_DEFECTO_UUID}/reactivar", headers=superadmin_auth
     )
     assert r.status_code == 200, r.text
     assert r.json()["estado"] == "activo"

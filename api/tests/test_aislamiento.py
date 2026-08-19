@@ -19,7 +19,7 @@ from tests.conftest import (
     ADMIN_PASSWORD,
     SEGUNDO_ADMIN_PASSWORD,
     SEGUNDO_PORTAL_HOST,
-    SEGUNDO_PORTAL_ID,
+    SEGUNDO_PORTAL_UUID,
     articulo_valido,
     sembrar_portal_secundario,
 )
@@ -155,7 +155,7 @@ def test_los_usuarios_de_un_portal_no_se_ven_desde_otro(hacer_cliente, db_sessio
     # El Administrador de B no aparece, y actuar sobre su id directo da 404 desde A
     # (no revela su existencia). Se usa `activar`, que sí existe como ruta por id.
     admin_b = (
-        db_session.query(AdminUser).filter(AdminUser.portal_id == SEGUNDO_PORTAL_ID).first()
+        db_session.query(AdminUser).filter(AdminUser.portal_id == SEGUNDO_PORTAL_UUID).first()
     )
     assert a.post(f"/api/admin/usuarios/{admin_b.id}/activar", headers=auth_a).status_code == 404
 

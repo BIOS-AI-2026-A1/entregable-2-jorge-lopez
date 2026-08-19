@@ -33,6 +33,7 @@ import logging
 import re
 import secrets
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -713,13 +714,17 @@ def _revalidar_recurso(portal_id: str, db: Session) -> Callable[[Recurso], bool]
     """Devuelve un comprobador que dice si un recurso citado sigue existiendo
     en el portal. Artículos por `slug`+portal, documentos por `nombre`+portal
     (los dos únicos por portal). Un recurso ausente invalida la entrada."""
+    # `uuid.UUID(...)`: `portal_id` llega como `str`; las columnas `portal_id`
+    # de `articulo_traducciones`/`documentos` son `uuid.UUID` (columna `Uuid`)
+    # y SQLAlchemy exige el tipo Python nativo al enlazar el parámetro.
+    portal_id_uuid = uuid.UUID(portal_id)
 
     def _check(rec: Recurso) -> bool:
         if rec.tipo == "articulo":
             fila = db.execute(
                 select(ArticuloTraduccion.slug)
                 .where(
-                    ArticuloTraduccion.portal_id == portal_id,
+                    ArticuloTraduccion.portal_id == portal_id_uuid,
                     ArticuloTraduccion.slug == rec.identificador,
                 )
                 .limit(1)
@@ -729,7 +734,7 @@ def _revalidar_recurso(portal_id: str, db: Session) -> Callable[[Recurso], bool]
             fila = db.execute(
                 select(Documento.id)
                 .where(
-                    Documento.portal_id == portal_id,
+                    Documento.portal_id == portal_id_uuid,
                     Documento.nombre == rec.identificador,
                 )
                 .limit(1)

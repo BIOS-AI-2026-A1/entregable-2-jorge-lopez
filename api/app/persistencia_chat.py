@@ -71,7 +71,10 @@ def persistir(interaccion: InteraccionAPersistir, db: Session) -> None:
         db.add(
             ChatInteraccion(
                 id=uuid.uuid4().hex,
-                portal_id=interaccion.portal_id,
+                # `uuid.UUID(...)`: `interaccion.portal_id` llega como `str`;
+                # `ChatInteraccion.portal_id` es `uuid.UUID` (columna `Uuid`) y
+                # SQLAlchemy exige el tipo Python nativo al enlazar el INSERT.
+                portal_id=uuid.UUID(interaccion.portal_id),
                 chat_id=interaccion.chat_id,
                 turno=turno,
                 idioma=interaccion.idioma,

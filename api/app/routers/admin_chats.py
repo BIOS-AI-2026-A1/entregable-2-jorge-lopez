@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -91,11 +92,21 @@ def _portal_id_efectivo(
     Administrador el parámetro se ignora silenciosamente (no error) y manda
     el portal resuelto del host. Devolver 400 al pasarlo delataría al cliente
     que existe la opción de sobreescritura y sería ruido; la política es la
-    misma del resto de la API multi-tenant.
+    misma del resto de la API multi-tenant. Un `portal_id` de SuperAdmin que
+    no sea un UUID válido se ignora igual (mismo silencio) en vez de romper
+    la petición: `Portal.id` es un `uuid.UUID` desde la migración `0012`, así
+    que ya no vale cualquier cadena como antes (cuando `id == slug`).
     """
     if portal_id_query and admin.nivel >= NivelAcceso.SUPERADMIN.value:
-        return portal_id_query
-    return portal.id
+        try:
+            uuid.UUID(portal_id_query)
+        except ValueError:
+            pass
+        else:
+            return portal_id_query
+    # `str(...)`: `Portal.id` es un `uuid.UUID`; el resto de esta ruta (clave de
+    # caché, filtros y los esquemas de salida `portal_id: str`) asume texto.
+    return str(portal.id)
 
 
 def _parsear_iso(cadena: str | None, campo: str) -> datetime | None:
@@ -158,7 +169,9 @@ def _interaccion_a_dict(f: ChatInteraccion) -> dict:
     return {
         "id": f.id,
         "chat_id": f.chat_id,
-        "portal_id": f.portal_id,
+        # `str(...)`: `ChatInteraccion.portal_id` es un `uuid.UUID`; el esquema de
+        # salida lo espera como texto.
+        "portal_id": str(f.portal_id),
         "turno": f.turno,
         "idioma": f.idioma,
         "consulta": f.consulta,
@@ -212,7 +225,9 @@ def metricas(
             ChatInteraccion.veredicto,
         )
         .filter(
-            ChatInteraccion.portal_id == portal_efectivo,
+            # `uuid.UUID(...)`: `ChatInteraccion.portal_id` es `uuid.UUID`
+            # (columna `Uuid`); SQLAlchemy exige el tipo nativo al enlazar.
+            ChatInteraccion.portal_id == uuid.UUID(portal_efectivo),
             ChatInteraccion.creado_en >= dt_desde,
             ChatInteraccion.creado_en < dt_hasta,
         )
@@ -271,8 +286,10 @@ def listar(
     dt_hasta = _parsear_iso(hasta, "hasta")
     offset = _decodificar_cursor(cursor)
 
+    # `uuid.UUID(...)`: `ChatInteraccion.portal_id` es `uuid.UUID` (columna
+    # `Uuid`); SQLAlchemy exige el tipo nativo al enlazar.
     consulta = db.query(ChatInteraccion).filter(
-        ChatInteraccion.portal_id == portal_efectivo
+        ChatInteraccion.portal_id == uuid.UUID(portal_efectivo)
     )
     if dt_desde is not None:
         consulta = consulta.filter(ChatInteraccion.creado_en >= dt_desde)
@@ -330,7 +347,9 @@ def listar(
         "items": [
             {
                 "chat_id": it["chat_id"],
-                "portal_id": it["portal_id"],
+                # `str(...)`: `it["portal_id"]` viene de `ChatInteraccion.portal_id`
+                # (`uuid.UUID`); el esquema de salida lo espera como texto.
+                "portal_id": str(it["portal_id"]),
                 "idioma": it["idioma"],
                 "turnos": it["turnos"],
                 "ultimo_veredicto": it["ultimo_veredicto"],
@@ -366,7 +385,9 @@ def detalle(
         db.query(ChatInteraccion)
         .filter(
             ChatInteraccion.chat_id == chat_id,
-            ChatInteraccion.portal_id == portal_efectivo,
+            # `uuid.UUID(...)`: `ChatInteraccion.portal_id` es `uuid.UUID`
+            # (columna `Uuid`); SQLAlchemy exige el tipo nativo al enlazar.
+            ChatInteraccion.portal_id == uuid.UUID(portal_efectivo),
         )
         .order_by(ChatInteraccion.turno)
         .all()

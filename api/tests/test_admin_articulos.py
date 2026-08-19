@@ -296,35 +296,40 @@ def test_fk_diferible_permite_ciclo_en_una_transaccion(db_session):
     from sqlalchemy import text
 
     from app.models import Articulo
+    from app.servicios import PORTAL_DEFECTO_UUID
 
+    # `bindparams` (no interpolar el UUID como literal): `portal_id` es una
+    # columna `Uuid`, y solo pasando el valor como parámetro enlazado aplica
+    # SQLAlchemy el mismo procesado de tipo que usa el ORM (necesario también
+    # en SQLite, que lo almacena como hex, no como el texto del UUID).
     conn = db_session.connection()
     conn.execute(
         text(
             "INSERT INTO articulos (id, portal_id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
-            " VALUES ('uno','default','cuenta','2026-07-25',1,0,0)"
-        )
+            " VALUES ('uno',:portal_id,'cuenta','2026-07-25',1,0,0)"
+        ).bindparams(portal_id=PORTAL_DEFECTO_UUID)
     )
     # El destino 'dos' aún no existe: con FK inmediata esto fallaría aquí.
     conn.execute(
         text(
             "INSERT INTO articulo_relacionados (portal_id, articulo_id, relacionado_id, orden)"
-            " VALUES ('default','uno','dos',0)"
-        )
+            " VALUES (:portal_id,'uno','dos',0)"
+        ).bindparams(portal_id=PORTAL_DEFECTO_UUID)
     )
     conn.execute(
         text(
             "INSERT INTO articulos (id, portal_id, categoria_id, actualizado, minutos_lectura, destacado, orden)"
-            " VALUES ('dos','default','cuenta','2026-07-25',1,0,1)"
-        )
+            " VALUES ('dos',:portal_id,'cuenta','2026-07-25',1,0,1)"
+        ).bindparams(portal_id=PORTAL_DEFECTO_UUID)
     )
     conn.execute(
         text(
             "INSERT INTO articulo_relacionados (portal_id, articulo_id, relacionado_id, orden)"
-            " VALUES ('default','dos','uno',0)"
-        )
+            " VALUES (:portal_id,'dos','uno',0)"
+        ).bindparams(portal_id=PORTAL_DEFECTO_UUID)
     )
     db_session.commit()  # la comprobación diferida se aplica aquí y pasa
 
     # La PK es compuesta `(portal_id, id)`: se busca por la tupla completa.
-    assert db_session.get(Articulo, ("default", "uno")) is not None
-    assert db_session.get(Articulo, ("default", "dos")) is not None
+    assert db_session.get(Articulo, (PORTAL_DEFECTO_UUID, "uno")) is not None
+    assert db_session.get(Articulo, (PORTAL_DEFECTO_UUID, "dos")) is not None

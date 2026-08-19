@@ -266,7 +266,10 @@ pytest                                  # pruebas del backend (SQLite en memoria
 ```
 
 El detalle está en `api/README.md`. En desarrollo hay que tener los tres procesos vivos: `docker compose
-up -d` (Postgres), `uvicorn` en `api/` y `npm run dev` en `app/`.
+up -d` (Postgres), `uvicorn` en `api/` y `npm run dev` en `app/`. `api/.env` debe fijar
+`BASE_DOMAIN=localhost` en desarrollo: sin eso, un portal creado desde el panel siembra su
+subdominio bajo el default de producción (`tuapp.com`) y no resuelve en el navegador; con
+`localhost` sí (p. ej. `aviacion.localhost`).
 
 ## Reglas
 

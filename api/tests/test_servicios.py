@@ -22,10 +22,10 @@ from app.models import (
     Conversacion,
     Metrica,
 )
-from app.servicios import PORTAL_DEFECTO_ID, ensamblar_contenido
+from app.servicios import PORTAL_DEFECTO_UUID, ensamblar_contenido
 
 # Portal bajo el que se ensambla en estas pruebas (el que siembra `conftest`).
-P = PORTAL_DEFECTO_ID
+P = PORTAL_DEFECTO_UUID
 
 
 def _traduccion_articulo(articulo_id: str, idioma: str) -> ArticuloTraduccion:

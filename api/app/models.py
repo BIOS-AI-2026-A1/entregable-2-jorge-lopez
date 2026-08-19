@@ -7,6 +7,7 @@ JSONB en PostgreSQL (producción) y JSON en SQLite (tests en memoria).
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -65,7 +66,7 @@ class NivelAcceso(enum.IntEnum):
     ANONIMO nunca se persiste (es la ausencia de sesión); EDITOR y ADMINISTRADOR
     viven como `nivel` en `admin_users` acotados a su portal. SUPERADMIN es
     transversal (gestiona portales): no se ata a un portal de contenido sino al
-    portal de plataforma reservado (ver `PORTAL_PLATAFORMA_ID`). Los valores 1–3
+    portal de plataforma reservado (ver `PORTAL_PLATAFORMA_SLUG`). Los valores 1–3
     no cambian, por compatibilidad de API con el modelo single-tenant.
     """
 
@@ -79,15 +80,18 @@ class Portal(Base):
     """Tenant. Unidad de aislamiento: cada artículo, categoría, usuario, pregunta sin
     resolver y ajuste de marca pertenece a exactamente un portal (`portal_id`).
 
-    `id` es la clave estable (referenciada por las FKs); `slug` es la clave legible
-    que define el subdominio `<slug>.tuapp.com`. `estado` permite suspender un portal
-    sin borrarlo ("activo"/"suspendido"). `nombre_empresa` es el valor de marca del
+    `id` es un UUID opaco (clave estable referenciada por las FKs), separado del
+    `slug`, la clave legible que define el subdominio `<slug>.tuapp.com`. Separar
+    identidad de nombre público deja el `slug` libre para hacerse editable en el
+    futuro sin cascadear un cambio de PK por las ~15 tablas con FK `portal_id`
+    (migración `0012_portal_uuid`). `estado` permite suspender un portal sin
+    borrarlo ("activo"/"suspendido"). `nombre_empresa` es el valor de marca del
     portal (el campo interno `[Empresa]`), aquí por portal en lugar de global.
     """
 
     __tablename__ = "portales"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     slug: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     nombre_empresa: Mapped[str] = mapped_column(String, nullable=False)
     estado: Mapped[str] = mapped_column(String, nullable=False, default="activo")
@@ -113,7 +117,7 @@ class Dominio(Base):
     __tablename__ = "dominios"
 
     host: Mapped[str] = mapped_column(String, primary_key=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id", ondelete="CASCADE"), nullable=False, index=True
     )
     # Marca el host canónico del portal (su subdominio), frente a los dominios propios.
@@ -131,7 +135,7 @@ class Categoria(Base):
     __table_args__ = (PrimaryKeyConstraint("portal_id", "id"),)
 
     id: Mapped[str] = mapped_column(String)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     icono: Mapped[str] = mapped_column(String)
@@ -165,7 +169,7 @@ class CategoriaTraduccion(Base):
 
     categoria_id: Mapped[str] = mapped_column(String)
     idioma: Mapped[str] = mapped_column(String)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     slug: Mapped[str] = mapped_column(String)
@@ -187,7 +191,7 @@ class Articulo(Base):
     )
 
     id: Mapped[str] = mapped_column(String)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     categoria_id: Mapped[str] = mapped_column(String)
@@ -233,7 +237,7 @@ class ArticuloTraduccion(Base):
 
     articulo_id: Mapped[str] = mapped_column(String)
     idioma: Mapped[str] = mapped_column(String)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     slug: Mapped[str] = mapped_column(String)
@@ -269,7 +273,7 @@ class ArticuloRelacionado(Base):
         ),
     )
 
-    portal_id: Mapped[str] = mapped_column(String, primary_key=True)
+    portal_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     articulo_id: Mapped[str] = mapped_column(String, primary_key=True)
     relacionado_id: Mapped[str] = mapped_column(String, primary_key=True)
     orden: Mapped[int] = mapped_column(Integer, default=0)
@@ -288,7 +292,7 @@ class PreguntaSinResolver(Base):
     __tablename__ = "preguntas_sin_resolver"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     idioma: Mapped[str] = mapped_column(String)
@@ -304,7 +308,7 @@ class Conversacion(Base):
     __tablename__ = "conversaciones"
 
     # Clave por portal e idioma: cada portal tiene su propia conversación de ejemplo.
-    portal_id: Mapped[str] = mapped_column(ForeignKey("portales.id"), primary_key=True)
+    portal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("portales.id"), primary_key=True)
     idioma: Mapped[str] = mapped_column(String, primary_key=True)
     mensajes: Mapped[list] = mapped_column(JsonType)
 
@@ -313,7 +317,7 @@ class Metrica(Base):
     __tablename__ = "metricas"
 
     # Clave por portal, idioma y métrica: las métricas del panel son por portal.
-    portal_id: Mapped[str] = mapped_column(ForeignKey("portales.id"), primary_key=True)
+    portal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("portales.id"), primary_key=True)
     idioma: Mapped[str] = mapped_column(String, primary_key=True)
     clave: Mapped[str] = mapped_column(String, primary_key=True)
     valor: Mapped[str] = mapped_column(String)
@@ -331,7 +335,7 @@ class AdminUser(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     email: Mapped[str] = mapped_column(String, index=True)
@@ -392,7 +396,7 @@ class Ajustes(Base):
     # colisionar la fila de un segundo portal; se quita para que la base autoincremente.
     # El portal `default` conserva su fila histórica `id=1` (sembrada explícitamente).
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, unique=True
     )
     # Colores hex `#rrggbb`. Los valores por defecto reproducen el aspecto actual.
@@ -422,7 +426,7 @@ class Documento(Base):
     __tablename__ = "documentos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     nombre: Mapped[str] = mapped_column(String, nullable=False)
@@ -458,7 +462,7 @@ class DocumentoChunk(Base):
     __tablename__ = "documento_chunks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     documento_id: Mapped[int] = mapped_column(
@@ -494,7 +498,7 @@ class ArticuloChunk(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id"), nullable=False, index=True
     )
     articulo_id: Mapped[str] = mapped_column(String, nullable=False)
@@ -558,7 +562,7 @@ class ChatInteraccion(Base):
     __tablename__ = "chat_interaccion"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    portal_id: Mapped[str] = mapped_column(
+    portal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portales.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chat_id: Mapped[str] = mapped_column(String, nullable=False, index=True)

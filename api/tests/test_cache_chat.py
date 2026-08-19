@@ -28,8 +28,12 @@ from app.cache_chat import derivar_clave, normalizar_consulta
 from app.chat import responder
 from app.models import Articulo, ArticuloTraduccion
 from app.recuperador import FragmentoRecuperado, ResultadoRecuperacion
+from app.servicios import PORTAL_DEFECTO_UUID
 
-PORTAL_A = "default"
+# `str(...)`: el pipeline del chat trata `portal_id` como texto de punta a
+# punta; el portal `default` sembrado por `_sembrar_minimo` usa el UUID fijo
+# `PORTAL_DEFECTO_UUID`.
+PORTAL_A = str(PORTAL_DEFECTO_UUID)
 
 
 class _ChatDoble:
@@ -85,10 +89,13 @@ def _fragmento_articulo(slug: str = "como-hacer-algo") -> FragmentoRecuperado:
 def _sembrar_articulo(db, slug: str = "como-hacer-algo") -> None:
     """Siembra un artículo `a1` con su traducción `es` para que la revalidación
     del caché encuentre el `slug` en la base."""
+    # `PORTAL_DEFECTO_UUID` (no `PORTAL_A`): estos son inserts ORM directos
+    # contra columnas `Uuid`, que exigen el tipo Python nativo, no el `str`
+    # que sí acepta el pipeline del chat en su frontera pública.
     db.add(
         Articulo(
             id="a1",
-            portal_id=PORTAL_A,
+            portal_id=PORTAL_DEFECTO_UUID,
             categoria_id="cuenta",
             actualizado=date(2026, 8, 1),
             minutos_lectura=2,
@@ -99,7 +106,7 @@ def _sembrar_articulo(db, slug: str = "como-hacer-algo") -> None:
     db.add(
         ArticuloTraduccion(
             articulo_id="a1",
-            portal_id=PORTAL_A,
+            portal_id=PORTAL_DEFECTO_UUID,
             idioma="es",
             slug=slug,
             titulo="Cómo hacer algo",
@@ -225,7 +232,7 @@ def test_borrar_articulo_citado_invalida_la_entrada(db_session, monkeypatch):
 
     # Borrar la traducción cuyo slug está en la entrada cacheada.
     db_session.query(ArticuloTraduccion).filter_by(
-        articulo_id="a1", portal_id=PORTAL_A
+        articulo_id="a1", portal_id=PORTAL_DEFECTO_UUID
     ).delete()
     db_session.commit()
 
