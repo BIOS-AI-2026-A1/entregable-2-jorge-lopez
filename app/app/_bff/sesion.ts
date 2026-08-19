@@ -71,10 +71,16 @@ export async function reenviarConSesion(request: NextRequest, rutaBackend: strin
   // los cuerpos JSON es indistinto (los mismos bytes con su `content-type`).
   const cuerpo = metodo === 'GET' || metodo === 'HEAD' ? undefined : await request.arrayBuffer()
   const tipo = request.headers.get('content-type') ?? undefined
+  // `Content-Disposition` transporta el nombre de archivo en las subidas de
+  // documentos (`src/data/admin.ts › subirDocumento`); si no se reenvía, el
+  // backend cae al literal "documento" y la tabla del panel muestra ese
+  // marcador en lugar del nombre real del PDF/DOCX/MD/TXT.
+  const disposicion = request.headers.get('content-disposition') ?? undefined
 
   const llamar = (token?: string): Promise<Response> => {
     const headers: Record<string, string> = {}
     if (tipo) headers['content-type'] = tipo
+    if (disposicion) headers['content-disposition'] = disposicion
     if (host) headers[CABECERA_PORTAL] = host
     if (token) headers.authorization = `Bearer ${token}`
     return fetch(url, { method: metodo, headers, body: cuerpo, cache: 'no-store' })
