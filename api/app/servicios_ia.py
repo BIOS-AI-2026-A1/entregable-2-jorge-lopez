@@ -25,12 +25,25 @@ from sqlalchemy.orm import Session
 
 from app.cifrado import CifradoNoConfigurado, descifrar
 from app.database import get_db
-from app.models import ConfigIA
+from app.models import ConfigIA, ConfigIAClave
 from app.rag import EMBEDDING_MODELO, URL_BASE_EMBEDDINGS
 from app.schemas import TraduccionArticuloIn
 
-# Proveedor efectivo por defecto si aún no hay fila de configuración.
-PROVEEDOR_POR_DEFECTO = "anthropic"
+# Proveedor por defecto de cada rol. Se aplica solo cuando `ConfigIA` no existe
+# todavía o el campo del rol es NULL (instalación limpia o SuperAdmin sin elegir
+# aún). Cualquier valor explícito en la fila prevalece sobre el default.
+PROVEEDOR_CHAT_POR_DEFECTO = "deepseek"
+PROVEEDOR_TRADUCCION_POR_DEFECTO = "anthropic"
+PROVEEDOR_EMBEDDINGS_POR_DEFECTO = "voyage"
+
+# Proveedores con motor real por rol. El router los expone en `rolesSoportados`
+# para que la UI filtre sus selectores; el backend rechaza con 422 cualquier
+# asignación de rol → proveedor fuera de la lista de ese rol. Fuente de la
+# verdad: la implementación de las fábricas de más abajo.
+PROVEEDORES_CHAT: tuple[str, ...] = ("deepseek",)
+PROVEEDORES_TRADUCCION: tuple[str, ...] = ("anthropic", "deepseek")
+PROVEEDORES_EMBEDDINGS: tuple[str, ...] = ("voyage", "openai")
+
 CONFIG_IA_ID = 1
 
 # Nombres de idioma para redactar el prompt.
@@ -174,30 +187,34 @@ class ProveedorDeepSeek:
             raise ErrorProveedor("El proveedor no devolvió un JSON válido.") from exc
 
 
-def _clave_del_proveedor(config: ConfigIA | None, proveedor: str) -> str:
-    if config is None:
-        raise ProveedorNoConfigurado(proveedor)
-    token = (config.claves or {}).get(proveedor)
-    if not token:
+def _clave_del_proveedor(db: Session, proveedor: str) -> str:
+    """Devuelve la clave (en claro) del proveedor. Las claves viven en la tabla
+    `config_ia_clave` (una fila por proveedor), no en `ConfigIA`. Sin fila o con
+    la clave de cifrado ausente, se trata como «no configurado»."""
+    fila = db.get(ConfigIAClave, proveedor)
+    if fila is None or not fila.token_cifrado:
         raise ProveedorNoConfigurado(proveedor)
     try:
-        return descifrar(token)
+        return descifrar(fila.token_cifrado)
     except CifradoNoConfigurado as exc:
         # Falta la clave de cifrado o cambió: se trata como «no configurado».
         raise ProveedorNoConfigurado(proveedor) from exc
 
 
 def crear_proveedor(db: Session) -> ProveedorTraduccion:
-    """Resuelve el proveedor activo desde `ConfigIA` y devuelve su implementación."""
+    """Resuelve el proveedor de **traducción** desde `ConfigIA` y devuelve su implementación."""
     config = db.get(ConfigIA, CONFIG_IA_ID)
-    proveedor = config.proveedor_activo if config is not None else PROVEEDOR_POR_DEFECTO
-    clave = _clave_del_proveedor(config, proveedor)
+    proveedor = (
+        config.proveedor_traduccion if config is not None and config.proveedor_traduccion else PROVEEDOR_TRADUCCION_POR_DEFECTO
+    )
+    clave = _clave_del_proveedor(db, proveedor)
     if proveedor == "anthropic":
         return ProveedorAnthropic(clave)
     if proveedor == "deepseek":
         return ProveedorDeepSeek(clave)
-    # `google` u otros: aún no implementados como motor; se contempla el punto de
-    # extensión (ver design.md). Hasta entonces, se trata como no disponible.
+    # El resto de proveedores (Voyage, OpenAI) no tienen motor de traducción.
+    # El router del panel evita asignarlos a este rol (ver `PROVEEDORES_TRADUCCION`);
+    # esta rama defensiva cubre inconsistencias externas al panel.
     raise ProveedorNoConfigurado(proveedor)
 
 
@@ -207,21 +224,17 @@ def obtener_traductor(db: Session = Depends(get_db)) -> ProveedorTraduccion:
 
 
 # --- Embeddings (RAG) -------------------------------------------------------
-# Ninguno de los proveedores con motor de traducción activo expone embeddings:
+# Los proveedores con motor de traducción **no** exponen embeddings:
 #   - DeepSeek: HTTP 404 en `/embeddings` (verificado contra la API real).
 #   - Anthropic: no ofrece endpoint de embeddings; su propia documentación
-#     recomienda Voyage AI como proveedor de embeddings para RAG con Claude.
-# La ingesta RAG usa **Voyage AI** (adquirida por Anthropic en 2025) a través
-# de la misma abstracción OpenAI-compatible: Voyage expone `POST /v1/embeddings`
-# con el mismo shape que OpenAI, así que reutilizamos el SDK de `openai`
-# apuntando a la `base_url` de Voyage (ver `app.rag.URL_BASE_EMBEDDINGS`). La
-# clave se guarda cifrada bajo el proveedor "voyage" en `ConfigIA.claves`
-# (SuperAdmin la introduce por el panel de configuración de IA).
-
-# Proveedor efectivo del que se toman los embeddings. No se lee de
-# `proveedor_activo` porque ese campo determina la **traducción**: el RAG usa
-# siempre Voyage, con su propia entrada en `claves`.
-PROVEEDOR_EMBEDDINGS = "voyage"
+#     recomienda Voyage AI para RAG con Claude.
+# La ingesta RAG resuelve su proveedor desde el campo dedicado
+# `ConfigIA.proveedor_embeddings` (con default `voyage`, adquirida por Anthropic
+# en 2025). Tanto Voyage como OpenAI exponen `POST /v1/embeddings` con el mismo
+# shape, así que reutilizamos el SDK de `openai` apuntando a la `base_url` del
+# proveedor elegido (ver `app.rag.URL_BASE_EMBEDDINGS`). La clave vive en la
+# tabla `config_ia_clave` con `proveedor` = "voyage" u "openai" (SuperAdmin la
+# introduce por el panel de configuración de IA).
 
 
 class ProveedorEmbeddings(Protocol):
@@ -273,14 +286,18 @@ class ProveedorEmbeddingsCompatible:
 
 
 def crear_embedder(db: Session) -> ProveedorEmbeddings:
-    """Resuelve el proveedor de embeddings a partir de `ConfigIA`.
+    """Resuelve el proveedor de **embeddings** a partir de `ConfigIA`.
 
-    Toma la clave del proveedor "voyage" (que SuperAdmin configura por el panel
-    de IA). Si no hay clave, levanta `ProveedorNoConfigurado("voyage")`: el
-    router lo mapea a un `error_detalle` legible en el documento.
+    Lee `ConfigIA.proveedor_embeddings` (con default `voyage` si es NULL o si aún
+    no hay fila) y toma la clave de `config_ia_clave` para ese proveedor. Si no
+    hay clave, levanta `ProveedorNoConfigurado(proveedor)`: el router lo mapea a
+    un `error_detalle` legible en el documento.
     """
     config = db.get(ConfigIA, CONFIG_IA_ID)
-    clave = _clave_del_proveedor(config, PROVEEDOR_EMBEDDINGS)
+    proveedor = (
+        config.proveedor_embeddings if config is not None and config.proveedor_embeddings else PROVEEDOR_EMBEDDINGS_POR_DEFECTO
+    )
+    clave = _clave_del_proveedor(db, proveedor)
     return ProveedorEmbeddingsCompatible(clave)
 
 
@@ -290,13 +307,11 @@ def obtener_embedder(db: Session = Depends(get_db)) -> ProveedorEmbeddings:
 
 
 # --- Chat (RAG) -------------------------------------------------------------
-# El chat del centro de ayuda con RAG usa el mismo proveedor que la traducción
-# (DeepSeek por defecto, salvo que SuperAdmin lo cambie): son dos usos del
-# mismo LLM. El proveedor se resuelve de `ConfigIA.proveedor_activo` y
-# `ConfigIA.modelo_chat` (fallback `deepseek-chat`); el chat NO usa la lista
-# de proveedores de embeddings (esa la controla `crear_embedder`). La separación
-# entre proveedor de chat y proveedor de embeddings en la UI de SuperAdmin queda
-# para un cambio posterior (ver design.md D6 del cambio `chat-rag-portal`).
+# El chat del centro de ayuda con RAG resuelve su proveedor desde el campo
+# dedicado `ConfigIA.proveedor_chat` (con default `deepseek`) y su modelo desde
+# `ConfigIA.modelo_chat` (fallback `deepseek-chat`). El chat NO comparte campo
+# con la traducción ni con los embeddings: cada rol es independiente (ver
+# cambio OpenSpec `separar-proveedores-ia`).
 
 # Modelo del chat efectivo cuando `ConfigIA.modelo_chat` es NULL. Coincide con
 # `MODELO_DEEPSEEK` a propósito: DeepSeek es el proveedor por defecto para el
@@ -379,24 +394,26 @@ class ProveedorChatDeepSeek:
 
 
 def crear_chat(db: Session) -> ProveedorChat:
-    """Resuelve el proveedor de chat a partir de `ConfigIA`.
+    """Resuelve el proveedor de **chat** a partir de `ConfigIA`.
 
-    Toma el proveedor activo (`ConfigIA.proveedor_activo`) y su clave; el modelo
+    Lee `ConfigIA.proveedor_chat` (con default `deepseek` si es NULL o si aún no
+    hay fila) y toma la clave de `config_ia_clave` para ese proveedor. El modelo
     sale de `ConfigIA.modelo_chat` con fallback a `MODELO_CHAT_POR_DEFECTO`. Un
-    proveedor no soportado o sin clave levanta `ProveedorNoConfigurado`, que el
-    router mapea a 409 (patrón simétrico a `crear_proveedor`).
+    proveedor sin clave levanta `ProveedorNoConfigurado`, que el router mapea a
+    409 (patrón simétrico a `crear_proveedor`).
     """
     config = db.get(ConfigIA, CONFIG_IA_ID)
-    proveedor = config.proveedor_activo if config is not None else PROVEEDOR_POR_DEFECTO
-    clave = _clave_del_proveedor(config, proveedor)
+    proveedor = (
+        config.proveedor_chat if config is not None and config.proveedor_chat else PROVEEDOR_CHAT_POR_DEFECTO
+    )
+    clave = _clave_del_proveedor(db, proveedor)
     modelo = (config.modelo_chat if config is not None else None) or MODELO_CHAT_POR_DEFECTO
     if proveedor == "deepseek":
         return ProveedorChatDeepSeek(clave, modelo)
     # Anthropic y el resto podrían implementarse detrás del mismo Protocol. Por
-    # ahora el chat solo soporta DeepSeek; la traducción sigue disponible con
-    # Anthropic. Si SuperAdmin cambia el proveedor activo a Anthropic sin
-    # implementar `ProveedorChatAnthropic`, el chat responde "no configurado"
-    # y la traducción sigue funcionando.
+    # ahora el chat solo soporta DeepSeek: el router del panel evita asignar
+    # otros proveedores a este rol (ver `PROVEEDORES_CHAT`); esta rama defensiva
+    # cubre inconsistencias externas al panel.
     raise ProveedorNoConfigurado(proveedor)
 
 

@@ -370,18 +370,17 @@ class LogoOut(BaseModel):
     mime: str | None = None
 
 
-# --- Configuración de proveedor de IA (solo Administrador) ------------------
+# --- Configuración de proveedor de IA (solo SuperAdmin) ---------------------
 
-# Proveedores admitidos. Anthropic (Claude) es el de por defecto. Anthropic y
-# DeepSeek tienen motor de traducción real; Google Translate queda como opción
-# listada sin motor (ver design.md del cambio `proveedor-deepseek-traduccion`).
-# `voyage` (Voyage AI, adquirida por Anthropic en 2025) y `openai` se añaden
-# como proveedores de **embeddings** para el RAG (ingesta): NO tienen motor de
-# traducción activo aquí, solo la clave que consume `crear_embedder` (ver
-# design.md D4 del cambio `rag-ingesta`; DeepSeek no expone `/embeddings` y
-# Anthropic tampoco, así que el RAG usa Voyage por defecto —vía Anthropic— a
-# través de la misma abstracción OpenAI-compatible).
-ProveedorIA = Literal["anthropic", "google", "deepseek", "openai", "voyage"]
+# Proveedores admitidos. Cada uno tiene motor real en algunos roles y no en otros:
+# `anthropic` y `deepseek` tienen motor de traducción (Anthropic también sirve
+# como motor recomendado por Claude, y DeepSeek además tiene motor de chat);
+# `openai` y `voyage` (Voyage AI, adquirida por Anthropic en 2025) tienen motor
+# de embeddings para el RAG. La correspondencia rol → proveedores viable la
+# expone el backend en `rolesSoportados` (ver `RolesSoportadosOut`); el frontend
+# filtra sus selectores con ese mapa. Google se retiró de la lista al separar
+# roles: no tenía motor real en ninguno (ver cambio `separar-proveedores-ia`).
+ProveedorIA = Literal["anthropic", "deepseek", "openai", "voyage"]
 
 
 class ProveedorEstado(BaseModel):
@@ -396,27 +395,52 @@ class ProveedorEstado(BaseModel):
     pista: str | None = None
 
 
-class ConfigIAOut(BaseModel):
-    """Configuración de IA para el panel: proveedor activo y qué proveedores tienen
-    clave. NUNCA devuelve las claves en claro (solo el booleano `configurada`)."""
+class RolesSoportadosOut(BaseModel):
+    """Proveedores con motor real por rol de IA. El frontend usa este mapa para
+    filtrar cada selector de la tarjeta de configuración; el backend rechaza con
+    422 cualquier asignación de rol → proveedor fuera de la lista de ese rol."""
 
-    proveedorActivo: ProveedorIA
+    chat: list[ProveedorIA]
+    traduccion: list[ProveedorIA]
+    embeddings: list[ProveedorIA]
+
+
+class ConfigIAOut(BaseModel):
+    """Configuración de IA para el panel: proveedor por rol y estado de las claves.
+    NUNCA devuelve las claves en claro (solo el booleano `configurada` y una pista)."""
+
+    # `None` en un rol significa «sin proveedor asignado»: la fábrica cae al
+    # default codificado (ver `PROVEEDOR_*_POR_DEFECTO` en `servicios_ia.py`).
+    proveedorChat: ProveedorIA | None = None
+    proveedorTraduccion: ProveedorIA | None = None
+    proveedorEmbeddings: ProveedorIA | None = None
     proveedores: list[ProveedorEstado]
+    rolesSoportados: RolesSoportadosOut
 
 
 class ConfigIAIn(BaseModel):
-    """Cambia el proveedor activo y, opcionalmente, la clave de un proveedor.
+    """Cambia el proveedor de uno o varios roles y, opcionalmente, la clave de un
+    proveedor (o su borrado).
 
-    `clave` vacía o ausente significa «no cambiar la clave» (espeja el patrón de la
-    contraseña opcional al editar usuarios). `proveedor` indica a qué proveedor
-    aplica la clave; por defecto, el proveedor activo.
+    - `proveedorX = None` significa «no cambiar ese rol»; `proveedorX = "..."` lo
+      sobrescribe. El backend valida que el proveedor asignado pertenece a
+      `rolesSoportados[rol]`; en otro caso responde 422.
+    - `clave` no vacía → cifrar y guardar (upsert) bajo `proveedor` (obligatorio
+      si viene `clave`). `clave` vacía/ausente = «no cambiar la clave».
+    - `borrarClave=True` + `proveedor` → `DELETE` de esa fila de `config_ia_clave`.
+      Si el proveedor está referenciado por algún rol (persistido o en el mismo
+      cuerpo), el backend responde 409 con un detalle legible.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    proveedorActivo: ProveedorIA
+    proveedorChat: ProveedorIA | None = None
+    proveedorTraduccion: ProveedorIA | None = None
+    proveedorEmbeddings: ProveedorIA | None = None
+
     proveedor: ProveedorIA | None = None
     clave: str | None = None
+    borrarClave: bool = False
 
 
 # --- RAG: gestión de documentos (solo Administrador) ------------------------

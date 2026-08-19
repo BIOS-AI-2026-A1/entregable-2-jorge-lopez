@@ -42,8 +42,8 @@ from __future__ import annotations
 EMBEDDING_MODELO = "voyage-3"
 EMBEDDING_DIM = 1024
 
-# Base URL del proveedor OpenAI-compatible para embeddings. Voyage AI (elegido)
+# Base URL del proveedor OpenAI-compatible para embeddings. Voyage AI (default)
 # expone su endpoint aquí. Cambiar a otro proveedor OpenAI-compatible (OpenAI,
 # Together, etc.) requiere ajustar también `EMBEDDING_MODELO`, `EMBEDDING_DIM`
-# y el nombre del proveedor en `servicios_ia.PROVEEDOR_EMBEDDINGS`.
+# y seleccionarlo desde el panel (rol `proveedorEmbeddings` de la config de IA).
 URL_BASE_EMBEDDINGS = "https://api.voyageai.com/v1"

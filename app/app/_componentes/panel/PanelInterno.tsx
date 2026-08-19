@@ -19,7 +19,9 @@ import {
   type ArticuloAdmin,
   type CategoriaAdmin,
   type ConfigIAAdmin,
+  type ConfigIAPayload,
   type PreguntaAdmin,
+  type RolIA,
 } from '@/data/admin'
 import { derivarDegradadoBanner, derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
 import { esAdministrador, esSuperAdmin } from '@/auth/nivel'
@@ -71,9 +73,18 @@ export function PanelInterno({
   const avisoError = (texto: string) => setAviso({ texto, tono: 'error' })
   const [empresaInput, setEmpresaInput] = useState(contenido.empresa)
   const [configIA, setConfigIA] = useState<ConfigIAAdmin | null>(null)
-  const [proveedorInput, setProveedorInput] = useState('anthropic')
-  const [claveInput, setClaveInput] = useState('')
-  const [editandoClave, setEditandoClave] = useState(false)
+  // Estado por rol: proveedor seleccionado en el selector, clave tecleada,
+  // y si el usuario ha pulsado «Editar» para reescribir una clave existente.
+  const [proveedorInput, setProveedorInput] = useState<Record<RolIA, string>>({
+    chat: '', traduccion: '', embeddings: '',
+  })
+  const [claveInput, setClaveInput] = useState<Record<RolIA, string>>({
+    chat: '', traduccion: '', embeddings: '',
+  })
+  const [editandoClave, setEditandoClave] = useState<Record<RolIA, boolean>>({
+    chat: false, traduccion: false, embeddings: false,
+  })
+  const [confirmarBorrado, setConfirmarBorrado] = useState<{ rol: RolIA; proveedor: string } | null>(null)
   const [categorias, setCategorias] = useState<CategoriaAdmin[]>([])
   const [formCategoria, setFormCategoria] = useState<{ modo: 'crear' | 'editar'; inicial?: CategoriaAdmin } | null>(null)
   const [acento, setAcento] = useState(contenido.acento)
@@ -86,20 +97,26 @@ export function PanelInterno({
   // así tampoco dispara un fetch que el backend responde 403.
   const puedeConfigurarIA = esSuperAdmin(nivel)
 
-  // Estado de la clave del proveedor seleccionado en el desplegable. Si tiene clave
-  // y no se está editando, el campo se muestra en solo lectura con la pista (últimos
-  // caracteres); «Editar» lo desbloquea para escribir una clave nueva.
-  const proveedorSeleccionado = configIA?.proveedores.find(p => p.id === proveedorInput) ?? null
-  const claveConfigurada = !!proveedorSeleccionado?.configurada
-  const editandoLaClave = editandoClave || !claveConfigurada
-  const pistaClave = proveedorSeleccionado?.pista ?? null
+  // Helpers para leer el estado del proveedor seleccionado en cada rol.
+  function estadoDe(rol: RolIA) {
+    const seleccionado = proveedorInput[rol]
+    const p = configIA?.proveedores.find(x => x.id === seleccionado) ?? null
+    const configurada = !!p?.configurada
+    return {
+      seleccionado,
+      proveedores: configIA?.rolesSoportados[rol] ?? [],
+      configurada,
+      pista: p?.pista ?? null,
+      editando: editandoClave[rol] || !configurada,
+    }
+  }
 
-  function seleccionarProveedor(id: string) {
-    setProveedorInput(id)
+  function seleccionarProveedor(rol: RolIA, id: string) {
+    setProveedorInput(prev => ({ ...prev, [rol]: id }))
     // Al cambiar de proveedor, volver a solo lectura y descartar lo tecleado: cada
     // proveedor tiene su propia clave y no debe arrastrarse entre ellos.
-    setEditandoClave(false)
-    setClaveInput('')
+    setEditandoClave(prev => ({ ...prev, [rol]: false }))
+    setClaveInput(prev => ({ ...prev, [rol]: '' }))
   }
 
   async function cargarPreguntas() {
@@ -119,7 +136,13 @@ export function PanelInterno({
     if (resp.ok) {
       const cfg = (await resp.json()) as ConfigIAAdmin
       setConfigIA(cfg)
-      setProveedorInput(cfg.proveedorActivo)
+      // El selector arranca en el valor guardado del rol, o en el primero de la
+      // lista de proveedores admitidos por ese rol si aún no hay elección.
+      setProveedorInput({
+        chat: cfg.proveedorChat ?? cfg.rolesSoportados.chat[0] ?? '',
+        traduccion: cfg.proveedorTraduccion ?? cfg.rolesSoportados.traduccion[0] ?? '',
+        embeddings: cfg.proveedorEmbeddings ?? cfg.rolesSoportados.embeddings[0] ?? '',
+      })
     } else if (resp.status === 401) {
       router.replace(rutas.login(idioma))
     }
@@ -164,22 +187,53 @@ export function PanelInterno({
     }
   }
 
-  async function guardarConfigIAHandler(evento: FormEvent) {
+  const CAMPO_PROVEEDOR_POR_ROL: Record<RolIA, keyof ConfigIAPayload> = {
+    chat: 'proveedorChat',
+    traduccion: 'proveedorTraduccion',
+    embeddings: 'proveedorEmbeddings',
+  }
+
+  async function guardarRolHandler(rol: RolIA, evento: FormEvent) {
     evento.preventDefault()
-    const clave = claveInput.trim()
-    const resp = await guardarConfigIA({
-      proveedorActivo: proveedorInput,
-      ...(clave ? { clave } : {}),
-    })
+    const proveedor = proveedorInput[rol]
+    const clave = claveInput[rol].trim()
+    const payload: ConfigIAPayload = {
+      [CAMPO_PROVEEDOR_POR_ROL[rol]]: proveedor,
+      ...(clave ? { proveedor, clave } : {}),
+    }
+    const resp = await guardarConfigIA(payload)
     if (resp.ok) {
       setConfigIA((await resp.json()) as ConfigIAAdmin)
-      setClaveInput('')
-      setEditandoClave(false) // guardado: volver a solo lectura con la pista nueva
+      setClaveInput(prev => ({ ...prev, [rol]: '' }))
+      setEditandoClave(prev => ({ ...prev, [rol]: false }))
       avisoExito(t('configIA.guardado'))
     } else if (resp.status === 401) {
       router.replace(rutas.login(idioma))
     } else if (resp.status === 409) {
       avisoError(t('configIA.errorCifrado'))
+    } else if (resp.status === 422) {
+      avisoError(t('configIA.errorRolInvalido'))
+    } else {
+      avisoError(t('configIA.error'))
+    }
+  }
+
+  async function confirmarBorradoClaveHandler() {
+    if (!confirmarBorrado) return
+    const { rol, proveedor } = confirmarBorrado
+    const resp = await guardarConfigIA({ proveedor, borrarClave: true })
+    setConfirmarBorrado(null)
+    if (resp.ok) {
+      setConfigIA((await resp.json()) as ConfigIAAdmin)
+      setClaveInput(prev => ({ ...prev, [rol]: '' }))
+      setEditandoClave(prev => ({ ...prev, [rol]: false }))
+      avisoExito(t('configIA.eliminada', { proveedor }))
+    } else if (resp.status === 401) {
+      router.replace(rutas.login(idioma))
+    } else if (resp.status === 409) {
+      // El backend devuelve `detail` con el nombre del rol en uso.
+      const cuerpo = (await resp.json().catch(() => null)) as { detail?: string } | null
+      avisoError(cuerpo?.detail ?? t('configIA.errorEnUso'))
     } else {
       avisoError(t('configIA.error'))
     }
@@ -739,120 +793,169 @@ export function PanelInterno({
       </form>
 
       {puedeConfigurarIA && (
-      <form onSubmit={guardarConfigIAHandler} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3" aria-labelledby="config-ia-h3">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4" aria-labelledby="config-ia-h3">
         <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
           {t('configIA.titulo')}
         </h3>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="config-ia-proveedor" className="block text-sm font-medium text-slate-700 mb-1">
-              {t('configIA.proveedor')}
-            </label>
-            <select
-              id="config-ia-proveedor"
-              value={proveedorInput}
-              onChange={e => seleccionarProveedor(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+        {!configIA && <p className="text-xs text-slate-500">{t('configIA.cargando')}</p>}
+        {configIA && (['chat', 'traduccion', 'embeddings'] as const).map(rol => {
+          const est = estadoDe(rol)
+          return (
+            <form
+              key={rol}
+              onSubmit={e => guardarRolHandler(rol, e)}
+              className="space-y-2 border-t border-slate-100 pt-4 first:border-t-0 first:pt-0"
+              aria-labelledby={`config-ia-${rol}-h4`}
             >
-              <option value="anthropic">{t('configIA.proveedores.anthropic')}</option>
-              <option value="deepseek">{t('configIA.proveedores.deepseek')}</option>
-              <option value="google">{t('configIA.proveedores.google')}</option>
-              {/* Voyage AI (recomendado por Anthropic) y OpenAI se listan para
-                  poder guardar sus claves (las usa la ingesta RAG para
-                  embeddings); NO tienen motor de traducción activo, así que
-                  seleccionar cualquiera como proveedor activo hará que la
-                  traducción responda 409 hasta que se elija otro. */}
-              <option value="voyage">{t('configIA.proveedores.voyage')}</option>
-              <option value="openai">{t('configIA.proveedores.openai')}</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="config-ia-clave" className="block text-sm font-medium text-slate-700 mb-1">
-              {t('configIA.clave')}
-            </label>
-            {editandoLaClave ? (
-              <input
-                id="config-ia-clave"
-                type="password"
-                value={claveInput}
-                onChange={e => setClaveInput(e.target.value)}
-                autoComplete="off"
-                placeholder={t('configIA.clavePlaceholder')}
-                aria-describedby="config-ia-estado"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-              />
-            ) : (
-              // Solo lectura: se muestra la pista (últimos caracteres) enmascarada,
-              // con etiqueta accesible explícita en lugar de leer los puntos.
-              <input
-                id="config-ia-clave"
-                type="text"
-                readOnly
-                value={pistaClave ? `••••${pistaClave}` : '••••••••'}
-                aria-label={
-                  pistaClave
-                    ? t('configIA.claveTerminaEn', { fin: pistaClave })
-                    : t('configIA.claveConfiguradaAria')
-                }
-                aria-describedby="config-ia-estado"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-600 font-mono tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-              />
-            )}
-          </div>
-        </div>
-        <p id="config-ia-estado" className="text-xs text-slate-600">
-          {configIA
-            ? configIA.proveedores.map(pr => (
-                <span key={pr.id} className="inline-flex items-center gap-1 mr-3">
-                  {pr.configurada ? (
-                    <Ic.CheckCircle size={13} className="text-emerald-700" />
+              <h4 id={`config-ia-${rol}-h4`} className="text-sm font-semibold text-slate-800">
+                {t(`configIA.${rol}.titulo`)}
+              </h4>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor={`config-ia-${rol}-proveedor`} className="block text-sm font-medium text-slate-700 mb-1">
+                    {t('configIA.proveedor')}
+                  </label>
+                  <select
+                    id={`config-ia-${rol}-proveedor`}
+                    value={est.seleccionado}
+                    onChange={e => seleccionarProveedor(rol, e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+                  >
+                    {est.proveedores.map(id => (
+                      <option key={id} value={id}>
+                        {t(`configIA.proveedores.${id}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor={`config-ia-${rol}-clave`} className="block text-sm font-medium text-slate-700 mb-1">
+                    {t('configIA.clave')}
+                  </label>
+                  {est.editando ? (
+                    <input
+                      id={`config-ia-${rol}-clave`}
+                      type="password"
+                      value={claveInput[rol]}
+                      onChange={e => setClaveInput(prev => ({ ...prev, [rol]: e.target.value }))}
+                      autoComplete="off"
+                      placeholder={t('configIA.clavePlaceholder')}
+                      aria-describedby={`config-ia-${rol}-estado`}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+                    />
                   ) : (
-                    <Ic.AlertCircle size={13} className="text-slate-500" />
+                    <input
+                      id={`config-ia-${rol}-clave`}
+                      type="text"
+                      readOnly
+                      value={est.pista ? `••••${est.pista}` : '••••••••'}
+                      aria-label={
+                        est.pista
+                          ? t('configIA.claveTerminaEn', { fin: est.pista })
+                          : t('configIA.claveConfiguradaAria')
+                      }
+                      aria-describedby={`config-ia-${rol}-estado`}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-600 font-mono tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+                    />
                   )}
-                  {t(`configIA.proveedores.${pr.id}`)}:{' '}
-                  {pr.configurada ? t('configIA.claveConfigurada') : t('configIA.claveSinConfigurar')}
-                </span>
-              ))
-            : t('configIA.cargando')}
-        </p>
-        <div className="flex flex-wrap gap-2 justify-end">
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
-            style={{ background: 'var(--acento)' }}
-          >
-            <Ic.Save size={15} />
-            {t('configIA.guardar')}
-          </button>
-          {claveConfigurada &&
-            (editandoClave ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditandoClave(false)
-                  setClaveInput('')
-                }}
-                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
-              >
-                <Ic.X size={15} />
-                {t('configIA.cancelar')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditandoClave(true)
-                  setClaveInput('')
-                }}
-                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
-              >
-                <Ic.Edit size={15} />
-                {t('configIA.editar')}
-              </button>
-            ))}
-        </div>
+                </div>
+              </div>
+              <p id={`config-ia-${rol}-estado`} className="text-xs text-slate-600 inline-flex items-center gap-1">
+                {est.configurada ? (
+                  <Ic.CheckCircle size={13} className="text-emerald-700" />
+                ) : (
+                  <Ic.AlertCircle size={13} className="text-slate-500" />
+                )}
+                {est.configurada
+                  ? t('configIA.estadoConfigurada', {
+                      proveedor: t(`configIA.proveedores.${est.seleccionado}`),
+                    })
+                  : t('configIA.estadoSinConfigurar', {
+                      proveedor: t(`configIA.proveedores.${est.seleccionado}`),
+                    })}
+              </p>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
+                  style={{ background: 'var(--acento)' }}
+                >
+                  <Ic.Save size={15} />
+                  {t('configIA.guardar')}
+                </button>
+                {est.configurada &&
+                  (editandoClave[rol] ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditandoClave(prev => ({ ...prev, [rol]: false }))
+                        setClaveInput(prev => ({ ...prev, [rol]: '' }))
+                      }}
+                      className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
+                    >
+                      <Ic.X size={15} />
+                      {t('configIA.cancelar')}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditandoClave(prev => ({ ...prev, [rol]: true }))
+                        setClaveInput(prev => ({ ...prev, [rol]: '' }))
+                      }}
+                      className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
+                    >
+                      <Ic.Edit size={15} />
+                      {t('configIA.editar')}
+                    </button>
+                  ))}
+                {est.configurada && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmarBorrado({ rol, proveedor: est.seleccionado })}
+                    className="inline-flex items-center gap-2 px-4 rounded-lg border border-rose-400 bg-white text-rose-700 text-sm font-semibold hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-rose-500 min-h-[44px]"
+                  >
+                    <Ic.Trash size={15} />
+                    {t('configIA.eliminar')}
+                  </button>
+                )}
+              </div>
+            </form>
+          )
+        })}
         <p className="text-xs text-slate-500">{t('configIA.ayuda')}</p>
-      </form>
+        {confirmarBorrado && (
+          <Modal labelledBy="config-ia-borrar-h" onCerrar={() => setConfirmarBorrado(null)}>
+            <div className="rounded-2xl bg-white p-5 shadow-xl">
+              <h4 id="config-ia-borrar-h" className="text-sm font-semibold text-slate-900">
+                {t('configIA.eliminarConfirmacion.titulo')}
+              </h4>
+              <p className="mt-2 text-sm text-slate-700">
+                {t('configIA.eliminarConfirmacion.texto', {
+                  proveedor: t(`configIA.proveedores.${confirmarBorrado.proveedor}`),
+                })}
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmarBorrado(null)}
+                  className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
+                >
+                  {t('configIA.cancelar')}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarBorradoClaveHandler}
+                  className="inline-flex items-center gap-2 px-4 rounded-lg bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-rose-500 min-h-[44px]"
+                >
+                  <Ic.Trash size={15} />
+                  {t('configIA.eliminar')}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </section>
       )}
 
       <div className="flex items-center gap-3 flex-wrap">

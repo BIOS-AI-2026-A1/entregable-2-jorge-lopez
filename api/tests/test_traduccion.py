@@ -6,7 +6,7 @@ import pytest
 
 from app.cifrado import cifrar
 from app.main import app
-from app.models import ConfigIA
+from app.models import ConfigIA, ConfigIAClave
 from app.schemas import TraduccionArticuloIn
 from app.servicios_ia import (
     CONFIG_IA_ID,
@@ -125,35 +125,86 @@ def test_sin_proveedor_configurado_da_409(client, auth):
 # --- Resolución del motor por proveedor (sin red) ---------------------------
 
 
-def _config_ia(db, proveedor: str, claves: dict[str, str]) -> None:
-    db.add(ConfigIA(id=CONFIG_IA_ID, proveedor_activo=proveedor, claves=claves))
+def _config_ia(db, proveedor_traduccion: str, claves: dict[str, str]) -> None:
+    """Siembra `ConfigIA` con el proveedor de traducción indicado y una fila
+    `config_ia_clave` por cada clave del dict. Elimina cualquier fila previa
+    para que cada test parta de un estado conocido."""
+    db.query(ConfigIA).delete()
+    db.query(ConfigIAClave).delete()
+    db.add(ConfigIA(id=CONFIG_IA_ID, proveedor_traduccion=proveedor_traduccion))
+    for proveedor, token in claves.items():
+        db.add(ConfigIAClave(proveedor=proveedor, token_cifrado=token))
     db.commit()
 
 
 def test_crear_proveedor_deepseek_con_clave(db_session):
-    """Con DeepSeek activo y clave cifrada, se resuelve su motor (sin llamar a la red)."""
+    """Con DeepSeek asignado a traducción y clave cifrada, se resuelve su motor
+    (sin llamar a la red)."""
     _config_ia(db_session, "deepseek", {"deepseek": cifrar("sk-deepseek")})
     assert isinstance(crear_proveedor(db_session), ProveedorDeepSeek)
 
 
 def test_crear_proveedor_deepseek_sin_clave(db_session):
-    """DeepSeek activo pero sin clave: no disponible hasta que el Administrador la configure."""
+    """DeepSeek asignado a traducción pero sin fila de clave: no disponible
+    hasta que el SuperAdmin la configure."""
     _config_ia(db_session, "deepseek", {})
     with pytest.raises(ProveedorNoConfigurado):
         crear_proveedor(db_session)
 
 
 def test_crear_proveedor_anthropic_sigue_resolviendo(db_session):
-    """El proveedor por defecto no se ve afectado por añadir DeepSeek."""
+    """El proveedor por defecto de traducción se resuelve normalmente."""
     _config_ia(db_session, "anthropic", {"anthropic": cifrar("sk-anthropic")})
     assert isinstance(crear_proveedor(db_session), ProveedorAnthropic)
 
 
-def test_google_sigue_sin_motor(db_session):
-    """Google queda como opción listada sin motor: se trata como no disponible."""
-    _config_ia(db_session, "google", {"google": cifrar("clave-google")})
-    with pytest.raises(ProveedorNoConfigurado):
-        crear_proveedor(db_session)
+def test_roles_independientes_chat_deepseek_traduccion_anthropic(db_session):
+    """Los tres roles se resuelven de forma independiente: chat con DeepSeek,
+    traducción con Anthropic, sin colisión."""
+    from app.servicios_ia import ProveedorChatDeepSeek, crear_chat
+
+    db_session.query(ConfigIA).delete()
+    db_session.query(ConfigIAClave).delete()
+    db_session.add(
+        ConfigIA(
+            id=CONFIG_IA_ID,
+            proveedor_chat="deepseek",
+            proveedor_traduccion="anthropic",
+        )
+    )
+    db_session.add(ConfigIAClave(proveedor="deepseek", token_cifrado=cifrar("sk-deepseek")))
+    db_session.add(ConfigIAClave(proveedor="anthropic", token_cifrado=cifrar("sk-anthropic")))
+    db_session.commit()
+
+    assert isinstance(crear_chat(db_session), ProveedorChatDeepSeek)
+    assert isinstance(crear_proveedor(db_session), ProveedorAnthropic)
+
+
+def test_embeddings_con_openai_mientras_chat_deepseek(db_session):
+    """Embeddings con OpenAI mientras el chat sigue con DeepSeek: cada rol
+    apunta a la fila `config_ia_clave` de su proveedor sin cruce."""
+    from app.servicios_ia import (
+        ProveedorChatDeepSeek,
+        ProveedorEmbeddingsCompatible,
+        crear_chat,
+        crear_embedder,
+    )
+
+    db_session.query(ConfigIA).delete()
+    db_session.query(ConfigIAClave).delete()
+    db_session.add(
+        ConfigIA(
+            id=CONFIG_IA_ID,
+            proveedor_chat="deepseek",
+            proveedor_embeddings="openai",
+        )
+    )
+    db_session.add(ConfigIAClave(proveedor="deepseek", token_cifrado=cifrar("sk-deepseek")))
+    db_session.add(ConfigIAClave(proveedor="openai", token_cifrado=cifrar("sk-openai")))
+    db_session.commit()
+
+    assert isinstance(crear_chat(db_session), ProveedorChatDeepSeek)
+    assert isinstance(crear_embedder(db_session), ProveedorEmbeddingsCompatible)
 
 
 class DeepSeekDoble:
