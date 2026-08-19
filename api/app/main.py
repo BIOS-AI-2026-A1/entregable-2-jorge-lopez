@@ -10,6 +10,7 @@ from app.routers import (
     admin_ajustes,
     admin_articulos,
     admin_categorias,
+    admin_chats,
     admin_config_ia,
     admin_documentos,
     admin_panel,
@@ -39,6 +40,7 @@ app.include_router(admin_portales.router)
 app.include_router(admin_ajustes.router)
 app.include_router(admin_config_ia.router)
 app.include_router(admin_documentos.router)
+app.include_router(admin_chats.router)
 app.include_router(chat.router)
 
 

@@ -10,8 +10,10 @@ Antes de invocar al pipeline aplica:
 - interruptor `CHAT_HABILITADO=false` → 503 "en mantenimiento" (sin proveedor).
 - limitador de tasa por IP en memoria (`CHAT_LIMITE_TASA_MIN`).
 
-La respuesta siempre incluye `session_id`: el emitido si es nuevo, el mismo si
-el cliente lo pasó y sigue vivo, o uno nuevo si venció (ver `sesiones_chat`).
+La respuesta siempre incluye `chat_id`: el emitido si es nuevo, el mismo si el
+cliente lo pasó y sigue vivo, o uno nuevo si venció (ver `sesiones_chat`). El
+alias entrante `session_id` (contrato anterior) sigue aceptándose durante la
+transición; ver `ChatConsultaIn`.
 """
 
 from __future__ import annotations
@@ -189,7 +191,7 @@ def consultar_chat(
             idioma=idioma,
             historial=historial,
             portal_id=portal.id,
-            session_id=cuerpo.session_id,
+            chat_id=cuerpo.chat_id_efectivo,
             solicitar_soporte=cuerpo.solicitar_soporte,
             db=db,
         )
@@ -199,7 +201,7 @@ def consultar_chat(
     return ChatConsultaOut(
         veredicto=respuesta.veredicto,
         mensaje=respuesta.mensaje,
-        session_id=respuesta.session_id,
+        chat_id=respuesta.chat_id,
         fuentes=[
             {"n": f.n, "tipo": f.tipo, "titulo": f.titulo, "slug": f.slug}
             for f in respuesta.fuentes

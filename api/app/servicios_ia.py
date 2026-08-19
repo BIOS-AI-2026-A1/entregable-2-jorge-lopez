@@ -321,9 +321,12 @@ MODELO_CHAT_POR_DEFECTO = MODELO_DEEPSEEK
 # Temperatura por defecto del chat cuando `ConfigIA.temperatura_chat` es NULL.
 # Baja a propósito: el chat cita fuentes y no debe inventar.
 TEMPERATURA_CHAT_POR_DEFECTO = 0.2
-# Techo de tokens de salida del chat. Suficiente para una respuesta larga con
-# citas; corta desbordes de coste.
-MAX_TOKENS_CHAT = 1024
+# Techo de tokens de salida del chat. Calibrado para la política de brevedad
+# de la spec `chat-generativo-rag` (máx. 3 frases + un procedimiento de 4 pasos
+# en línea, ≤ `chat_longitud_max_chars` = 1400 caracteres): con margen para el
+# envoltorio JSON `{respuesta, citas_usadas, encontrada}`. Menos coste por
+# llamada y el pipeline aplica además un recorte suave por caracteres.
+MAX_TOKENS_CHAT = 512
 # Timeout HTTP para la llamada al proveedor de chat. Corto: el usuario espera
 # en pantalla; si el proveedor tarda más, es mejor devolver `escalar` que colgar.
 TIMEOUT_CHAT_SEG = 30.0

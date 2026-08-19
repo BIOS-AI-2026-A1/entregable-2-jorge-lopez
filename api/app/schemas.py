@@ -87,6 +87,10 @@ class ContenidoIdiomaOut(BaseModel):
     bannerHasta: str
     # Indica si hay logotipo subido (para cabecera y favicon); el binario no viaja aquí.
     logo: bool
+    # Hash corto de los bytes del logo (o null sin logo). Se usa como cache-buster en
+    # la URL del `<img>` para que al cambiar el logotipo el navegador vuelva a pedirlo
+    # y no reutilice la copia cacheada de la URL anterior.
+    logoVersion: str | None = None
     categorias: list[CategoriaOut]
     articulos: list[ArticuloOut]
     conversacion: list[dict[str, Any]]
@@ -544,14 +548,23 @@ RazonEscalamientoChat = Literal[
 class ChatConsultaIn(BaseModel):
     """Entrada del endpoint público de chat. El `portal_id` NO se acepta: el
     servidor lo resuelve del host y cualquier valor que envíe el cliente se
-    ignora silenciosamente (extra=`ignore`)."""
+    ignora silenciosamente (extra=`ignore`).
+
+    Contrato renombrado: el campo canónico es `chat_id`. Durante un ciclo de
+    transición se sigue aceptando `session_id` como alias entrante para no
+    romper clientes en vuelo; si el cliente envía ambos, gana `chat_id` (el
+    alias se descarta). El backend siempre devuelve `chat_id`.
+    """
 
     model_config = ConfigDict(extra="ignore")
 
     # Longitud validada estructuralmente aquí y de nuevo en el pipeline (para
     # que la función `responder` sea autosuficiente en tests unitarios).
     consulta: str = Field(min_length=1, max_length=MAX_TURNO_CHARS)
-    # `session_id` opaco emitido por el servidor. `None` en la primera consulta.
+    # `chat_id` opaco emitido por el servidor. `None` en la primera consulta.
+    chat_id: str | None = None
+    # Alias entrante durante la transición del rename `session_id` → `chat_id`.
+    # No se emite nunca en la salida y `chat_id` tiene prioridad si vienen los dos.
     session_id: str | None = None
     # Historial que el cliente conserva localmente (el servidor no lo persiste).
     # Cotas estructurales: 50 turnos máx (el pipeline se queda con los últimos N).
@@ -560,18 +573,108 @@ class ChatConsultaIn(BaseModel):
     # Bandera de escalamiento explícito desde el widget ("contactar soporte").
     solicitar_soporte: bool = False
 
+    @property
+    def chat_id_efectivo(self) -> str | None:
+        """`chat_id` si viene, `session_id` como alias, `None` si ninguno."""
+        return self.chat_id or self.session_id
+
 
 class ChatConsultaOut(BaseModel):
     """Salida del endpoint público de chat.
 
-    `session_id` viaja siempre (emitido o renovado). `fuentes` solo trae valores
+    `chat_id` viaja siempre (emitido o renovado). `fuentes` solo trae valores
     con `veredicto: respondida`. `razon` y `conversacion` solo con
     `veredicto: escalar`. `fuera_de_scope` no lleva ni fuentes ni conversación.
     """
 
     veredicto: VeredictoChat
     mensaje: str
-    session_id: str
+    chat_id: str
     fuentes: list[FuenteChatOut] = Field(default_factory=list)
     razon: RazonEscalamientoChat | None = None
     conversacion: list[TurnoChat] = Field(default_factory=list)
+
+
+# --- Panel: supervisión de chats (spec `supervision-chats`) -----------------
+
+class ChatItemOut(BaseModel):
+    """Fila agregada por `chat_id` para el listado del panel.
+
+    Un chat es una conversación (varias interacciones con el mismo `chat_id`);
+    la tabla del panel muestra una fila por chat, no por turno. `creado_en` es
+    la fecha del primer turno y `ultima_en` la del último; `ultimo_veredicto`
+    resume el estado en el que quedó el chat.
+    """
+
+    chat_id: str
+    portal_id: str
+    idioma: str
+    turnos: int
+    ultimo_veredicto: VeredictoChat
+    creado_en: str
+    ultima_en: str
+
+
+class ChatListaOut(BaseModel):
+    """Listado paginado de chats agregados por `chat_id`.
+
+    `siguiente_cursor` es `None` cuando no hay más páginas; en caso contrario,
+    el cliente lo reenvía como `?cursor=` en la siguiente petición. El formato
+    interno del cursor es opaco (no lo interpreta el frontend).
+    """
+
+    items: list[ChatItemOut]
+    siguiente_cursor: str | None = None
+
+
+class ChatInteraccionOut(BaseModel):
+    """Una interacción persistida en `chat_interaccion` (un turno del chat).
+
+    Espeja los campos del modelo con `creado_en` serializado ISO 8601. Los
+    campos que pueden ser NULL en la base viajan como `null` (razón de
+    escalamiento salvo `veredicto=escalar`; tokens si el proveedor no los
+    reporta).
+    """
+
+    id: str
+    chat_id: str
+    portal_id: str
+    turno: int
+    idioma: str
+    consulta: str
+    veredicto: VeredictoChat
+    mensaje: str
+    citas: list[dict[str, Any]]
+    razon_escalamiento: str | None = None
+    latencia_ms: int
+    tokens_entrada: int | None = None
+    tokens_salida: int | None = None
+    proveedor: str
+    modelo: str
+    creado_en: str
+
+
+class ChatDetalleOut(BaseModel):
+    """Hilo completo de un chat: sus interacciones ordenadas por `turno`."""
+
+    chat_id: str
+    portal_id: str
+    interacciones: list[ChatInteraccionOut]
+
+
+class ChatMetricasOut(BaseModel):
+    """Métricas agregadas del chat para el rango consultado.
+
+    - `chats_total`: cuántos `chat_id` distintos hubo en el periodo.
+    - `chats_respondidos_con_cita_pct`: 0..100 (float, 2 decimales). Porcentaje
+      de esos chats cuyo último veredicto es `respondida`.
+    - `chats_escalados`: cuántos chats cerraron con `veredicto=escalar`.
+    - `desde`/`hasta`: rango efectivo aplicado (útil cuando no llega en la
+      petición y el servidor cae al default de los últimos 30 días).
+    """
+
+    chats_total: int
+    chats_respondidos_con_cita_pct: float
+    chats_escalados: int
+    desde: str
+    hasta: str

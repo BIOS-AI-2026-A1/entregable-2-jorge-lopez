@@ -12,19 +12,24 @@ export function LogoMarca({
   idioma,
   empresa,
   logo = false,
+  logoVersion = null,
 }: {
   idioma: Idioma
   empresa?: string
   logo?: boolean
+  logoVersion?: string | null
 }) {
   const t = traducir(idioma)
   const nombre = t('marca.nombre', { empresa: empresa || t('marca.reserva') })
+  // Cache-buster: al subir un logo nuevo cambia el hash y el navegador vuelve a
+  // pedir la imagen, en vez de reutilizar la copia cacheada de la URL anterior.
+  const src = logoVersion ? `/api/marca/logo?v=${logoVersion}` : '/api/marca/logo'
   return (
     <div className="flex items-center gap-4">
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API, no un asset estático
         <img
-          src="/api/marca/logo"
+          src={src}
           alt={nombre}
           className="w-20 h-20 rounded-xl object-contain select-none"
         />

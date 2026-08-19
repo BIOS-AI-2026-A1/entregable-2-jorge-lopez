@@ -32,24 +32,30 @@ import json
 import logging
 import re
 import secrets
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.cache_chat import EntradaCache, Recurso, derivar_clave, obtener_cache
 from app.config import get_settings
+from app.persistencia_chat import InteraccionAPersistir, persistir
 from app.recuperador import FragmentoRecuperado, recuperar
 from app.servicios_ia import (
     MAX_TOKENS_CHAT,
+    MODELO_CHAT_POR_DEFECTO,
+    PROVEEDOR_CHAT_POR_DEFECTO,
     TEMPERATURA_CHAT_POR_DEFECTO,
     CONFIG_IA_ID,
     ErrorTraduccion,
     ProveedorChat,
     crear_chat,
 )
-from app.models import ConfigIA
+from app.models import ArticuloTraduccion, ConfigIA, Documento
 from app.sesiones_chat import (
     SesionChat,
     abrir_sesion,
@@ -94,12 +100,17 @@ class Turno:
 
 @dataclass
 class RespuestaChat:
-    """Respuesta del pipeline. `session_id` se emite/renueva siempre; los demás
-    campos dependen del veredicto (ver `chat-generativo-rag/spec.md`)."""
+    """Respuesta del pipeline. `chat_id` se emite/renueva siempre; los demás
+    campos dependen del veredicto (ver `chat-generativo-rag/spec.md`).
+
+    `chat_id` es el nombre público (renombrado desde `session_id`); internamente
+    se toma de `SesionChat.session_id`, que se mantiene con su nombre por ahora
+    (el rename solo afecta al contrato del pipeline y del endpoint).
+    """
 
     veredicto: Veredicto
     mensaje: str
-    session_id: str
+    chat_id: str
     fuentes: list[Fuente] = field(default_factory=list)
     # Solo presente cuando `veredicto == "escalar"`.
     razon: RazonEscalamiento | None = None
@@ -193,6 +204,12 @@ def _prompt_sistema_generacion(idioma: str, delimitador: str) -> str:
         "Eres el asistente del centro de ayuda de una empresa. Respondes ÚNICAMENTE con base "
         "en los fragmentos recuperados del portal que se te entregan. Reglas estrictas:\n"
         f"- Redacta en {ambito}, con registro claro y profesional.\n"
+        "- BREVEDAD: la PRIMERA frase debe responder de forma directa y accionable a la pregunta. "
+        "Fuera del bloque de pasos, usa como máximo TRES frases en total.\n"
+        "- PROCEDIMIENTOS: si la consulta pide un procedimiento (cómo hacer X), después de la "
+        "primera frase directa escribe los pasos en UNA SOLA LÍNEA con el formato "
+        "`paso 1 > paso 2 > paso 3`, con un MÁXIMO de cuatro pasos. Si el procedimiento del "
+        "artículo citado tuviera más pasos, resume y remite a la cita en lugar de listarlos todos.\n"
         "- Si la respuesta no se puede fundamentar en los fragmentos, marca `encontrada: false` "
         "y devuelve una respuesta breve indicando que no encontraste la información.\n"
         "- Cita las fuentes usando referencias numeradas al índice del fragmento: `[1]`, `[2]`... "
@@ -229,6 +246,30 @@ def _recortar(texto: str, maximo: int) -> str:
     if len(texto) <= maximo:
         return texto
     return texto[: maximo - 1] + "…"
+
+
+def _recortar_suave(texto: str, maximo: int) -> str:
+    """Recorte suave por caracteres para la respuesta final del asistente.
+
+    Si `texto` cabe en `maximo`, lo devuelve intacto. Si no, corta dentro de esa
+    ventana en el último separador natural (`.` de frase o ` > ` de paso) y
+    añade `…`. Sin separador, hace un corte duro y añade `…`. Se aplica solo a
+    respuestas `respondida`: como el JSON del proveedor ya está validado, este
+    recorte NO cambia el veredicto ni afecta a las citas."""
+    if len(texto) <= maximo:
+        return texto
+    ventana = texto[:maximo]
+    corte_punto = ventana.rfind(".")
+    # `rfind(" > ")` puede caer justo al principio si el texto empieza con eso;
+    # se protege luego evitando cortes en <=0.
+    corte_paso = ventana.rfind(" > ")
+    if corte_punto <= 0 and corte_paso <= 0:
+        return ventana.rstrip() + "…"
+    if corte_paso > corte_punto:
+        # Preservar el separador para que quede "…paso 3 > …" y sea evidente que
+        # había más pasos.
+        return texto[: corte_paso + len(" > ")] + "…"
+    return texto[: corte_punto + 1] + "…"
 
 
 # --- Mensajes al usuario (por idioma) ---------------------------------------
@@ -290,18 +331,65 @@ def responder(
     idioma: str,
     historial: list[Turno],
     portal_id: str,
-    session_id: str | None,
+    chat_id: str | None,
     solicitar_soporte: bool,
     db: Session,
 ) -> RespuestaChat:
-    """Ejecuta el pipeline completo del chat para una consulta.
+    """Ejecuta el pipeline completo del chat para una consulta y persiste la
+    interacción (bandera `CHAT_PERSISTENCIA_HABILITADA`).
 
     El `portal_id` viene del router (resuelto del host) y se usa como única
-    fuente de aislamiento por tenant.
+    fuente de aislamiento por tenant. `chat_id` es el identificador opaco del
+    chat (renombrado desde `session_id`); internamente sigue existiendo la
+    `SesionChat.session_id` en `sesiones_chat` mientras dure la transición.
     """
+    inicio = time.monotonic()
+    consulta_limpia = (consulta or "").strip()
+    respuesta = _ejecutar_pipeline(
+        consulta_limpia=consulta_limpia,
+        idioma=idioma,
+        historial=historial,
+        portal_id=portal_id,
+        chat_id=chat_id,
+        solicitar_soporte=solicitar_soporte,
+        db=db,
+    )
+
+    if get_settings().chat_persistencia_habilitada:
+        try:
+            _persistir_traza(
+                respuesta=respuesta,
+                consulta=consulta_limpia,
+                idioma=idioma,
+                portal_id=portal_id,
+                latencia_ms=int((time.monotonic() - inicio) * 1000),
+                db=db,
+            )
+        except Exception as exc:  # noqa: BLE001 - garantía "no rompe la respuesta"
+            # `persistir` ya traga sus propios errores; este try es defensa en
+            # profundidad para cualquier otro fallo en el camino (por ejemplo,
+            # `_resolver_proveedor_modelo` ante una base caída).
+            logger.warning(
+                "chat_interaccion: fallo al preparar la traza (%s)",
+                type(exc).__name__,
+            )
+
+    return respuesta
+
+
+def _ejecutar_pipeline(
+    consulta_limpia: str,
+    idioma: str,
+    historial: list[Turno],
+    portal_id: str,
+    chat_id: str | None,
+    solicitar_soporte: bool,
+    db: Session,
+) -> RespuestaChat:
+    """Lógica interna del pipeline. `responder` la envuelve para cronometrar y
+    persistir la interacción sin duplicar la salida en cada `return`."""
     settings = get_settings()
 
-    consulta_limpia = (consulta or "").strip()
     if len(consulta_limpia) > settings.chat_max_consulta_chars:
         raise ConsultaInvalida("Consulta demasiado larga")
     if not consulta_limpia:
@@ -309,7 +397,7 @@ def responder(
 
     historial_recortado = historial[-settings.chat_max_historial_turnos :] if historial else []
 
-    sesion = obtener_sesion(session_id) or abrir_sesion()
+    sesion = obtener_sesion(chat_id) or abrir_sesion()
 
     conversacion_completa = list(historial_recortado) + [Turno(rol="usuario", texto=consulta_limpia)]
 
@@ -319,7 +407,7 @@ def responder(
             veredicto="escalar",
             razon="solicitud_usuaria",
             mensaje=_mensaje(idioma, "escalar_solicitud"),
-            session_id=sesion.session_id,
+            chat_id=sesion.session_id,
             conversacion=conversacion_completa,
         )
 
@@ -342,8 +430,37 @@ def responder(
         return RespuestaChat(
             veredicto="fuera_de_scope",
             mensaje=_mensaje(idioma, "fuera_de_scope"),
-            session_id=sesion.session_id,
+            chat_id=sesion.session_id,
         )
+
+    # Caché de respuesta a nivel de aplicación. Se consulta después del
+    # clasificador (necesitamos que la consulta sea `en_scope`) y antes de la
+    # recuperación (evita la query a pgvector y la generación). Solo se
+    # cachean `respondida`; ante un hit se revalida que los recursos citados
+    # sigan existiendo en el portal (borrar el artículo invalida la entrada).
+    clave_cache: str | None = None
+    if settings.chat_cache_habilitada:
+        clave_cache = derivar_clave(
+            portal_id=portal_id,
+            idioma=idioma,
+            consulta=consulta_limpia,
+            config_ia_version=_config_ia_version(db),
+        )
+        cache = obtener_cache()
+        entrada = cache.obtener(clave_cache)
+        if entrada is not None:
+            invalidada = cache.invalidar_si_recursos_faltan(
+                clave_cache, entrada, _revalidar_recurso(portal_id, db)
+            )
+            if not invalidada:
+                # Hit válido: cuenta como `respondida` a efectos de sesión.
+                resetear(sesion)
+                return RespuestaChat(
+                    veredicto="respondida",
+                    mensaje=entrada.mensaje,
+                    chat_id=sesion.session_id,
+                    fuentes=list(entrada.fuentes),
+                )
 
     # Recuperación de fragmentos acotada al portal.
     resultado = recuperar(consulta_limpia, idioma, portal_id, db)
@@ -383,12 +500,33 @@ def responder(
         return _tras_sin_resultados(sesion, idioma, conversacion_completa)
 
     resetear(sesion)
-    return RespuestaChat(
+    respuesta = RespuestaChat(
         veredicto="respondida",
-        mensaje=salida.respuesta,
-        session_id=sesion.session_id,
+        mensaje=_recortar_suave(salida.respuesta, settings.chat_longitud_max_chars),
+        chat_id=sesion.session_id,
         fuentes=fuentes,
     )
+    if settings.chat_cache_habilitada and clave_cache is not None:
+        # Solo se cachea `respondida`. Los recursos citados se guardan como
+        # `(tipo, slug|nombre)` para revalidar existencia en el próximo hit.
+        recursos = tuple(
+            Recurso(
+                tipo=f.tipo,
+                identificador=f.slug if f.tipo == "articulo" else f.titulo,
+            )
+            for f in fuentes
+        )
+        obtener_cache().guardar(
+            clave_cache,
+            EntradaCache(
+                veredicto="respondida",
+                mensaje=respuesta.mensaje,
+                fuentes=list(fuentes),
+                recursos=recursos,
+                expira_en=0.0,  # `guardar` calcula `ahora + ttl`.
+            ),
+        )
+    return respuesta
 
 
 # --- Helpers de pipeline -----------------------------------------------------
@@ -525,13 +663,13 @@ def _tras_sin_resultados(
             veredicto="escalar",
             razon="tope_turnos",
             mensaje=_mensaje(idioma, "escalar_tope"),
-            session_id=sesion.session_id,
+            chat_id=sesion.session_id,
             conversacion=conversacion,
         )
     return RespuestaChat(
         veredicto="sin_resultados",
         mensaje=_mensaje(idioma, "sin_resultados"),
-        session_id=sesion.session_id,
+        chat_id=sesion.session_id,
     )
 
 
@@ -541,7 +679,7 @@ def _resultado_error(sesion: SesionChat, idioma: str) -> RespuestaChat:
         veredicto="escalar",
         razon="error_proveedor",
         mensaje=_mensaje(idioma, "escalar_error"),
-        session_id=sesion.session_id,
+        chat_id=sesion.session_id,
     )
 
 
@@ -551,6 +689,111 @@ def _resolver_temperatura(db: Session) -> float:
     if config is None or config.temperatura_chat is None:
         return TEMPERATURA_CHAT_POR_DEFECTO
     return float(config.temperatura_chat)
+
+
+def _config_ia_version(db: Session) -> str:
+    """Firma corta de la configuración de IA relevante para el chat, para
+    incluir en la clave de caché: cambiar proveedor, modelo o temperatura
+    invalida el hit implícitamente. `ConfigIA` ausente cae a los defaults
+    codificados (`crear_chat` hace lo mismo)."""
+    config = db.get(ConfigIA, CONFIG_IA_ID)
+    if config is None:
+        return f"{PROVEEDOR_CHAT_POR_DEFECTO}|{MODELO_CHAT_POR_DEFECTO}|{TEMPERATURA_CHAT_POR_DEFECTO}"
+    proveedor = config.proveedor_chat or PROVEEDOR_CHAT_POR_DEFECTO
+    modelo = config.modelo_chat or MODELO_CHAT_POR_DEFECTO
+    temp = (
+        TEMPERATURA_CHAT_POR_DEFECTO
+        if config.temperatura_chat is None
+        else float(config.temperatura_chat)
+    )
+    return f"{proveedor}|{modelo}|{temp}"
+
+
+def _revalidar_recurso(portal_id: str, db: Session) -> Callable[[Recurso], bool]:
+    """Devuelve un comprobador que dice si un recurso citado sigue existiendo
+    en el portal. Artículos por `slug`+portal, documentos por `nombre`+portal
+    (los dos únicos por portal). Un recurso ausente invalida la entrada."""
+
+    def _check(rec: Recurso) -> bool:
+        if rec.tipo == "articulo":
+            fila = db.execute(
+                select(ArticuloTraduccion.slug)
+                .where(
+                    ArticuloTraduccion.portal_id == portal_id,
+                    ArticuloTraduccion.slug == rec.identificador,
+                )
+                .limit(1)
+            ).first()
+            return fila is not None
+        if rec.tipo == "documento":
+            fila = db.execute(
+                select(Documento.id)
+                .where(
+                    Documento.portal_id == portal_id,
+                    Documento.nombre == rec.identificador,
+                )
+                .limit(1)
+            ).first()
+            return fila is not None
+        # Tipo desconocido: se trata como faltante para forzar la reejecución.
+        return False
+
+    return _check
+
+
+def _resolver_proveedor_modelo(db: Session) -> tuple[str, str]:
+    """Lee proveedor y modelo efectivos del chat desde `ConfigIA` (para el
+    registro de `chat_interaccion`, no para la llamada real). Sin fila o campos
+    NULL → defaults codificados; misma lógica que `crear_chat` pero sin invocar
+    al proveedor ni exigir clave (queremos la traza incluso ante `escalar_error`).
+    """
+    config = db.get(ConfigIA, CONFIG_IA_ID)
+    proveedor = (
+        config.proveedor_chat
+        if config is not None and config.proveedor_chat
+        else PROVEEDOR_CHAT_POR_DEFECTO
+    )
+    modelo = (config.modelo_chat if config is not None else None) or MODELO_CHAT_POR_DEFECTO
+    return proveedor, modelo
+
+
+def _persistir_traza(
+    *,
+    respuesta: RespuestaChat,
+    consulta: str,
+    idioma: str,
+    portal_id: str,
+    latencia_ms: int,
+    db: Session,
+) -> None:
+    """Convierte la respuesta del pipeline en una fila de `chat_interaccion` y
+    la persiste. `tokens_entrada/salida` viajan como NULL hasta que el Protocol
+    del proveedor los exponga; `proveedor` y `modelo` salen de `ConfigIA`. Un
+    fallo del INSERT se traga en `persistencia_chat.persistir` (log + rollback).
+    """
+    proveedor, modelo = _resolver_proveedor_modelo(db)
+    citas = [
+        {"n": f.n, "tipo": f.tipo, "titulo": f.titulo, "slug": f.slug}
+        for f in respuesta.fuentes
+    ]
+    persistir(
+        InteraccionAPersistir(
+            portal_id=portal_id,
+            chat_id=respuesta.chat_id,
+            idioma=idioma,
+            consulta=consulta,
+            veredicto=respuesta.veredicto,
+            mensaje=respuesta.mensaje,
+            citas=citas,
+            razon_escalamiento=respuesta.razon,
+            latencia_ms=latencia_ms,
+            tokens_entrada=None,
+            tokens_salida=None,
+            proveedor=proveedor,
+            modelo=modelo,
+        ),
+        db,
+    )
 
 
 def serializar_conversacion(turnos: list[Turno]) -> list[dict[str, str]]:

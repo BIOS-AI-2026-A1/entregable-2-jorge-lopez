@@ -14,6 +14,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app import cache_chat as cache_mod
 from app import chat as chat_mod
 from app import sesiones_chat
 from app.config import get_settings
@@ -64,6 +65,17 @@ class _AjustesFake:
             chat_max_historial_turnos=10,
             chat_umbral_turnos_sin_resultados=2,
             chat_ttl_sesion_seg=1800,
+            # Persistencia de `chat_interaccion` desactivada en los tests del
+            # endpoint (la cubre `test_persistencia_chat.py`); así no hay que
+            # sembrar `ChatInteraccion` ni razonar sobre efectos secundarios.
+            chat_persistencia_habilitada=False,
+            # Caché apagada en los tests del endpoint: la cubre `test_cache_chat.py`.
+            chat_cache_habilitada=False,
+            chat_cache_ttl_seg=600,
+            chat_cache_max_entradas=1000,
+            # Tope de longitud de la respuesta (recorte suave); no se ejerce aquí
+            # pero el pipeline lo lee para toda `respondida`.
+            chat_longitud_max_chars=1400,
             rag_top_k=6,
             rag_umbral_similitud=0.28,
             # `_peer_confiable` lo consulta en cada petición: sin él el TestClient
@@ -103,6 +115,7 @@ def _reset():
     chat_mod.restaurar_chat_factory()
     chat_router.restaurar_reloj_tasa()
     chat_router.reset_limitador_para_tests()
+    cache_mod.reset_para_tests()
     get_settings.cache_clear()
     yield
     sesiones_chat.reset_para_tests()
@@ -110,6 +123,7 @@ def _reset():
     chat_mod.restaurar_chat_factory()
     chat_router.restaurar_reloj_tasa()
     chat_router.reset_limitador_para_tests()
+    cache_mod.reset_para_tests()
     get_settings.cache_clear()
 
 
@@ -289,7 +303,7 @@ def test_consulta_pidiendo_exfiltrar_prompt_no_filtra_nada(
         salida = r.json()
         # La respuesta cumple el contrato: solo las claves definidas.
         assert set(salida.keys()) <= {
-            "veredicto", "mensaje", "session_id", "fuentes", "razon", "conversacion",
+            "veredicto", "mensaje", "chat_id", "fuentes", "razon", "conversacion",
         }
         # La salida cruda del modelo no viaja al cliente.
         assert salida_maliciosa not in salida["mensaje"]

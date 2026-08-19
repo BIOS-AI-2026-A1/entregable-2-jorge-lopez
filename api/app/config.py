@@ -87,6 +87,27 @@ class Settings(BaseSettings):
     chat_limite_tasa_min: int = 30
     # Interruptor de mantenimiento: `false` responde 503 sin invocar al proveedor.
     chat_habilitado: bool = True
+    # Escritura de cada interacción del chat en `chat_interaccion` (spec
+    # `supervision-chats`). Bandera de emergencia: si `False`, la respuesta al
+    # usuario funciona igual pero no queda traza para el panel de supervisión.
+    chat_persistencia_habilitada: bool = True
+    # Tope duro por caracteres para la respuesta final del asistente. El pipeline
+    # aplica un recorte suave (al último `.` o ` > ` dentro de la ventana) SOLO
+    # cuando el veredicto es `respondida`; el recorte no cambia el veredicto ni
+    # invalida las citas (la spec `chat-generativo-rag` lo detalla). 1400 chars
+    # ≈ 3 frases + un procedimiento de 4 pasos, en línea con `MAX_TOKENS_CHAT`.
+    chat_longitud_max_chars: int = 1400
+
+    # Caché de respuesta a nivel de aplicación (spec `chat-generativo-rag` ›
+    # «Caché de respuesta por portal con revalidación de citas»). Solo se cachea
+    # el veredicto `respondida`; antes de servir un hit se revalida que cada
+    # recurso citado sigue existiendo en el portal. La clave lleva `portal_id`,
+    # `idioma`, `consulta_normalizada`, `config_ia_version` y
+    # `schema_recuperacion`: cambiar el proveedor o el modelo invalida el hit
+    # implícitamente. Apagable con `CHAT_CACHE_HABILITADA=0`.
+    chat_cache_habilitada: bool = True
+    chat_cache_ttl_seg: int = 600
+    chat_cache_max_entradas: int = 1000
 
     # --- Proxies de confianza (X-Forwarded-*) --------------------------------
     # Lista separada por comas de IPs del salto inmediato ante el backend cuyo

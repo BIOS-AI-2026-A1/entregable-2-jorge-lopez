@@ -65,6 +65,10 @@ cd api
 pytest                                            # SQLite en memoria, no requiere Postgres
 ```
 
+Los tests marcados con `@pytest.mark.eval` (harness EDD del chat) NO se ejecutan por
+defecto (`-m` no incluye `eval`). Ver la sección de [evaluación del chat](#evaluación-eval-driven-del-chat-con-rag)
+para el modo `ci` (dobles deterministas) y el modo `real` (proveedor real, opt-in).
+
 ## Poblado inicial del índice RAG de artículos
 
 Tras aplicar la migración `0008_rag_chunks` (que crea `documentos`,
@@ -190,6 +194,52 @@ del rate limit es siempre la del visitante real, no un valor elegido por el clie
 `*.tuapp.com` y el diseño de dominios propios (ACME por dominio) quedan como fase posterior (ver
 `infraestructura-despliegue`).
 
+## Evaluación (Eval-Driven) del chat con RAG
+
+Harness EDD en `tests/eval/` (spec `evaluacion-chat-rag`) para medir la calidad
+del pipeline del chat contra un dataset versionado, con dos modos:
+
+- **`ci`** (por defecto): dobles deterministas. No hace llamadas de red ni
+  requiere clave. Prueba el pipeline end-to-end (scope, recuperación,
+  validación de citas, formato) con métricas comparables entre PRs.
+
+  ```powershell
+  cd api
+  .venv\Scripts\Activate.ps1
+  pytest -m eval                                   # ejecuta el harness modo ci
+  ```
+
+- **`real`** (opt-in): apunta al proveedor real configurado en `ConfigIA`
+  (DeepSeek/Anthropic + Voyage/OpenAI) y añade `latencia_media_ms` y
+  `coste_total_usd_estimado`. Requiere flag `--real` **y**
+  `CHAT_EVAL_HABILITADO_REAL=1` para no dispararse por accidente con coste.
+
+  ```powershell
+  $env:CHAT_EVAL_HABILITADO_REAL = "1"
+  pytest -m eval --real                            # ejecuta el harness modo real
+  ```
+
+Cada corrida escribe `tests/eval/reports/last.json` con métricas globales y
+por idioma, más el resultado por caso (`id`, `veredicto_obtenido`,
+`citas_obtenidas`, `longitud`, `latencia_ms`, ...).
+
+**Gate contra baseline.** El harness compara la corrida contra
+`tests/eval/baseline.json` y falla el test si alguna métrica cae bajo su
+umbral (por defecto: `exactitud_veredicto ≥ baseline - 0.02`,
+`precision_citas ≥ baseline - 0.02`, `pasos_en_formato_correcto ≥ baseline -
+0.02`, `longitud_media ≤ baseline * 1.10`). Al mejorar una métrica en una PR,
+actualiza `baseline.json` en la misma PR para que el gate proteja el nuevo
+suelo (spec `evaluacion-chat-rag`).
+
+**Añadir un caso al dataset.** Cada línea de `tests/eval/casos_{es,pt}.jsonl`
+es un JSON con `id`, `consulta`, `portal`, `idioma`, `veredicto_esperado` y,
+para `respondida`, `citas_esperadas_por_slug` (lista con al menos un slug).
+Los campos opcionales son `longitud_max`, `debe_contener_pasos`, `adversario`,
+`solicitar_soporte` (para casos `escalar` por solicitud del usuario) y
+`respuesta_texto` (respuesta que el proveedor doble devuelve; con
+`veredicto_esperado="respondida"`). El dataset se revisa en PR como cualquier
+otro fichero fuente.
+
 ## Variables de entorno
 
 Todas viven en `.env` (nunca en el repo) con la lista comentada en `.env.example`. Las obligatorias sin
@@ -202,7 +252,12 @@ en `config.py::Settings`. Grupos:
 - **Chat + RAG** (todas con default): `RAG_UMBRAL_SIMILITUD` (0.28, calibrado para `voyage-3`),
   `RAG_TOP_K` (6), `CHAT_MAX_CONSULTA_CHARS` (500), `CHAT_MAX_HISTORIAL_TURNOS` (10),
   `CHAT_UMBRAL_TURNOS_SIN_RESULTADOS` (2), `CHAT_TTL_SESION_SEG` (1800), `CHAT_LIMITE_TASA_MIN` (30),
-  `CHAT_HABILITADO` (true).
+  `CHAT_HABILITADO` (true), `CHAT_PERSISTENCIA_HABILITADA` (true; escribe cada interacción en
+  `chat_interaccion` para el panel de supervisión), `CHAT_LONGITUD_MAX_CHARS` (1400; recorte suave
+  aplicado solo al veredicto `respondida`), `CHAT_CACHE_HABILITADA` (true), `CHAT_CACHE_TTL_SEG` (600),
+  `CHAT_CACHE_MAX_ENTRADAS` (1000).
+- **Eval del chat** (solo relevante en el modo `real` del harness): `CHAT_EVAL_HABILITADO_REAL` (1
+  para permitir `pytest -m eval --real`; cualquier otro valor salta los casos reales con `pytest.skip`).
 - **Proxies confiables** (default `127.0.0.1,::1`): `PROXIES_CONFIABLES`. Ver sección anterior.
 
 ## Estructura
@@ -241,5 +296,9 @@ alembic/             Migraciones (0001…0009: la 0008 crea las tablas del RAG y
 seed.py              Carga seed_data/*.json bajo el portal `default` y siembra su Administrador
 reindexar_articulos.py  Reindexa el RAG de artículos existentes (idempotente)
 tests/               pytest (contenido, auth, CRUD, aislamiento, portales, chat_endpoint,
-                     chat_pipeline, chat_recuperador, config_ia, traducción, troceo, security)
+                     chat_pipeline, chat_recuperador, chat_admin, brevedad_chat, cache_chat,
+                     persistencia_chat, config_ia, traducción, troceo, security)
+tests/eval/          Harness EDD del chat con RAG: dataset `casos_{es,pt}.jsonl`, proveedor doble,
+                     `test_eval_chat.py` (marker `eval`, modos `ci` y `real`), `baseline.json` con
+                     los umbrales del gate y `reports/last.json` (última corrida)
 ```

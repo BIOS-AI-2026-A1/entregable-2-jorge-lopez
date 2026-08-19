@@ -45,13 +45,13 @@ export interface FuenteChat {
  * viajan con `escalar`. `fuera_de_scope` no lleva ni fuentes ni conversación.
  * La estructura es intencionalmente ancha (un solo tipo con campos opcionales)
  * en vez de una unión discriminada estricta, porque el backend siempre serializa
- * los mismos campos (algunos vacíos) y así el consumidor puede leer `session_id`
+ * los mismos campos (algunos vacíos) y así el consumidor puede leer `chat_id`
  * y `mensaje` sin ramificar por veredicto.
  */
 export interface RespuestaChat {
   veredicto: VeredictoChat
   mensaje: string
-  session_id: string
+  chat_id: string
   fuentes: FuenteChat[]
   razon: RazonEscalamientoChat | null
   conversacion: TurnoChat[]
@@ -60,7 +60,7 @@ export interface RespuestaChat {
 export interface OpcionesConsulta {
   consulta: string
   historial: TurnoChat[]
-  sessionId?: string | null
+  chatId?: string | null
   solicitarSoporte?: boolean
   /** Sustituible en tests; en producción se resuelve al `fetch` global del navegador. */
   fetchImpl?: typeof fetch
@@ -88,11 +88,11 @@ export class ErrorChat extends Error {
  */
 export async function consultarChat(
   idioma: Idioma,
-  { consulta, historial, sessionId, solicitarSoporte, fetchImpl }: OpcionesConsulta,
+  { consulta, historial, chatId, solicitarSoporte, fetchImpl }: OpcionesConsulta,
 ): Promise<RespuestaChat> {
   const f = fetchImpl ?? fetch
   const cuerpo: Record<string, unknown> = { consulta, historial }
-  if (sessionId) cuerpo.session_id = sessionId
+  if (chatId) cuerpo.chat_id = chatId
   if (solicitarSoporte) cuerpo.solicitar_soporte = true
 
   const resp = await f(`/api/${idioma}/chat/consultar`, {
