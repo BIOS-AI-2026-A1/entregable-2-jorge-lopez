@@ -75,10 +75,14 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
   → recuperación vectorial acotada al portal (`app/recuperador.py`, pgvector coseno con fallback SQLite
   para tests) → generación con JSON estricto y validación de citas contra fragmentos y `portal_id`. Sesión
   efímera en memoria (`app/sesiones_chat.py`) con TTL; escalamiento a soporte por umbral de
-  `sin_resultados` o petición explícita (`solicitar_soporte: true`). Aún se contempla implementación
-  única en DeepSeek para el motor de chat; Voyage AI para embeddings; Anthropic y DeepSeek para
-  traducción. El refactor de la configuración de IA para separar los tres roles queda en el cambio
-  posterior `separar-proveedores-ia`.
+  `sin_resultados` o petición explícita (`solicitar_soporte: true`). **Configuración de IA por rol**
+  (cambio OpenSpec `separar-proveedores-ia`): `ConfigIA` tiene tres campos independientes
+  (`proveedor_chat`, `proveedor_traduccion`, `proveedor_embeddings`) y las claves viven en la tabla
+  `config_ia_clave` (una fila por proveedor, cifrada con Fernet). Motores implementados hoy: chat
+  con **DeepSeek**; traducción con **Anthropic** o **DeepSeek**; embeddings con **Voyage AI**
+  (default) o cualquier proveedor OpenAI-compatible (p. ej. OpenAI). SuperAdmin configura cada rol
+  por separado en el panel; los selectores se filtran contra `rolesSoportados` que expone el
+  backend, y el `PUT` rechaza con 422 cualquier asignación de rol → proveedor sin motor real.
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
   usuarios (Administrador), marca por portal, resolución de portal por host, gestión de portales
   (SuperAdmin), ingesta RAG por portal y **chat con RAG por portal** ahora.

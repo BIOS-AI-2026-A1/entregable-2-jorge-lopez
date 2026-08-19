@@ -405,7 +405,7 @@
     "errorRed": "Não foi possível conectar ao servidor."
   },
   "configIA": {
-    "titulo": "Provedor de IA",
+    "titulo": "Configuração de IA",
     "proveedor": "Provedor",
     "clave": "Chave de API",
     "clavePlaceholder": "Escreva uma nova chave para alterá-la",
@@ -415,18 +415,36 @@
     "guardar": "Salvar",
     "editar": "Editar",
     "cancelar": "Cancelar",
+    "eliminar": "Excluir chave",
+    "eliminada": "Chave do provedor {{proveedor}} excluída.",
     "claveTerminaEn": "Chave configurada, termina em {{fin}}",
     "claveConfiguradaAria": "Chave configurada",
+    "estadoConfigurada": "{{proveedor}}: chave configurada",
+    "estadoSinConfigurar": "{{proveedor}}: sem chave configurada",
     "guardado": "Configuração de IA atualizada.",
     "error": "Não foi possível salvar a configuração de IA. Tente novamente.",
     "errorCifrado": "Falta a chave de criptografia no servidor (CLAVE_CIFRADO_IA). Não foi possível salvar a chave.",
-    "ayuda": "A chave é salva criptografada no servidor; apenas os últimos caracteres são exibidos para identificá-la. Toque em «Editar» para alterá-la; deixe em branco para manter a atual. Por padrão usa-se o Claude (Anthropic).",
+    "errorEnUso": "Não é possível excluir a chave: o provedor está em uso por algum papel ativo.",
+    "errorRolInvalido": "Esse provedor não é válido para este papel.",
+    "ayuda": "A chave é salva criptografada no servidor; apenas os últimos caracteres são exibidos para identificá-la. Cada papel (chat, tradução e embeddings) é configurado separadamente; deixe o campo de chave em branco para manter a atual.",
+    "chat": {
+      "titulo": "Chat com RAG"
+    },
+    "traduccion": {
+      "titulo": "Tradução de artigos"
+    },
+    "embeddings": {
+      "titulo": "Embeddings (indexação RAG)"
+    },
+    "eliminarConfirmacion": {
+      "titulo": "Excluir chave",
+      "texto": "Você vai excluir a chave salva para {{proveedor}}. Esta ação não pode ser desfeita; o papel que usa este provedor deixará de responder até que uma nova chave seja configurada."
+    },
     "proveedores": {
       "anthropic": "Claude (Anthropic)",
       "deepseek": "DeepSeek",
-      "google": "Google Translate",
-      "voyage": "Voyage AI (embeddings do RAG, recomendado pela Anthropic)",
-      "openai": "OpenAI (embeddings do RAG, alternativa)"
+      "voyage": "Voyage AI",
+      "openai": "OpenAI"
     }
   }
 }

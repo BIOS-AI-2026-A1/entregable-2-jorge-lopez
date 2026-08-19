@@ -135,12 +135,15 @@ parte del cliente) queda para el cambio posterior `historial-chat-server`.
 
 ### Configuración de proveedores de IA
 
-`ConfigIA` (singleton) guarda `proveedor_activo` + `claves` (dict cifrado con Fernet por proveedor).
-Hoy: chat solo implementado con **DeepSeek** (OpenAI-compatible), embeddings **siempre Voyage AI**
-(hardcoded en `PROVEEDOR_EMBEDDINGS`), traducción con **Anthropic** o **DeepSeek**. Para que el chat
-responda, SuperAdmin ha de configurar la clave DeepSeek por el panel y dejar `proveedor_activo=deepseek`.
-La separación de los tres roles (chat / traducción / embeddings) con selectores independientes queda en
-el cambio posterior `separar-proveedores-ia`.
+`ConfigIA` (singleton) tiene **un campo por rol** de IA: `proveedor_chat`, `proveedor_traduccion` y
+`proveedor_embeddings` (todos nullable; `NULL` = usar el default codificado del rol). Las claves de API
+viven en la tabla `config_ia_clave` (una fila por proveedor, cifrada con Fernet), no dentro de `ConfigIA`.
+Motores implementados hoy: **chat** con DeepSeek (OpenAI-compatible); **traducción** con Anthropic o
+DeepSeek; **embeddings** con Voyage AI (default, recomendado por Anthropic) o cualquier otro proveedor
+OpenAI-compatible (p. ej. OpenAI). SuperAdmin configura cada rol por separado en el panel: los
+selectores se filtran contra el mapa `rolesSoportados` que devuelve el propio backend (el `PUT` rechaza
+con 422 cualquier asignación de rol → proveedor sin motor real). Borrar la clave de un proveedor en uso
+por algún rol responde 409. Ver cambio OpenSpec `separar-proveedores-ia`.
 
 ## Resolución de portal y proxy de confianza (multi-tenant)
 
@@ -210,7 +213,8 @@ app/
   config.py          Configuración por entorno (pydantic-settings); expone `proxies_confiables_set`
   database.py        Motor, sesión y Base declarativa
   models.py          Modelos SQLAlchemy (patrón bilingüe; Portal + portal_id en todas las entidades;
-                     ConfigIA con proveedor_activo + claves cifradas + modelo_chat/temperatura_chat)
+                     ConfigIA con proveedor_chat/_traduccion/_embeddings + modelo_chat/temperatura_chat;
+                     ConfigIAClave con la clave cifrada por proveedor, una fila por proveedor)
   schemas.py         Esquemas Pydantic (reproducen app/src/types.ts). `TurnoChatIn` (solo rol usuario,
                      input del chat) vs `TurnoChat` (ambos roles, output para la conversación)
   security.py        Hash argon2 + JWT; enum de niveles (SUPERADMIN..ANONIMO)

@@ -357,7 +357,10 @@ export function traducirArticulo(origen: Idioma, contenido: TraduccionAdmin): Pr
   })
 }
 
-// ── Configuración de proveedor de IA (solo Administrador) ───────────────────
+// ── Configuración de proveedor de IA (solo SuperAdmin) ──────────────────────
+
+/** Roles de IA independientes: chat, traducción y embeddings del RAG. */
+export type RolIA = 'chat' | 'traduccion' | 'embeddings'
 
 /**
  * Estado de un proveedor: si tiene clave configurada y una pista (los últimos
@@ -370,21 +373,46 @@ export interface ProveedorEstado {
   pista?: string | null
 }
 
-/** Configuración de IA que devuelve `GET /api/admin/config-ia`. Sin claves. */
-export interface ConfigIAAdmin {
-  proveedorActivo: string
-  proveedores: ProveedorEstado[]
+/**
+ * Proveedores con motor real por rol. El backend rechaza con 422 cualquier
+ * asignación de rol → proveedor fuera de estas listas; la UI filtra sus
+ * selectores con este mapa.
+ */
+export interface RolesSoportados {
+  chat: string[]
+  traduccion: string[]
+  embeddings: string[]
 }
 
 /**
- * Datos que se envían al guardar la configuración. `clave` vacía/ausente =
- * «no cambiar»; `proveedor` indica a qué proveedor aplica la clave (por defecto,
- * el activo). La clave es de solo escritura: nunca vuelve del servidor.
+ * Configuración de IA que devuelve `GET /api/admin/config-ia`. Sin claves.
+ * `proveedorX = null` significa «sin proveedor asignado para ese rol»: la fábrica
+ * del rol cae al default codificado en el backend.
+ */
+export interface ConfigIAAdmin {
+  proveedorChat: string | null
+  proveedorTraduccion: string | null
+  proveedorEmbeddings: string | null
+  proveedores: ProveedorEstado[]
+  rolesSoportados: RolesSoportados
+}
+
+/**
+ * Datos que se envían al guardar la configuración. Todos los campos son
+ * opcionales; los que llegan sobrescriben, los que no, se dejan como están.
+ *
+ * - `proveedorX = null | ausente` → no cambiar ese rol.
+ * - `clave` vacía/ausente → no cambiar la clave (requiere `proveedor` si viene).
+ * - `borrarClave: true` con `proveedor` → borrar esa fila de `config_ia_clave`.
+ *   El backend responde 409 si el proveedor está en uso por algún rol.
  */
 export interface ConfigIAPayload {
-  proveedorActivo: string
+  proveedorChat?: string
+  proveedorTraduccion?: string
+  proveedorEmbeddings?: string
   proveedor?: string
   clave?: string
+  borrarClave?: boolean
 }
 
 export function obtenerConfigIA(): Promise<Response> {

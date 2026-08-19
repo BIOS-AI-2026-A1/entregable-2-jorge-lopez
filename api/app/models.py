@@ -502,26 +502,54 @@ class ArticuloChunk(Base):
 
 
 class ConfigIA(Base):
-    """Configuración del proveedor de IA. Fila única (`id=1`), editable solo por SuperAdmin.
+    """Configuración de IA. Fila única (`id=1`), editable solo por SuperAdmin.
 
-    `proveedor_activo` es el proveedor que se usa para las tareas de IA (traducción
-    hoy; RAG en el futuro). `claves` mapea proveedor -> clave de API **cifrada en
-    reposo** (ver `app.cifrado`); nunca guarda la clave en claro ni la expone al
-    cliente. Es un singleton **global a la instalación** (sin `portal_id`): la misma
-    config vale para todos los portales, así que la gestiona el SuperAdmin transversal,
-    no el Administrador de un portal (evita que el admin de un tenant pise la clave de
-    los demás; ver `routers/admin_config_ia.py` y la revisión de Sección 9).
+    Un campo escalar por **rol** de IA (chat, traducción, embeddings): cada rol se
+    resuelve por separado, sin acoplarse a un único «proveedor activo» compartido.
+    Los tres son `NULL` por defecto; cuando lo son, la fábrica de ese rol cae al
+    default codificado (ver `PROVEEDOR_*_POR_DEFECTO` en `servicios_ia.py`). Las
+    claves de API viven en la tabla `config_ia_clave` (una fila por proveedor),
+    NO aquí (ver cambio OpenSpec `separar-proveedores-ia`).
+
+    Es un singleton **global a la instalación** (sin `portal_id`): la misma config
+    vale para todos los portales, así que la gestiona el SuperAdmin transversal, no
+    el Administrador de un portal (evita que el admin de un tenant pise la clave o
+    el proveedor que usan los demás; ver `routers/admin_config_ia.py`).
     """
 
     __tablename__ = "config_ia"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    proveedor_activo: Mapped[str] = mapped_column(String, nullable=False, default="anthropic")
-    # {proveedor: token_cifrado}. JSONB en Postgres, JSON en SQLite (tests).
-    claves: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    # Un campo escalar por rol. `NULL` = «sin configurar»: la fábrica del rol cae
+    # a su default codificado. SuperAdmin puede cambiar cada rol de forma
+    # independiente por el panel.
+    proveedor_chat: Mapped[str | None] = mapped_column(String, nullable=True)
+    proveedor_traduccion: Mapped[str | None] = mapped_column(String, nullable=True)
+    proveedor_embeddings: Mapped[str | None] = mapped_column(String, nullable=True)
     # Modelo y temperatura del chat del centro de ayuda (RAG). Nullable a propósito:
     # `None` deja que el pipeline caiga a los valores por defecto (`deepseek-chat`, 0.2)
     # sin tocar la fila. SuperAdmin podrá editar estos campos desde el panel en un
     # cambio posterior; por ahora se leen aquí y se escriben con SQL/seed.
     modelo_chat: Mapped[str | None] = mapped_column(String, nullable=True)
     temperatura_chat: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class ConfigIAClave(Base):
+    """Clave de API cifrada de un proveedor. Global a la instalación (no por portal).
+
+    Una fila por proveedor (`proveedor` es la PK). `token_cifrado` guarda el token
+    cifrado con Fernet (ver `app.cifrado`); NUNCA se guarda en claro ni se expone al
+    cliente. `actualizado_en` refleja la última rotación de la clave.
+
+    Sustituye al dict JSONB `ConfigIA.claves` de versiones anteriores: al ser tabla,
+    cada fila queda tipada, `UNIQUE(proveedor)` se aplica en SQL, y borrar la clave de
+    un proveedor es un `DELETE` limpio por PK sin tocar las demás.
+    """
+
+    __tablename__ = "config_ia_clave"
+
+    proveedor: Mapped[str] = mapped_column(String, primary_key=True)
+    token_cifrado: Mapped[str] = mapped_column(Text, nullable=False)
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
