@@ -8,7 +8,17 @@ import { rutas } from '@/i18n/rutas'
 import { LogoMarca } from './LogoMarca'
 import { SelectorIdioma } from './SelectorIdioma'
 
-export function AppHeader({ idioma, empresa, logo }: { idioma: Idioma; empresa?: string; logo?: boolean }) {
+export function AppHeader({
+  idioma,
+  empresa,
+  logo,
+  logoVersion,
+}: {
+  idioma: Idioma
+  empresa?: string
+  logo?: boolean
+  logoVersion?: string | null
+}) {
   const t = traducir(idioma)
   const pathname = usePathname()
 
@@ -28,7 +38,7 @@ export function AppHeader({ idioma, empresa, logo }: { idioma: Idioma; empresa?:
           className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-2 rounded-lg"
           aria-label={t('general.irAlInicio')}
         >
-          <LogoMarca idioma={idioma} empresa={empresa} logo={logo} />
+          <LogoMarca idioma={idioma} empresa={empresa} logo={logo} logoVersion={logoVersion} />
         </Link>
 
         <div className="flex items-center gap-2 flex-wrap">

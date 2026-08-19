@@ -53,6 +53,7 @@ const contenido: ContenidoIdioma = {
   bannerMedio: '#4338ca',
   bannerHasta: '#4f46e5',
   logo: false,
+  logoVersion: null,
   categorias,
   articulos,
   conversacion: [],

@@ -34,6 +34,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "eval: harness EDD del chat con RAG (opt-in; se ejecuta con `pytest -m eval`).",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

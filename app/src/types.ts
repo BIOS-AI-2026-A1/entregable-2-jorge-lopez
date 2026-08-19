@@ -134,6 +134,12 @@ export interface ContenidoIdioma {
   bannerHasta: string
   /** Si hay logotipo de marca subido (cabecera y favicon lo usan). */
   logo: boolean
+  /**
+   * Hash corto de los bytes del logotipo (o `null` sin logo). Se usa como cache-buster
+   * en la URL del `<img>` (`/api/marca/logo?v={logoVersion}`) para que al cambiar el
+   * logo el navegador vuelva a pedirlo, en vez de reutilizar la copia cacheada.
+   */
+  logoVersion: string | null
   categorias: Categoria[]
   articulos: Articulo[]
   conversacion: MensajeChat[]

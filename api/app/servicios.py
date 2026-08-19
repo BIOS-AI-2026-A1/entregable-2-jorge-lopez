@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -97,6 +98,12 @@ def obtener_marca(db: Session, portal_id: str) -> dict:
 
     Reserva los valores por defecto si la fila de ajustes del portal aún no existe. El
     logo NO viaja aquí (es binario): se sirve por `GET /api/marca/logo`.
+
+    `logoVersion` es un hash corto de los bytes del logotipo (o `None` sin logo). El
+    frontend lo usa como cache-buster en la URL de la imagen (`?v={version}`), para
+    que al cambiar el logotipo el navegador vuelva a pedirlo en vez de reutilizar la
+    copia cacheada de la URL anterior. La ausencia de este parámetro haría que la
+    cabecera y el favicon siguieran mostrando el logo viejo tras subir uno nuevo.
     """
     ajuste = fila_ajustes(db, portal_id)
     if ajuste is None:
@@ -106,7 +113,13 @@ def obtener_marca(db: Session, portal_id: str) -> dict:
             "bannerMedio": BANNER_MEDIO_POR_DEFECTO,
             "bannerHasta": BANNER_HASTA_POR_DEFECTO,
             "logo": False,
+            "logoVersion": None,
         }
+    logo_version = (
+        hashlib.sha256(ajuste.logo_bin).hexdigest()[:8]
+        if ajuste.logo_bin is not None
+        else None
+    )
     return {
         "acento": ajuste.acento or ACENTO_POR_DEFECTO,
         "bannerDesde": ajuste.banner_desde or BANNER_DESDE_POR_DEFECTO,
@@ -114,6 +127,7 @@ def obtener_marca(db: Session, portal_id: str) -> dict:
         "bannerHasta": ajuste.banner_hasta or BANNER_HASTA_POR_DEFECTO,
         # Solo el booleano: el binario se sirve por `GET /api/marca/logo`, no aquí.
         "logo": ajuste.logo_bin is not None,
+        "logoVersion": logo_version,
     }
 
 

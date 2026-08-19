@@ -538,6 +538,50 @@ class ConfigIA(Base):
     temperatura_chat: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
+class ChatInteraccion(Base):
+    """Una fila por turno del chat con RAG: la traza de la conversación que un
+    Editor o Administrador podrá auditar desde el panel (spec `supervision-chats`).
+
+    La PK es un UUID por interacción (no por chat): el `chat_id` es opaco (alias
+    del `session_id` del pipeline) y se repite por cada turno; el `turno` es
+    1-based dentro del `chat_id`. `citas` guarda una lista de `{n, tipo, titulo,
+    slug}` (JSONB en Postgres, JSON en SQLite). `latencia_ms`, `tokens_entrada`,
+    `tokens_salida`, `proveedor` y `modelo` sirven al harness de eval y al
+    diagnóstico; los tokens pueden venir a NULL cuando el proveedor no los
+    reporta. `razon_escalamiento` es NULL salvo con `veredicto=escalar`.
+
+    Índices declarados en la migración `0011_chat_interaccion`:
+    `(portal_id, creado_en desc)` para el listado agregado del panel y
+    `(chat_id)` para el detalle.
+    """
+
+    __tablename__ = "chat_interaccion"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    portal_id: Mapped[str] = mapped_column(
+        ForeignKey("portales.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chat_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    turno: Mapped[int] = mapped_column(Integer, nullable=False)
+    idioma: Mapped[str] = mapped_column(String, nullable=False)
+    consulta: Mapped[str] = mapped_column(Text, nullable=False)
+    veredicto: Mapped[str] = mapped_column(String, nullable=False)
+    mensaje: Mapped[str] = mapped_column(Text, nullable=False)
+    # Lista de citas `[{n, tipo, titulo, slug}]`. Vacía para veredictos distintos
+    # de `respondida`. JSONB en Postgres, JSON en SQLite (mismo patrón que en el
+    # resto del modelo).
+    citas: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    razon_escalamiento: Mapped[str | None] = mapped_column(String, nullable=True)
+    latencia_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    tokens_entrada: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_salida: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proveedor: Mapped[str] = mapped_column(String, nullable=False)
+    modelo: Mapped[str] = mapped_column(String, nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ConfigIAClave(Base):
     """Clave de API cifrada de un proveedor. Global a la instalación (no por portal).
 

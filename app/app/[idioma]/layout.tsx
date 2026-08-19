@@ -40,15 +40,20 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { idioma } = await params
   let hayLogo = false
+  let logoVersion: string | null = null
   try {
     const contenido = await cargarContenidoServidor(esIdioma(idioma) ? idioma : 'es')
     hayLogo = contenido.logo
+    logoVersion = contenido.logoVersion
   } catch {
     hayLogo = false
   }
+  // Cache-buster en el favicon: al cambiar el logo el navegador vuelve a pedirlo
+  // en vez de reutilizar la copia cacheada de la URL anterior.
+  const iconoUrl = logoVersion ? `/api/marca/logo?v=${logoVersion}` : '/api/marca/logo'
   return {
     title: 'Centro de Ayuda',
-    icons: hayLogo ? { icon: '/api/marca/logo' } : undefined,
+    icons: hayLogo ? { icon: iconoUrl } : undefined,
   }
 }
 
@@ -116,7 +121,12 @@ export default async function LayoutIdioma({
           ) : (
             <>
               <SkipLink idioma={idioma} />
-              <AppHeader idioma={idioma} empresa={contenido?.empresa} logo={contenido?.logo} />
+              <AppHeader
+                idioma={idioma}
+                empresa={contenido?.empresa}
+                logo={contenido?.logo}
+                logoVersion={contenido?.logoVersion}
+              />
               {children}
               {contenido && <ChatLanzador idioma={idioma} />}
             </>

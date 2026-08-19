@@ -34,6 +34,7 @@ import { CategoriaForm } from '@/components/CategoriaForm'
 import { Modal } from '@/components/Modal'
 import { Tabs, type Pestana } from '@/components/Tabs'
 import { resolverPestana, type PestanaId } from '@/panel/panelPestanas'
+import { PanelChats } from './PanelChats'
 
 const ICONO_METRICA = {
   sinResolver: { icono: <Ic.HelpCircle size={22} className="text-[var(--acento)]" />, fondo: 'bg-[var(--acento-claro)]' },
@@ -762,7 +763,11 @@ export function PanelInterno({
         <div className="border-t border-slate-200 pt-4 flex items-center gap-4 flex-wrap">
           {contenido.logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- binario servido por la API
-            <img src="/api/marca/logo" alt={t('ajustesMarca.logoActualAlt')} className="w-14 h-14 rounded-lg object-contain border border-slate-200 shrink-0" />
+            <img
+              src={contenido.logoVersion ? `/api/marca/logo?v=${contenido.logoVersion}` : '/api/marca/logo'}
+              alt={t('ajustesMarca.logoActualAlt')}
+              className="w-14 h-14 rounded-lg object-contain border border-slate-200 shrink-0"
+            />
           ) : (
             <span className="w-14 h-14 rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0" aria-hidden="true">
               <Ic.Image size={20} />
@@ -986,9 +991,15 @@ export function PanelInterno({
     </section>
   )
 
+  // La pestaña «Chats» monta su propio Client Component: hace fetch al BFF
+  // (`/api/admin/chats*`) al abrirse y no depende del contenido servido, así
+  // que se renderiza incluso si el resto del panel no lo necesita.
+  const contenidoChats = <PanelChats idioma={idioma} />
+
   const pestanas: Pestana<PestanaId>[] = [
     { id: 'sinResolver', etiqueta: t('panel.titulo'), contenido: contenidoSinResolver },
     { id: 'gestion', etiqueta: t('panelGestion.titulo'), contenido: contenidoGestion },
+    { id: 'chats', etiqueta: t('panelChats.titulo'), contenido: contenidoChats },
     { id: 'categorias', etiqueta: t('panelCategorias.titulo'), contenido: contenidoCategorias },
   ]
   if (puedeAdministrar) {

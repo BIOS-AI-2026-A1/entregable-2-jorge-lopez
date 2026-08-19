@@ -51,6 +51,24 @@ from app.servicios import (  # noqa: E402
     PORTAL_PLATAFORMA_SLUG,
 )
 
+
+def pytest_addoption(parser):
+    """Opciones CLI del harness de eval del chat (spec `evaluacion-chat-rag`).
+
+    `--real` activa la ejecución contra el proveedor real de `ConfigIA` en
+    lugar de los dobles deterministas. Requiere además la variable de entorno
+    `CHAT_EVAL_HABILITADO_REAL=1` para no dispararse por accidente con coste.
+    """
+    parser.addoption(
+        "--real",
+        action="store_true",
+        default=False,
+        help=(
+            "Ejecuta el harness de eval del chat contra el proveedor real "
+            "(requiere CHAT_EVAL_HABILITADO_REAL=1)."
+        ),
+    )
+
 # El administrador principal es Administrador (como el que siembra el seed): puede todo.
 ADMIN_EMAIL = "admin@test.local"
 ADMIN_PASSWORD = "secreto-de-prueba"

@@ -83,9 +83,33 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
   (default) o cualquier proveedor OpenAI-compatible (p. ej. OpenAI). SuperAdmin configura cada rol
   por separado en el panel; los selectores se filtran contra `rolesSoportados` que expone el
   backend, y el `PUT` rechaza con 422 cualquier asignación de rol → proveedor sin motor real.
+- **Brevedad, supervisión y evals del chat** (cambio OpenSpec `chat-evals-brevedad-supervision`):
+  el identificador público del chat pasa a llamarse `chat_id` (alias entrante `session_id` mientras
+  dure la transición) y cada interacción queda persistida en la tabla `chat_interaccion`
+  (`portal_id`, `chat_id`, `turno`, `veredicto`, `mensaje`, `citas`, `latencia_ms`, `proveedor`,
+  `modelo`, ...). El prompt de sistema pide **brevedad** (respuesta directa en la primera frase,
+  máx. 3 frases fuera de pasos, procedimientos en línea `paso 1 > paso 2 > paso 3` con máx. 4
+  pasos), `MAX_TOKENS_CHAT` = 512 corta la deriva del modelo y un recorte suave por caracteres
+  (`CHAT_LONGITUD_MAX_CHARS`, default 1400) acota la respuesta final SOLO cuando el veredicto es
+  `respondida`. **Caché por proceso** (`app/cache_chat.py`) con LRU + TTL corto (10 min) sobre
+  `sha256(portal_id | idioma | consulta_normalizada | config_ia_version | schema_recuperacion)`
+  cachea solo `respondida` y revalida la existencia de cada recurso citado antes de servir; sin
+  streaming (validación estricta de JSON y de citas exige la respuesta completa). **Supervisión
+  desde el panel** en la pestaña "Chats" (nivel ≥ Editor, entre "Gestión de artículos" y
+  "Categorías"): tres KPIs (chats totales, % con cita, escalados), tabla agrupada por `chat_id` con
+  filtros por veredicto y por rango de fechas, y modal con el hilo por turnos. Endpoints
+  `GET /api/admin/chats`, `/api/admin/chats/{chat_id}` y `/api/admin/chats/metricas` en
+  `api/app/routers/admin_chats.py`. **Harness EDD** en `api/tests/eval/` (marker `eval`, opt-in):
+  dataset `casos_{es,pt}.jsonl` (22 casos por idioma cubriendo los 4 veredictos + adversarios),
+  proveedor doble determinista + embedder doble para el modo `ci` sin red y `--real` con
+  `CHAT_EVAL_HABILITADO_REAL=1` para medir contra el proveedor real; métricas
+  (`exactitud_veredicto`, `precision_citas`, `recall_citas`, `longitud_media`,
+  `pasos_en_formato_correcto`, `latencia_media_ms`, `coste_total_usd_estimado`) comparadas contra
+  `baseline.json` — el gate falla el test si alguna cae bajo su umbral con el margen configurado.
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
   usuarios (Administrador), marca por portal, resolución de portal por host, gestión de portales
-  (SuperAdmin), ingesta RAG por portal y **chat con RAG por portal** ahora.
+  (SuperAdmin), ingesta RAG por portal, chat con RAG por portal, **supervisión de chats y harness
+  EDD** ahora.
 
 ## Convenciones
 
@@ -161,7 +185,9 @@ app/                  Frontend Next.js (App Router)
   src/types.ts        Contrato de datos
 api/                  Backend FastAPI (modelos, routers, portales.py, admin_portales, auth, seed, tests, y
                       pipeline de chat en app/chat.py + app/recuperador.py + app/sesiones_chat.py +
-                      app/routers/chat.py; ver api/README.md)
+                      app/cache_chat.py + app/persistencia_chat.py + app/routers/chat.py +
+                      app/routers/admin_chats.py; harness EDD en tests/eval/ con dataset por idioma,
+                      proveedor doble y baseline; ver api/README.md)
 docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
 .claude/agents/       Subagentes del proyecto (vacío, reservado)
 .claude/skills/       Skills del proyecto: crear-pr (flujo de PR) y los de OpenSpec

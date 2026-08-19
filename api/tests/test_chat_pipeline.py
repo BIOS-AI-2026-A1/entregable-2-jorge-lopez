@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app import cache_chat as cache_mod
 from app import chat as chat_mod
 from app import sesiones_chat
 from app.chat import Turno, responder
@@ -72,10 +73,12 @@ def _reset_sesiones_y_factory():
     sesiones_chat.reset_para_tests()
     sesiones_chat.restaurar_reloj()
     chat_mod.restaurar_chat_factory()
+    cache_mod.reset_para_tests()
     yield
     sesiones_chat.reset_para_tests()
     sesiones_chat.restaurar_reloj()
     chat_mod.restaurar_chat_factory()
+    cache_mod.reset_para_tests()
 
 
 @pytest.fixture
@@ -158,7 +161,7 @@ def test_fuera_de_scope_no_llama_al_recuperador_y_no_hay_conversacion(
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -192,7 +195,7 @@ def test_clasificador_salida_inesperada_asume_en_scope(
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -223,7 +226,7 @@ def test_generacion_separa_prompt_de_sistema_de_los_datos(
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -282,7 +285,7 @@ def test_generacion_salidas_invalidas_devuelven_sin_resultados_sin_exponer_crudo
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -314,7 +317,7 @@ def test_cita_de_fragmento_de_otro_portal_devuelve_sin_resultados(
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,  # host resuelto ≠ portal del fragmento
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -347,7 +350,7 @@ def test_solicitar_soporte_true_corto_circuita_sin_llamar_al_proveedor(
         idioma="es",
         historial=[Turno(rol="asistente", texto="hola")],
         portal_id=PORTAL_A,
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=True,
         db=db_session,
     )
@@ -376,7 +379,7 @@ def test_segundo_sin_resultados_consecutivo_escala_por_tope(
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,
-        session_id=None,
+        chat_id=None,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -387,7 +390,7 @@ def test_segundo_sin_resultados_consecutivo_escala_por_tope(
         idioma="es",
         historial=[],
         portal_id=PORTAL_A,
-        session_id=r1.session_id,
+        chat_id=r1.chat_id,
         solicitar_soporte=False,
         db=db_session,
     )
@@ -421,19 +424,19 @@ def test_respondida_intermedia_resetea_contador(
 
     r1 = responder(
         consulta="p1", idioma="es", historial=[], portal_id=PORTAL_A,
-        session_id=None, solicitar_soporte=False, db=db_session,
+        chat_id=None, solicitar_soporte=False, db=db_session,
     )
     assert r1.veredicto == "sin_resultados"
 
     r2 = responder(
         consulta="p2", idioma="es", historial=[], portal_id=PORTAL_A,
-        session_id=r1.session_id, solicitar_soporte=False, db=db_session,
+        chat_id=r1.chat_id, solicitar_soporte=False, db=db_session,
     )
     assert r2.veredicto == "respondida"
 
     r3 = responder(
         consulta="p3", idioma="es", historial=[], portal_id=PORTAL_A,
-        session_id=r1.session_id, solicitar_soporte=False, db=db_session,
+        chat_id=r1.chat_id, solicitar_soporte=False, db=db_session,
     )
     # No escala: la `respondida` intermedia reseteó el contador.
     assert r3.veredicto == "sin_resultados"
@@ -457,10 +460,10 @@ def test_ttl_expirado_emite_session_id_nuevo_y_resetea_contador(
 
     r1 = responder(
         consulta="p1", idioma="es", historial=[], portal_id=PORTAL_A,
-        session_id=None, solicitar_soporte=False, db=db_session,
+        chat_id=None, solicitar_soporte=False, db=db_session,
     )
     assert r1.veredicto == "sin_resultados"
-    sid_viejo = r1.session_id
+    sid_viejo = r1.chat_id
 
     # Avanza el reloj MÁS ALLÁ del TTL.
     from app.config import get_settings
@@ -469,10 +472,10 @@ def test_ttl_expirado_emite_session_id_nuevo_y_resetea_contador(
     # Cliente sigue enviando el sid viejo: se ignora y se abre una sesión nueva.
     r2 = responder(
         consulta="p2", idioma="es", historial=[], portal_id=PORTAL_A,
-        session_id=sid_viejo, solicitar_soporte=False, db=db_session,
+        chat_id=sid_viejo, solicitar_soporte=False, db=db_session,
     )
     assert r2.veredicto == "sin_resultados"
-    assert r2.session_id != sid_viejo
+    assert r2.chat_id != sid_viejo
     # No escaló: es el "primer" sin_resultados de la sesión nueva.
     assert r2.razon is None
 

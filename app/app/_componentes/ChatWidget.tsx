@@ -192,8 +192,8 @@ function MensajeUsuarioVista({ mensaje }: { mensaje: MensajeUsuario }) {
 
 /**
  * Widget conectado al BFF del chat. Mantiene el estado local (mensajes,
- * session_id, cargando) y llama a `consultarChat` con el historial acumulado.
- * El `session_id` que devuelve el backend en la primera respuesta se reutiliza
+ * chatId, cargando) y llama a `consultarChat` con el historial acumulado.
+ * El `chat_id` que devuelve el backend en la primera respuesta se reutiliza
  * en las siguientes; si expira o cambia, se adopta el nuevo.
  *
  * Escalamiento: al pulsar "Contactar soporte", se pide al backend una
@@ -215,7 +215,7 @@ export function ChatWidget({ idioma, onClose }: { idioma: Idioma; onClose: () =>
   ])
   const [entrada, setEntrada] = useState('')
   const [cargando, setCargando] = useState(false)
-  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [chatId, setChatId] = useState<string | null>(null)
   const [errorTextoClave, setErrorTextoClave] = useState<string | null>(null)
 
   // Retención de foco y cierre con Escape (herencia del widget anterior).
@@ -288,9 +288,9 @@ export function ChatWidget({ idioma, onClose }: { idioma: Idioma; onClose: () =>
         const resp = await consultarChat(idioma, {
           consulta: texto.trim(),
           historial,
-          sessionId,
+          chatId,
         })
-        setSessionId(resp.session_id)
+        setChatId(resp.chat_id)
         setMensajes(m => [
           ...m,
           {
@@ -318,7 +318,7 @@ export function ChatWidget({ idioma, onClose }: { idioma: Idioma; onClose: () =>
         })
       }
     },
-    [cargando, mensajes, idioma, sessionId],
+    [cargando, mensajes, idioma, chatId],
   )
 
   const abrirSoporte = useCallback(async () => {
@@ -329,7 +329,7 @@ export function ChatWidget({ idioma, onClose }: { idioma: Idioma; onClose: () =>
       const resp = await consultarChat(idioma, {
         consulta: t('chat.contactarSoporte'),
         historial: historialDeMensajes(mensajes),
-        sessionId,
+        chatId,
         solicitarSoporte: true,
       })
       conversacionTexto = serializarConversacion(resp.conversacion, idioma)
@@ -342,7 +342,7 @@ export function ChatWidget({ idioma, onClose }: { idioma: Idioma; onClose: () =>
     const asunto = encodeURIComponent(t('chat.titulo'))
     const cuerpo = encodeURIComponent(conversacionTexto)
     window.location.href = `mailto:soporte@empresa.example?subject=${asunto}&body=${cuerpo}`
-  }, [idioma, mensajes, sessionId, t])
+  }, [idioma, mensajes, chatId, t])
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
