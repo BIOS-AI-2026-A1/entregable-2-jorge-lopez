@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import uuid
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -27,8 +28,11 @@ IDIOMAS = ("es", "pt")
 
 # Portal por defecto: alberga el contenido histórico single-tenant tras la migración
 # a multi-tenant. La migración `0006_portales` lo crea y hace *backfill* de todo a él;
-# el seed lo siembra. Su id, slug y host de desarrollo son estables.
-PORTAL_DEFECTO_ID = "default"
+# el seed lo siembra. Su slug y host de desarrollo son estables; su `id` (UUID desde la
+# migración `0012_portal_uuid`) es una constante fija para que tests y fixtures sean
+# deterministas y para que el backfill de esa migración reutilice el mismo valor que ya
+# tuviera sembrado en la base del usuario.
+PORTAL_DEFECTO_UUID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 PORTAL_DEFECTO_SLUG = "default"
 PORTAL_DEFECTO_HOST = "localhost"
 
@@ -38,8 +42,9 @@ PORTAL_DEFECTO_HOST = "localhost"
 # portales. Existe también para que `admin_users.portal_id` (NOT NULL) tenga un valor
 # válido para el SuperAdmin y para que `(portal_id, email)` siga siendo único entre
 # SuperAdmins. Su slug queda reservado (nunca puede pedirlo un portal de cliente). Lo
-# siembra `seed.py` junto al SuperAdmin.
-PORTAL_PLATAFORMA_ID = "platform"
+# siembra `seed.py` junto al SuperAdmin. Su `id` es una constante fija por el mismo
+# motivo que `PORTAL_DEFECTO_UUID`.
+PORTAL_PLATAFORMA_UUID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 PORTAL_PLATAFORMA_SLUG = "platform"
 PORTAL_PLATAFORMA_EMPRESA = "Plataforma"
 

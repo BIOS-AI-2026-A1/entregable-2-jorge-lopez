@@ -45,7 +45,7 @@ def login(
     if admin is None or not correcta or not admin.activo:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Correo o contraseña incorrectos")
     return TokenOut(
-        access_token=crear_token(admin.email, admin.portal_id),
+        access_token=crear_token(admin.email, str(admin.portal_id)),
         refresh_token=emitir_sesion(db, admin),
     )
 
@@ -61,11 +61,11 @@ def refresh(
     # nuevo. Un token inválido, expirado, reutilizado o de otro portal responde 401
     # uniforme (no revela cuál de esas causas falló ni la existencia de otro portal).
     try:
-        admin, nuevo_refresh = rotar_sesion(db, datos.refresh_token, portal.id)
+        admin, nuevo_refresh = rotar_sesion(db, datos.refresh_token, str(portal.id))
     except SesionInvalida:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida o expirada")
     return TokenOut(
-        access_token=crear_token(admin.email, admin.portal_id),
+        access_token=crear_token(admin.email, str(admin.portal_id)),
         refresh_token=nuevo_refresh,
     )
 

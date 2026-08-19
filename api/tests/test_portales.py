@@ -15,7 +15,7 @@ from app.portales import (
     normalizar_host,
     resolver_portal,
 )
-from app.servicios import PORTAL_DEFECTO_ID
+from app.servicios import PORTAL_DEFECTO_UUID
 
 BASE = "tuapp.com"
 
@@ -65,20 +65,20 @@ def test_host_exacto_en_dominios_resuelve(db_session):
     # El seed mínimo mapea `localhost` → portal `default`.
     portal = resolver_portal(db_session, "localhost", base_domain=BASE)
     assert portal is not None
-    assert portal.id == PORTAL_DEFECTO_ID
+    assert portal.id == PORTAL_DEFECTO_UUID
 
 
 def test_puerto_y_mayusculas_no_impiden_la_resolucion(db_session):
     portal = resolver_portal(db_session, "LOCALHOST:8000", base_domain=BASE)
     assert portal is not None
-    assert portal.id == PORTAL_DEFECTO_ID
+    assert portal.id == PORTAL_DEFECTO_UUID
 
 
 def test_subdominio_resuelve_por_slug_del_portal(db_session):
     # El portal `default` tiene slug `default`: `default.tuapp.com` lo resuelve por slug.
     portal = resolver_portal(db_session, "default.tuapp.com", base_domain=BASE)
     assert portal is not None
-    assert portal.id == PORTAL_DEFECTO_ID
+    assert portal.id == PORTAL_DEFECTO_UUID
 
 
 def test_host_desconocido_no_resuelve(db_session):

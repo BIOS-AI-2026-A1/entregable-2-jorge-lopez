@@ -36,12 +36,12 @@ from app.servicios import (
     AJUSTES_ID,
     IDIOMAS,
     PORTAL_DEFECTO_HOST,
-    PORTAL_DEFECTO_ID,
     PORTAL_DEFECTO_SLUG,
+    PORTAL_DEFECTO_UUID,
     PORTAL_PLATAFORMA_EMPRESA,
     PORTAL_PLATAFORMA_HOST_DEV,
-    PORTAL_PLATAFORMA_ID,
     PORTAL_PLATAFORMA_SLUG,
+    PORTAL_PLATAFORMA_UUID,
     host_plataforma,
 )
 
@@ -91,7 +91,7 @@ def _sembrar_categorias(db, datos: dict[str, dict]) -> None:
         db.add(
             Categoria(
                 id=cat["id"],
-                portal_id=PORTAL_DEFECTO_ID,
+                portal_id=PORTAL_DEFECTO_UUID,
                 icono=cat["icono"],
                 fondo=cat["fondo"],
                 texto=cat["texto"],
@@ -103,7 +103,7 @@ def _sembrar_categorias(db, datos: dict[str, dict]) -> None:
             db.add(
                 CategoriaTraduccion(
                     categoria_id=cat["id"],
-                    portal_id=PORTAL_DEFECTO_ID,
+                    portal_id=PORTAL_DEFECTO_UUID,
                     idioma=idioma,
                     slug=t["slug"],
                     nombre=t["nombre"],
@@ -118,7 +118,7 @@ def _sembrar_articulos(db, datos: dict[str, dict]) -> None:
         db.add(
             Articulo(
                 id=art["id"],
-                portal_id=PORTAL_DEFECTO_ID,
+                portal_id=PORTAL_DEFECTO_UUID,
                 categoria_id=art["categoria"],
                 actualizado=date.fromisoformat(art["actualizado"]),
                 minutos_lectura=art["minutosLectura"],
@@ -129,7 +129,7 @@ def _sembrar_articulos(db, datos: dict[str, dict]) -> None:
         for i, rid in enumerate(art.get("relacionados", [])):
             db.add(
                 ArticuloRelacionado(
-                    portal_id=PORTAL_DEFECTO_ID,
+                    portal_id=PORTAL_DEFECTO_UUID,
                     articulo_id=art["id"],
                     relacionado_id=rid,
                     orden=i,
@@ -140,7 +140,7 @@ def _sembrar_articulos(db, datos: dict[str, dict]) -> None:
             db.add(
                 ArticuloTraduccion(
                     articulo_id=art["id"],
-                    portal_id=PORTAL_DEFECTO_ID,
+                    portal_id=PORTAL_DEFECTO_UUID,
                     idioma=idioma,
                     slug=t["slug"],
                     titulo=t["titulo"],
@@ -158,7 +158,7 @@ def _sembrar_panel(db, datos: dict[str, dict]) -> None:
         for orden, p in enumerate(contenido["preguntasSinResolver"]):
             db.add(
                 PreguntaSinResolver(
-                    portal_id=PORTAL_DEFECTO_ID,
+                    portal_id=PORTAL_DEFECTO_UUID,
                     idioma=idioma,
                     pregunta=p["pregunta"],
                     veces=p["veces"],
@@ -168,11 +168,11 @@ def _sembrar_panel(db, datos: dict[str, dict]) -> None:
                     orden=orden,
                 )
             )
-        db.add(Conversacion(portal_id=PORTAL_DEFECTO_ID, idioma=idioma, mensajes=contenido["conversacion"]))
+        db.add(Conversacion(portal_id=PORTAL_DEFECTO_UUID, idioma=idioma, mensajes=contenido["conversacion"]))
         for orden, m in enumerate(contenido["metricas"]):
             db.add(
                 Metrica(
-                    portal_id=PORTAL_DEFECTO_ID,
+                    portal_id=PORTAL_DEFECTO_UUID,
                     idioma=idioma,
                     clave=m["clave"],
                     valor=m["valor"],
@@ -203,7 +203,7 @@ def _sembrar_admin(db) -> None:
 
     if (
         db.query(AdminUser)
-        .filter(AdminUser.portal_id == PORTAL_DEFECTO_ID, AdminUser.email == s.admin_email)
+        .filter(AdminUser.portal_id == PORTAL_DEFECTO_UUID, AdminUser.email == s.admin_email)
         .first()
         is not None
     ):
@@ -213,7 +213,7 @@ def _sembrar_admin(db) -> None:
     # El administrador inicial es Administrador: es el primer usuario y quien gestiona a los demás.
     db.add(
         AdminUser(
-            portal_id=PORTAL_DEFECTO_ID,
+            portal_id=PORTAL_DEFECTO_UUID,
             email=s.admin_email,
             password_hash=hash_password(s.admin_password),
             nivel=NivelAcceso.ADMINISTRADOR.value,
@@ -238,17 +238,17 @@ def _sembrar_superadmin(db) -> None:
 
     # El portal de plataforma es el hogar del SuperAdmin; se crea junto a él (no sirve
     # contenido ni tiene host). Sin él, la FK `admin_users.portal_id` no resolvería.
-    if db.get(Portal, PORTAL_PLATAFORMA_ID) is None:
+    if db.get(Portal, PORTAL_PLATAFORMA_UUID) is None:
         db.add(
             Portal(
-                id=PORTAL_PLATAFORMA_ID,
+                id=PORTAL_PLATAFORMA_UUID,
                 slug=PORTAL_PLATAFORMA_SLUG,
                 nombre_empresa=PORTAL_PLATAFORMA_EMPRESA,
                 estado="activo",
             )
         )
         db.flush()
-        print(f"Portal de plataforma {PORTAL_PLATAFORMA_ID!r} creado.")
+        print(f"Portal de plataforma {PORTAL_PLATAFORMA_SLUG!r} creado ({PORTAL_PLATAFORMA_UUID}).")
 
     # Hosts de gestión por los que entra el SuperAdmin: `admin.localhost` (desarrollo) y
     # `admin.<base_domain>` (producción). El slug `platform` está reservado y no resuelve
@@ -259,12 +259,12 @@ def _sembrar_superadmin(db) -> None:
         (PORTAL_PLATAFORMA_HOST_DEV, False),
     ):
         if db.query(Dominio).filter(Dominio.host == host).first() is None:
-            db.add(Dominio(host=host, portal_id=PORTAL_PLATAFORMA_ID, principal=principal))
+            db.add(Dominio(host=host, portal_id=PORTAL_PLATAFORMA_UUID, principal=principal))
             print(f"Host de gestión {host!r} → portal de plataforma.")
 
     if (
         db.query(AdminUser)
-        .filter(AdminUser.portal_id == PORTAL_PLATAFORMA_ID, AdminUser.email == s.superadmin_email)
+        .filter(AdminUser.portal_id == PORTAL_PLATAFORMA_UUID, AdminUser.email == s.superadmin_email)
         .first()
         is not None
     ):
@@ -272,7 +272,7 @@ def _sembrar_superadmin(db) -> None:
         return
     db.add(
         AdminUser(
-            portal_id=PORTAL_PLATAFORMA_ID,
+            portal_id=PORTAL_PLATAFORMA_UUID,
             email=s.superadmin_email,
             password_hash=hash_password(s.superadmin_password),
             nivel=NivelAcceso.SUPERADMIN.value,
@@ -289,21 +289,21 @@ def _sembrar_portal(db) -> None:
     asegura para el flujo de desarrollo (base recreada sin ejecutar esa migración) y
     sincroniza el nombre de empresa con el valor de configuración. Idempotente."""
     s = get_settings()
-    portal = db.get(Portal, PORTAL_DEFECTO_ID)
+    portal = db.get(Portal, PORTAL_DEFECTO_UUID)
     if portal is None:
         db.add(
             Portal(
-                id=PORTAL_DEFECTO_ID,
+                id=PORTAL_DEFECTO_UUID,
                 slug=PORTAL_DEFECTO_SLUG,
                 nombre_empresa=s.empresa_inicial,
                 estado="activo",
             )
         )
-        db.add(Dominio(host=PORTAL_DEFECTO_HOST, portal_id=PORTAL_DEFECTO_ID, principal=True))
+        db.add(Dominio(host=PORTAL_DEFECTO_HOST, portal_id=PORTAL_DEFECTO_UUID, principal=True))
         db.flush()
-        print(f"Portal {PORTAL_DEFECTO_ID!r} creado (host {PORTAL_DEFECTO_HOST}).")
+        print(f"Portal {PORTAL_DEFECTO_SLUG!r} creado (host {PORTAL_DEFECTO_HOST}).")
     else:
-        print(f"Portal {PORTAL_DEFECTO_ID!r} ya existe; no se recrea.")
+        print(f"Portal {PORTAL_DEFECTO_SLUG!r} ya existe; no se recrea.")
 
 
 def _sembrar_ajustes(db) -> None:
@@ -315,7 +315,7 @@ def _sembrar_ajustes(db) -> None:
     if db.get(Ajustes, AJUSTES_ID) is not None:
         print("Ajustes ya existen; no se recrean.")
         return
-    db.add(Ajustes(id=AJUSTES_ID, portal_id=PORTAL_DEFECTO_ID))
+    db.add(Ajustes(id=AJUSTES_ID, portal_id=PORTAL_DEFECTO_UUID))
     print("Ajustes de marca visual creados para el portal 'default'.")
 
 

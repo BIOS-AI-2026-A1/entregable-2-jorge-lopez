@@ -27,6 +27,7 @@ from app.database import get_db
 from app.main import app
 from app.models import ChatInteraccion
 from app.routers.admin_chats import reset_cache_metricas_para_tests
+from app.servicios import PORTAL_DEFECTO_UUID
 from tests.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
@@ -34,14 +35,16 @@ from tests.conftest import (
     EDITOR_PASSWORD,
     SEGUNDO_ADMIN_PASSWORD,
     SEGUNDO_PORTAL_HOST,
-    SEGUNDO_PORTAL_ID,
+    SEGUNDO_PORTAL_UUID,
     SUPERADMIN_EMAIL,
     SUPERADMIN_PASSWORD,
     sembrar_plataforma,
     sembrar_portal_secundario,
 )
 
-PORTAL_A = "default"
+# El id ya no es un slug legible ("default"): es un UUID (migración
+# `0012_portal_uuid`), así que hace falta la constante real del seed.
+PORTAL_A = PORTAL_DEFECTO_UUID
 
 
 # --- Fixtures ---------------------------------------------------------------
@@ -153,7 +156,7 @@ def test_anonymous_no_puede_listar_ni_ver_detalle(hacer_cliente):
 
 def test_editor_del_portal_A_no_ve_chats_del_portal_B(hacer_cliente, db_session):
     _sembrar_interaccion(db_session, portal_id=PORTAL_A, chat_id="chat-de-a", turno=1)
-    _sembrar_interaccion(db_session, portal_id=SEGUNDO_PORTAL_ID, chat_id="chat-de-b", turno=1)
+    _sembrar_interaccion(db_session, portal_id=SEGUNDO_PORTAL_UUID, chat_id="chat-de-b", turno=1)
 
     a = hacer_cliente("localhost")
     auth_editor = _auth(a, EDITOR_EMAIL, EDITOR_PASSWORD)
@@ -170,7 +173,7 @@ def test_editor_del_portal_A_no_ve_chats_del_portal_B(hacer_cliente, db_session)
 
 
 def test_superadmin_puede_ver_chats_de_otro_portal_con_portal_id(hacer_cliente, db_session):
-    _sembrar_interaccion(db_session, portal_id=SEGUNDO_PORTAL_ID, chat_id="chat-de-b", turno=1)
+    _sembrar_interaccion(db_session, portal_id=SEGUNDO_PORTAL_UUID, chat_id="chat-de-b", turno=1)
 
     # SuperAdmin entra por el host del portal de plataforma.
     sa = hacer_cliente("admin.localhost")
@@ -182,7 +185,7 @@ def test_superadmin_puede_ver_chats_de_otro_portal_con_portal_id(hacer_cliente, 
     assert r_vacio.json()["items"] == []
 
     # Con `?portal_id=B` sí ve el chat del portal B.
-    r = sa.get(f"/api/admin/chats?portal_id={SEGUNDO_PORTAL_ID}", headers=auth_sa)
+    r = sa.get(f"/api/admin/chats?portal_id={SEGUNDO_PORTAL_UUID}", headers=auth_sa)
     assert r.status_code == 200, r.text
     ids = [it["chat_id"] for it in r.json()["items"]]
     assert ids == ["chat-de-b"]
@@ -191,13 +194,13 @@ def test_superadmin_puede_ver_chats_de_otro_portal_con_portal_id(hacer_cliente, 
 def test_editor_ignora_portal_id_de_otro_portal(hacer_cliente, db_session):
     """Un Editor NO puede sobreescribir el portal por query: el parámetro se
     ignora y se filtra por el portal del host."""
-    _sembrar_interaccion(db_session, portal_id=SEGUNDO_PORTAL_ID, chat_id="chat-de-b", turno=1)
+    _sembrar_interaccion(db_session, portal_id=SEGUNDO_PORTAL_UUID, chat_id="chat-de-b", turno=1)
     _sembrar_interaccion(db_session, portal_id=PORTAL_A, chat_id="chat-de-a", turno=1)
 
     a = hacer_cliente("localhost")
     auth_editor = _auth(a, EDITOR_EMAIL, EDITOR_PASSWORD)
 
-    r = a.get(f"/api/admin/chats?portal_id={SEGUNDO_PORTAL_ID}", headers=auth_editor)
+    r = a.get(f"/api/admin/chats?portal_id={SEGUNDO_PORTAL_UUID}", headers=auth_editor)
     assert r.status_code == 200
     ids = [it["chat_id"] for it in r.json()["items"]]
     assert ids == ["chat-de-a"]  # sigue viendo solo su portal
@@ -223,7 +226,7 @@ def test_detalle_de_chat_de_otro_portal_devuelve_404_mismo_mensaje(
     """Un chat existente pero de otro portal responde 404 con el mismo
     mensaje que un `chat_id` inexistente: no revela existencia."""
     _sembrar_interaccion(
-        db_session, portal_id=SEGUNDO_PORTAL_ID, chat_id="chat-de-b", turno=1,
+        db_session, portal_id=SEGUNDO_PORTAL_UUID, chat_id="chat-de-b", turno=1,
     )
     a = hacer_cliente("localhost")
     auth_editor = _auth(a, EDITOR_EMAIL, EDITOR_PASSWORD)
@@ -255,7 +258,8 @@ def test_detalle_del_propio_portal_devuelve_hilo_por_turno(hacer_cliente, db_ses
     assert r.status_code == 200, r.text
     cuerpo = r.json()
     assert cuerpo["chat_id"] == "c1"
-    assert cuerpo["portal_id"] == PORTAL_A
+    # El esquema de salida serializa `portal_id` como texto.
+    assert cuerpo["portal_id"] == str(PORTAL_A)
     assert [it["turno"] for it in cuerpo["interacciones"]] == [1, 2]
     assert [it["consulta"] for it in cuerpo["interacciones"]] == ["q1", "q2"]
 

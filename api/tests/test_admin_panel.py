@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from app.models import PreguntaSinResolver
-from app.servicios import PORTAL_DEFECTO_ID
+from app.servicios import PORTAL_DEFECTO_UUID
 from tests.conftest import articulo_valido
 
 RUTA = "/api/admin/preguntas-sin-resolver"
@@ -14,7 +14,7 @@ RUTA = "/api/admin/preguntas-sin-resolver"
 def _pregunta(db, texto: str, *, idioma: str = "pt", orden: int = 0) -> None:
     db.add(
         PreguntaSinResolver(
-            portal_id=PORTAL_DEFECTO_ID,
+            portal_id=PORTAL_DEFECTO_UUID,
             idioma=idioma, pregunta=texto, veces=3, similitud=0.4,
             fecha=date(2026, 7, 21), estado="nueva", orden=orden,
         )

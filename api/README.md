@@ -247,8 +247,11 @@ default son las que codifican secretos (`JWT_SECRET`, `ADMIN_PASSWORD`). El rest
 en `config.py::Settings`. Grupos:
 
 - **Base**: `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
-  `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` (opcional), `EMPRESA_INICIAL`, `BASE_DOMAIN`,
-  `CLAVE_CIFRADO_IA` (Fernet, cifra las claves de los proveedores de IA en `ConfigIA`).
+  `SUPERADMIN_EMAIL`, `SUPERADMIN_PASSWORD` (opcional), `EMPRESA_INICIAL`, `BASE_DOMAIN` (en
+  desarrollo, fijar `localhost`: así los subdominios que crea el panel de Portales, p. ej.
+  `aviacion.localhost`, resuelven en el navegador sin tocar hosts/DNS; el default de
+  `config.py`, `tuapp.com`, es el valor de producción), `CLAVE_CIFRADO_IA` (Fernet, cifra las
+  claves de los proveedores de IA en `ConfigIA`).
 - **Chat + RAG** (todas con default): `RAG_UMBRAL_SIMILITUD` (0.28, calibrado para `voyage-3`),
   `RAG_TOP_K` (6), `CHAT_MAX_CONSULTA_CHARS` (500), `CHAT_MAX_HISTORIAL_TURNOS` (10),
   `CHAT_UMBRAL_TURNOS_SIN_RESULTADOS` (2), `CHAT_TTL_SESION_SEG` (1800), `CHAT_LIMITE_TASA_MIN` (30),

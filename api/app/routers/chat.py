@@ -190,7 +190,9 @@ def consultar_chat(
             consulta=cuerpo.consulta,
             idioma=idioma,
             historial=historial,
-            portal_id=portal.id,
+            # `str(...)`: `Portal.id` es un `uuid.UUID`; todo el pipeline del chat
+            # (caché, recuperador, persistencia) trata `portal_id` como texto.
+            portal_id=str(portal.id),
             chat_id=cuerpo.chat_id_efectivo,
             solicitar_soporte=cuerpo.solicitar_soporte,
             db=db,

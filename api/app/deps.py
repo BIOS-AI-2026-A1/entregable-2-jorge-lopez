@@ -94,7 +94,9 @@ def admin_actual(
     # y solo vale en él. Como el correo es único por portal (no global), un token del
     # portal A presentado en el host del portal B —donde puede existir el mismo correo—
     # se rechaza aquí, antes de tocar la base, en vez de autenticar al homónimo de B.
-    if datos.portal_id != portal.id:
+    # `str(...)`: `portal.id` es un `uuid.UUID` (columna `Uuid`); `datos.portal_id` es
+    # el `str` que trae el JWT (ver `crear_token`).
+    if datos.portal_id != str(portal.id):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión inválida")
     admin = (
         db.query(AdminUser)

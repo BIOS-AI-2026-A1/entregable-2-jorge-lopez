@@ -1,21 +1,16 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Idioma } from '@/types'
-import {
-  crearPortal,
-  listarPortales,
-  reactivarPortal,
-  suspenderPortal,
-  type PortalAdmin,
-} from '@/data/admin'
+import { listarPortales, reactivarPortal, suspenderPortal, type PortalAdmin } from '@/data/admin'
 import { rutas } from '@/i18n/rutas'
 import { Ic } from '@/components/iconos'
+import { PortalForm } from '@/components/PortalForm'
 
-const FORM_VACIO = { slug: '', nombreEmpresa: '', adminEmail: '', adminPassword: '' }
+type FormState = { modo: 'crear' } | { modo: 'ver'; inicial: PortalAdmin }
 
 /**
  * Gestión de portales (solo SuperAdmin). La ruta ya está protegida por el Server Component
@@ -28,10 +23,20 @@ export function GestionPortales({ idioma }: { idioma: Idioma }) {
   const router = useRouter()
 
   const [portales, setPortales] = useState<PortalAdmin[]>([])
-  const [form, setForm] = useState<typeof FORM_VACIO | null>(null)
-  const [enviando, setEnviando] = useState(false)
+  const [form, setForm] = useState<FormState | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Id del botón que abrió el panel (fila o "+ Nuevo portal"): al cerrarlo, la
+  // tabla se remonta con nodos nuevos, así que se recupera por id, no por ref.
+  const [disparadorId, setDisparadorId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (form === null && disparadorId) {
+      document.getElementById(disparadorId)?.focus()
+      setDisparadorId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form])
 
   async function cargar() {
     const resp = await listarPortales()
@@ -50,36 +55,10 @@ export function GestionPortales({ idioma }: { idioma: Idioma }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idioma])
 
-  async function crear(evento: FormEvent) {
-    evento.preventDefault()
-    if (!form) return
-    setEnviando(true)
-    setError(null)
-    try {
-      const resp = await crearPortal({
-        slug: form.slug.trim(),
-        nombreEmpresa: form.nombreEmpresa.trim(),
-        adminEmail: form.adminEmail.trim(),
-        adminPassword: form.adminPassword,
-      })
-      if (resp.ok) {
-        setForm(null)
-        setAviso(t('gestionPortales.creado', { empresa: form.nombreEmpresa.trim() }))
-        await cargar()
-      } else if (resp.status === 401) {
-        router.replace(rutas.login(idioma))
-      } else if (resp.status === 409) {
-        setError(t('gestionPortales.errorConflicto'))
-      } else if (resp.status === 422) {
-        setError(t('gestionPortales.errorValidacion'))
-      } else {
-        setError(t('gestionPortales.errorGuardar'))
-      }
-    } catch {
-      setError(t('gestionPortales.errorRed'))
-    } finally {
-      setEnviando(false)
-    }
+  async function alGuardado(empresa: string) {
+    setForm(null)
+    setAviso(t('gestionPortales.creado', { empresa }))
+    await cargar()
   }
 
   async function cambiarEstado(portal: PortalAdmin) {
@@ -146,8 +125,10 @@ export function GestionPortales({ idioma }: { idioma: Idioma }) {
           {!form && (
             <button
               type="button"
+              id="portal-nuevo-btn"
               onClick={() => {
-                setForm(FORM_VACIO)
+                setDisparadorId('portal-nuevo-btn')
+                setForm({ modo: 'crear' })
                 setAviso(null)
               }}
               className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
@@ -160,104 +141,12 @@ export function GestionPortales({ idioma }: { idioma: Idioma }) {
         </div>
 
         {form ? (
-          <form
-            onSubmit={crear}
-            className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4"
-            aria-labelledby="portal-form-h"
-          >
-            <h3 id="portal-form-h" className="text-sm font-semibold text-slate-900">
-              {t('gestionPortales.nuevo')}
-            </h3>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="portal-slug" className="block text-sm font-medium text-slate-700 mb-1">
-                  {t('gestionPortales.form.slug')}
-                </label>
-                <input
-                  id="portal-slug"
-                  type="text"
-                  required
-                  value={form.slug}
-                  onChange={e => setForm({ ...form, slug: e.target.value })}
-                  aria-describedby="portal-slug-ayuda"
-                  autoComplete="off"
-                  pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-                />
-                <p id="portal-slug-ayuda" className="mt-1 text-xs text-slate-500">
-                  {t('gestionPortales.form.slugAyuda')}
-                </p>
-              </div>
-              <div>
-                <label htmlFor="portal-empresa" className="block text-sm font-medium text-slate-700 mb-1">
-                  {t('gestionPortales.form.nombreEmpresa')}
-                </label>
-                <input
-                  id="portal-empresa"
-                  type="text"
-                  required
-                  value={form.nombreEmpresa}
-                  onChange={e => setForm({ ...form, nombreEmpresa: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-                />
-              </div>
-              <div>
-                <label htmlFor="portal-admin-email" className="block text-sm font-medium text-slate-700 mb-1">
-                  {t('gestionPortales.form.adminEmail')}
-                </label>
-                <input
-                  id="portal-admin-email"
-                  type="email"
-                  required
-                  value={form.adminEmail}
-                  onChange={e => setForm({ ...form, adminEmail: e.target.value })}
-                  autoComplete="off"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-                />
-              </div>
-              <div>
-                <label htmlFor="portal-admin-pass" className="block text-sm font-medium text-slate-700 mb-1">
-                  {t('gestionPortales.form.adminPassword')}
-                </label>
-                <input
-                  id="portal-admin-pass"
-                  type="password"
-                  required
-                  minLength={12}
-                  value={form.adminPassword}
-                  onChange={e => setForm({ ...form, adminPassword: e.target.value })}
-                  autoComplete="new-password"
-                  aria-describedby="portal-admin-pass-ayuda"
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-400 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
-                />
-                <p id="portal-admin-pass-ayuda" className="mt-1 text-xs text-slate-500">
-                  {t('gestionPortales.form.adminPasswordAyuda')}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 justify-end flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  setForm(null)
-                  setError(null)
-                }}
-                className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
-              >
-                <Ic.X size={15} />
-                {t('gestionPortales.cancelar')}
-              </button>
-              <button
-                type="submit"
-                disabled={enviando}
-                className="inline-flex items-center gap-2 px-4 rounded-lg text-white text-sm font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px] disabled:opacity-60"
-                style={{ background: 'var(--acento)' }}
-              >
-                <Ic.Save size={15} />
-                {enviando ? t('gestionPortales.creando') : t('gestionPortales.crear')}
-              </button>
-            </div>
-          </form>
+          <PortalForm
+            modo={form.modo}
+            inicial={form.modo === 'ver' ? form.inicial : undefined}
+            onCerrar={() => setForm(null)}
+            onGuardado={alGuardado}
+          />
         ) : (
           <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
             <div className="overflow-x-auto">
@@ -299,22 +188,38 @@ export function GestionPortales({ idioma }: { idioma: Idioma }) {
                           )}
                         </td>
                         <td className="px-4 py-3.5">
-                          <button
-                            type="button"
-                            onClick={() => cambiarEstado(portal)}
-                            aria-label={t(
-                              suspendido ? 'gestionPortales.reactivarAria' : 'gestionPortales.suspenderAria',
-                              { empresa: portal.nombreEmpresa },
-                            )}
-                            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px] ${
-                              suspendido
-                                ? 'border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
-                                : 'border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100'
-                            }`}
-                          >
-                            {suspendido ? <Ic.CheckCircle size={14} /> : <Ic.X size={14} />}
-                            {t(suspendido ? 'gestionPortales.reactivar' : 'gestionPortales.suspender')}
-                          </button>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              id={`portal-ver-btn-${portal.id}`}
+                              onClick={() => {
+                                setDisparadorId(`portal-ver-btn-${portal.id}`)
+                                setForm({ modo: 'ver', inicial: portal })
+                                setAviso(null)
+                              }}
+                              aria-label={t('gestionPortales.editarAria', { empresa: portal.nombreEmpresa })}
+                              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-slate-500 text-slate-700 bg-white hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px]"
+                            >
+                              <Ic.Eye size={14} />
+                              {t('gestionPortales.editar')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => cambiarEstado(portal)}
+                              aria-label={t(
+                                suspendido ? 'gestionPortales.reactivarAria' : 'gestionPortales.suspenderAria',
+                                { empresa: portal.nombreEmpresa },
+                              )}
+                              className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-1 min-h-[44px] ${
+                                suspendido
+                                  ? 'border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
+                                  : 'border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100'
+                              }`}
+                            >
+                              {suspendido ? <Ic.CheckCircle size={14} /> : <Ic.X size={14} />}
+                              {t(suspendido ? 'gestionPortales.reactivar' : 'gestionPortales.suspender')}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )

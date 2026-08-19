@@ -24,11 +24,13 @@ from app.models import (
     Documento,
     DocumentoChunk,
 )
+from app.servicios import PORTAL_DEFECTO_UUID
 from app.servicios_ia import ErrorProveedor
-from tests.conftest import SEGUNDO_PORTAL_ID, sembrar_portal_secundario
+from tests.conftest import SEGUNDO_PORTAL_UUID, sembrar_portal_secundario
 
-# Portal del seed por defecto (evita depender del import interno del backend).
-PORTAL_A = "default"
+# Portal del seed por defecto. El id ya no es un slug legible ("default"): es un
+# UUID (migración `0012_portal_uuid`), así que hace falta la constante real.
+PORTAL_A = PORTAL_DEFECTO_UUID
 
 
 # --- Dobles del embedder -----------------------------------------------------
@@ -183,7 +185,7 @@ def test_recuperador_aisla_por_portal_aunque_el_otro_este_mas_cerca(
     # Portal B: un chunk que coincide EXACTAMENTE con la consulta.
     _crear_articulo_con_chunks(
         db_session,
-        portal_id=SEGUNDO_PORTAL_ID,
+        portal_id=SEGUNDO_PORTAL_UUID,
         articulo_id="b-articulo",
         slug_es="b-es",
         slug_pt="b-pt",
@@ -194,11 +196,13 @@ def test_recuperador_aisla_por_portal_aunque_el_otro_este_mas_cerca(
         texto="ayuda del portal B (nunca debe filtrar)",
     )
 
-    resultado = recuperador.recuperar("cualquier cosa", "es", PORTAL_A, db_session)
+    resultado = recuperador.recuperar("cualquier cosa", "es", str(PORTAL_A), db_session)
 
     assert resultado.veredicto == "ok"
     # Solo fragmentos del portal A.
-    assert all(f.portal_id == PORTAL_A for f in resultado.fragmentos)
+    # `FragmentoRecuperado.portal_id` es texto (`recuperador.py` lo serializa así);
+    # `PORTAL_A` es el `uuid.UUID` real, así que se compara como texto.
+    assert all(f.portal_id == str(PORTAL_A) for f in resultado.fragmentos)
     # Ninguna referencia al artículo B (defensa en profundidad).
     ids = {f.origen.get("articulo_id") for f in resultado.fragmentos}
     assert "b-articulo" not in ids
@@ -229,7 +233,7 @@ def test_recuperador_filtra_articulos_por_idioma_documentos_no(
     )
 
     # Consulta en portugués: solo debe traer el chunk `pt` del artículo + el documento.
-    resultado = recuperador.recuperar("qualquer coisa", "pt", PORTAL_A, db_session)
+    resultado = recuperador.recuperar("qualquer coisa", "pt", str(PORTAL_A), db_session)
     assert resultado.veredicto == "ok"
 
     idiomas_articulo = {
@@ -269,7 +273,7 @@ def test_recuperador_respeta_top_k_y_umbral(db_session, con_embedder):
             vector=[0.02, 1.0, 0.0],
         )
 
-    resultado = recuperador.recuperar("consulta", "es", PORTAL_A, db_session)
+    resultado = recuperador.recuperar("consulta", "es", str(PORTAL_A), db_session)
 
     assert resultado.veredicto == "ok"
     assert len(resultado.fragmentos) <= settings.rag_top_k
@@ -287,7 +291,7 @@ def test_recuperador_sin_resultados_si_nada_supera_umbral(db_session, con_embedd
             vector=[0.05, 1.0, 0.0],
         )
 
-    resultado = recuperador.recuperar("consulta", "es", PORTAL_A, db_session)
+    resultado = recuperador.recuperar("consulta", "es", str(PORTAL_A), db_session)
 
     assert resultado.veredicto == "sin_resultados"
     assert resultado.fragmentos == []
@@ -302,7 +306,7 @@ def test_recuperador_error_proveedor_si_falla_embedder(db_session, con_embedder)
         db_session, portal_id=PORTAL_A, nombre="x.txt", vector=[1.0, 0.0, 0.0],
     )
 
-    resultado = recuperador.recuperar("consulta", "es", PORTAL_A, db_session)
+    resultado = recuperador.recuperar("consulta", "es", str(PORTAL_A), db_session)
 
     assert resultado.veredicto == "error_proveedor"
     assert resultado.fragmentos == []
@@ -318,7 +322,7 @@ def test_recuperador_error_proveedor_si_embedder_devuelve_vector_vacio(
         db_session, portal_id=PORTAL_A, nombre="x.txt", vector=[1.0, 0.0, 0.0],
     )
 
-    resultado = recuperador.recuperar("consulta", "es", PORTAL_A, db_session)
+    resultado = recuperador.recuperar("consulta", "es", str(PORTAL_A), db_session)
 
     assert resultado.veredicto == "error_proveedor"
     assert resultado.fragmentos == []

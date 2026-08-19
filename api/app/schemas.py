@@ -325,6 +325,10 @@ class PortalOut(BaseModel):
     # Host principal (subdominio) por el que se sirve el portal; `None` si aún no tiene.
     host: str | None = None
     creado: str
+    # Correo del Administrador inicial del portal (nivel 3 más antiguo). `None` en el caso
+    # límite de un portal sin ningún Administrador (no ocurre por el flujo de alta actual,
+    # que siempre crea uno junto al portal).
+    adminEmail: str | None = None
 
 
 # --- Ajustes: campo [Empresa] -----------------------------------------------

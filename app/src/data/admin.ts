@@ -224,6 +224,8 @@ export interface PortalAdmin {
   /** Host principal (subdominio) del portal, o null si aún no lo tiene. */
   host: string | null
   creado: string
+  /** Correo del Administrador inicial del portal, o null en el caso límite de que no tenga ninguno. */
+  adminEmail: string | null
 }
 
 /** Datos de alta de un portal: sus atributos y su Administrador inicial. */

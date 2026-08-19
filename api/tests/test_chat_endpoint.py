@@ -22,9 +22,11 @@ from app.database import get_db
 from app.main import app
 from app.recuperador import ResultadoRecuperacion
 from app.routers import chat as chat_router
+from app.servicios import PORTAL_DEFECTO_UUID
 from tests.conftest import SEGUNDO_PORTAL_HOST, sembrar_portal_secundario
 
-PORTAL_A = "default"
+# `str(...)`: el router pasa `portal_id` como texto al pipeline (`str(portal.id)`).
+PORTAL_A = str(PORTAL_DEFECTO_UUID)
 
 
 # --- Dobles compartidos ------------------------------------------------------

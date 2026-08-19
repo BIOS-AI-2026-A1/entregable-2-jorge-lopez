@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import math
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -103,11 +104,17 @@ def recuperar(
 
     vector_consulta = vectores[0]
     dialecto = db.bind.dialect.name if db.bind is not None else ""
+    # `uuid.UUID(...)`: `portal_id` llega como `str` del router; las columnas
+    # `portal_id` de `articulo_chunks`/`documento_chunks` son `uuid.UUID`
+    # (columna `Uuid`) y SQLAlchemy exige el tipo Python nativo al enlazar el
+    # parámetro (falla con `AttributeError: 'str' object has no attribute
+    # 'hex'` en SQLite si se le pasa una cadena).
+    portal_id_uuid = uuid.UUID(portal_id)
 
     if dialecto == "postgresql":
-        candidatos = _buscar_postgres(db, vector_consulta, portal_id, idioma, settings.rag_top_k)
+        candidatos = _buscar_postgres(db, vector_consulta, portal_id_uuid, idioma, settings.rag_top_k)
     else:
-        candidatos = _buscar_python(db, vector_consulta, portal_id, idioma, settings.rag_top_k)
+        candidatos = _buscar_python(db, vector_consulta, portal_id_uuid, idioma, settings.rag_top_k)
 
     filtrados = [f for f in candidatos if f.similitud >= settings.rag_umbral_similitud]
     if not filtrados:
@@ -119,7 +126,7 @@ def recuperar(
 def _buscar_postgres(
     db: Session,
     vector: list[float],
-    portal_id: str,
+    portal_id: uuid.UUID,
     idioma: str,
     top_k: int,
 ) -> list[FragmentoRecuperado]:
@@ -161,7 +168,9 @@ def _buscar_postgres(
             articulos.append(
                 FragmentoRecuperado(
                     tipo="articulo",
-                    portal_id=f.portal_id,
+                    # `str(...)`: `ArticuloChunk.portal_id` es un `uuid.UUID`; el pipeline
+                    # compara este campo contra el `portal_id` (str) del host más adelante.
+                    portal_id=str(f.portal_id),
                     orden=f.orden,
                     texto=f.contenido,
                     similitud=1.0 - float(f.distancia),
@@ -195,7 +204,9 @@ def _buscar_postgres(
             documentos.append(
                 FragmentoRecuperado(
                     tipo="documento",
-                    portal_id=f.portal_id,
+                    # `str(...)`: `DocumentoChunk.portal_id` es un `uuid.UUID`; ídem el
+                    # comentario del caso "articulo" arriba.
+                    portal_id=str(f.portal_id),
                     orden=f.orden,
                     texto=f.contenido,
                     similitud=1.0 - float(f.distancia),
@@ -214,7 +225,7 @@ def _buscar_postgres(
 def _buscar_python(
     db: Session,
     vector: list[float],
-    portal_id: str,
+    portal_id: uuid.UUID,
     idioma: str,
     top_k: int,
 ) -> list[FragmentoRecuperado]:
@@ -237,7 +248,9 @@ def _buscar_python(
             articulos.append(
                 FragmentoRecuperado(
                     tipo="articulo",
-                    portal_id=f.portal_id,
+                    # `str(...)`: `ArticuloChunk.portal_id` es un `uuid.UUID`; el pipeline
+                    # compara este campo contra el `portal_id` (str) del host más adelante.
+                    portal_id=str(f.portal_id),
                     orden=f.orden,
                     texto=f.contenido,
                     similitud=similitud,
@@ -265,7 +278,9 @@ def _buscar_python(
             documentos.append(
                 FragmentoRecuperado(
                     tipo="documento",
-                    portal_id=f.portal_id,
+                    # `str(...)`: `DocumentoChunk.portal_id` es un `uuid.UUID`; ídem el
+                    # comentario del caso "articulo" arriba.
+                    portal_id=str(f.portal_id),
                     orden=f.orden,
                     texto=f.contenido,
                     similitud=similitud,
