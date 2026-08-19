@@ -48,7 +48,11 @@ def _vector_type():
         from pgvector.sqlalchemy import Vector
     except ImportError:  # pragma: no cover - dependencia opcional en el import de tests
         return JSON()
-    return JSON().with_variant(Vector(EMBEDDING_DIM), "postgresql")
+    # `Vector` va como tipo base (no como variante) para que su `Comparator`
+    # exponga `cosine_distance` en el ORM: `with_variant` solo cambia el tipo
+    # en la emisión de SQL/DDL, no el `Comparator` que se resuelve en el acceso
+    # de atributos Python (`ArticuloChunk.embedding.cosine_distance(...)`).
+    return Vector(EMBEDDING_DIM).with_variant(JSON(), "sqlite")
 
 
 VectorType = _vector_type()
