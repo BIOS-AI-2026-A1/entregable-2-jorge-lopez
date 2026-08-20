@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { ContenidoIdioma, Idioma } from '@/types'
 import {
+  comprobarSaludIA,
   eliminarArticulo,
   eliminarCategoria,
   guardarConfigIA,
@@ -20,8 +21,10 @@ import {
   type CategoriaAdmin,
   type ConfigIAAdmin,
   type ConfigIAPayload,
+  type EstadoSaludIA,
   type PreguntaAdmin,
   type RolIA,
+  type SaludRolIA,
 } from '@/data/admin'
 import { derivarDegradadoBanner, derivarTokensAcento, validarPaleta } from '@/seguridad/contraste'
 import { esAdministrador, esSuperAdmin } from '@/auth/nivel'
@@ -44,6 +47,26 @@ const ICONO_METRICA = {
 } as const
 
 const FILTROS = ['todas', 'nueva', 'revision', 'cubierta'] as const
+
+/**
+ * Presentación de cada estado del sondeo de salud.
+ *
+ * WCAG 2.2 AA (criterio 1.4.1): el estado **no** se comunica solo con color. Cada
+ * uno lleva su propio icono y una etiqueta de texto traducida; el color es
+ * refuerzo, nunca el único portador de la información. Los tonos van sobre blanco
+ * con contraste ≥ 4.5:1 (`-700` de la paleta Tailwind).
+ */
+const SALUD_PRESENTACION: Record<
+  EstadoSaludIA,
+  { Icono: typeof Ic.CheckCircle; clase: string }
+> = {
+  ok: { Icono: Ic.CheckCircle, clase: 'text-emerald-700' },
+  sin_clave: { Icono: Ic.AlertCircle, clase: 'text-slate-700' },
+  credenciales: { Icono: Ic.Lock, clase: 'text-rose-700' },
+  saldo: { Icono: Ic.CreditCard, clase: 'text-rose-700' },
+  timeout: { Icono: Ic.Clock, clase: 'text-amber-700' },
+  error: { Icono: Ic.Warning, clase: 'text-rose-700' },
+}
 
 type FormState = { modo: 'crear' | 'editar'; inicial?: ArticuloAdmin; preguntaId?: number }
 
@@ -87,6 +110,10 @@ export function PanelInterno({
     chat: false, traduccion: false, embeddings: false,
   })
   const [confirmarBorrado, setConfirmarBorrado] = useState<{ rol: RolIA; proveedor: string } | null>(null)
+  // Salud de los proveedores. Nace vacía a propósito: sondearla hace llamadas
+  // salientes reales, así que solo ocurre cuando SuperAdmin pulsa «Comprobar».
+  const [saludIA, setSaludIA] = useState<Record<RolIA, SaludRolIA> | null>(null)
+  const [comprobandoSalud, setComprobandoSalud] = useState(false)
   const [categorias, setCategorias] = useState<CategoriaAdmin[]>([])
   const [formCategoria, setFormCategoria] = useState<{ modo: 'crear' | 'editar'; inicial?: CategoriaAdmin } | null>(null)
   const [acento, setAcento] = useState(contenido.acento)
@@ -147,6 +174,32 @@ export function PanelInterno({
       })
     } else if (resp.status === 401) {
       router.replace(rutas.login(idioma))
+    }
+  }
+
+  /**
+   * Sondea los tres roles contra sus proveedores. Es la respuesta a «¿el 502 del
+   * panel es culpa del proveedor o nuestra?»: distingue clave revocada, cuenta sin
+   * saldo, timeout y caída, que hasta ahora solo se separaban leyendo los logs.
+   */
+  async function comprobarSaludHandler() {
+    setComprobandoSalud(true)
+    try {
+      const resp = await comprobarSaludIA()
+      if (resp.ok) {
+        const { roles } = (await resp.json()) as { roles: SaludRolIA[] }
+        setSaludIA(
+          Object.fromEntries(roles.map(r => [r.rol, r])) as Record<RolIA, SaludRolIA>,
+        )
+      } else if (resp.status === 401) {
+        router.replace(rutas.login(idioma))
+      } else {
+        avisoError(t('configIA.salud.error'))
+      }
+    } catch {
+      avisoError(t('configIA.salud.error'))
+    } finally {
+      setComprobandoSalud(false)
     }
   }
 
@@ -800,9 +853,24 @@ export function PanelInterno({
 
       {puedeConfigurarIA && (
       <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4" aria-labelledby="config-ia-h3">
-        <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
-          {t('configIA.titulo')}
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 id="config-ia-h3" className="text-sm font-semibold text-slate-900">
+            {t('configIA.titulo')}
+          </h3>
+          <button
+            type="button"
+            onClick={() => void comprobarSaludHandler()}
+            disabled={comprobandoSalud}
+            aria-describedby="config-ia-salud-ayuda"
+            className="inline-flex items-center gap-2 px-4 rounded-lg border border-slate-400 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--acento-foco)] min-h-[44px]"
+          >
+            <Ic.RefreshCw size={15} />
+            {comprobandoSalud ? t('configIA.salud.comprobando') : t('configIA.salud.comprobar')}
+          </button>
+        </div>
+        <p id="config-ia-salud-ayuda" className="text-xs text-slate-600">
+          {t('configIA.salud.ayuda')}
+        </p>
         {!configIA && <p className="text-xs text-slate-500">{t('configIA.cargando')}</p>}
         {configIA && (['chat', 'traduccion', 'embeddings'] as const).map(rol => {
           const est = estadoDe(rol)
@@ -880,6 +948,29 @@ export function PanelInterno({
                       proveedor: t(`configIA.proveedores.${est.seleccionado}`),
                     })}
               </p>
+              {saludIA?.[rol] && (() => {
+                const salud = saludIA[rol]
+                const { Icono, clase } = SALUD_PRESENTACION[salud.estado]
+                return (
+                  <p
+                    className="text-xs text-slate-700 flex items-start gap-1.5"
+                    // `status`: el resultado llega tras pulsar «Comprobar», así que
+                    // un lector de pantalla debe anunciarlo sin robar el foco.
+                    role="status"
+                  >
+                    <Icono size={13} className={`${clase} mt-0.5 shrink-0`} />
+                    <span>
+                      {/* La etiqueta de texto es la que porta el estado; el icono y
+                          el color solo lo refuerzan (WCAG 1.4.1). */}
+                      <strong className="font-semibold">
+                        {t(`configIA.salud.estados.${salud.estado}`)}
+                      </strong>
+                      {' — '}
+                      {salud.detalle}
+                    </span>
+                  </p>
+                )
+              })()}
               <div className="flex flex-wrap gap-2 justify-end">
                 <button
                   type="submit"

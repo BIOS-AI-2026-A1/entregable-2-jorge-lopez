@@ -571,6 +571,20 @@
       "deepseek": "DeepSeek",
       "voyage": "Voyage AI",
       "openai": "OpenAI"
+    },
+    "salud": {
+      "comprobar": "Comprobar proveedores",
+      "comprobando": "Comprobando…",
+      "ayuda": "Comprueba si cada proveedor responde. Úsalo cuando el chat o la generación de borradores fallen, para saber si el problema es del proveedor o de la aplicación.",
+      "error": "No se pudo comprobar el estado de los proveedores.",
+      "estados": {
+        "ok": "Responde correctamente",
+        "sin_clave": "Sin clave configurada",
+        "credenciales": "Clave rechazada",
+        "saldo": "Sin saldo",
+        "timeout": "No responde a tiempo",
+        "error": "Error del proveedor"
+      }
     }
   }
 }

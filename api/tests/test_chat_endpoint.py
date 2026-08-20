@@ -44,6 +44,7 @@ class _ChatDoble:
         response_format_json: bool,
         temperature: float,
         max_tokens: int,
+        timeout: float | None = None,
     ) -> str:
         self.llamadas.append({"messages": list(messages)})
         return self._respuestas.pop(0) if self._respuestas else ""

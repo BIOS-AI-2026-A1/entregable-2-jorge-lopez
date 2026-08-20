@@ -427,6 +427,29 @@ class ConfigIAOut(BaseModel):
     rolesSoportados: RolesSoportadosOut
 
 
+class SaludRolOut(BaseModel):
+    """Resultado del sondeo de un rol contra su proveedor.
+
+    `detalle` lo redacta el backend (`app.salud_ia`); NUNCA es el texto crudo del
+    proveedor, que puede llevar datos de cuenta o de infraestructura y va solo al log.
+    """
+
+    rol: Literal["chat", "traduccion", "embeddings"]
+    proveedor: ProveedorIA
+    # `credenciales` (clave revocada) y `saldo` (cuenta sin fondos) se separan a
+    # propósito: los dos producen el mismo 502 en el panel pero se arreglan distinto.
+    estado: Literal["ok", "sin_clave", "credenciales", "saldo", "timeout", "error"]
+    detalle: str
+    # ISO 8601, como el resto de marcas de tiempo del contrato (`creado_en`).
+    comprobadoEn: str
+
+
+class SaludIAOut(BaseModel):
+    """Salud de los tres roles de IA, en el orden `chat`, `traduccion`, `embeddings`."""
+
+    roles: list[SaludRolOut]
+
+
 class ConfigIAIn(BaseModel):
     """Cambia el proveedor de uno o varios roles y, opcionalmente, la clave de un
     proveedor (o su borrado).

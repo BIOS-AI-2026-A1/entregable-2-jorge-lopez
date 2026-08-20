@@ -23,6 +23,7 @@ con 422 antes de llegar aquí, así que la sugerencia queda `pendiente`.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -46,6 +47,8 @@ from app.schemas import (
 from app.servicios import aplicar_datos_articulo, articulo_a_admin_dict
 from app.sugerencias import ErrorGeneracionSugerencia, generar_borrador, listar_candidatos, resolver_candidato
 from app.texto import normalizar_slug
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/admin/sugerencias",
@@ -149,6 +152,16 @@ def generar(
     try:
         sugerencia = generar_borrador(candidato, str(portal.id), admin.email, db)
     except ErrorGeneracionSugerencia as exc:
+        # Distinto del 502 de `ErrorProveedor` (main.py): aquí el proveedor SÍ
+        # respondió, pero su salida no valida contra `_BorradorModelo`. Se registra
+        # para poder separar ambas causas en el log sin depender del cuerpo HTTP.
+        logger.warning(
+            "Sugerencia descartada por forma inválida (portal=%s fuente=%s referencia=%s): %s",
+            portal.id,
+            candidato.fuente,
+            candidato.referencia,
+            exc,
+        )
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     return _sugerencia_a_dict(sugerencia)
 

@@ -18,6 +18,7 @@ la red ni exigir una clave real.
 from __future__ import annotations
 
 import json
+import unicodedata
 from typing import Protocol
 
 from fastapi import Depends
@@ -61,6 +62,13 @@ URL_BASE_DEEPSEEK = "https://api.deepseek.com"
 # coste de salida (holgado para un artículo, cuyo contenido de entrada ya está acotado
 # por `TraduccionArticuloIn`). Sin esto, DeepSeek no tendría límite de salida.
 MAX_TOKENS_TRADUCCION = 4096
+
+# Timeout HTTP de la traducción, común a ambos proveedores. Sin él, los SDK de
+# Anthropic y OpenAI aplican su default de 600 s: una traducción atascada retenía
+# diez minutos un hilo del threadpool de FastAPI (los endpoints son `def`, no
+# `async def`) y el `fetch` del BFF. Holgado para 4096 tokens de salida, pero
+# finito.
+TIMEOUT_TRADUCCION_SEG = 90.0
 
 # El contenido no confiable del artículo viaja en el turno de usuario envuelto en esta
 # etiqueta; el prompt de sistema instruye a tratar su interior solo como datos a traducir.
@@ -149,7 +157,7 @@ class ProveedorAnthropic:
         except ImportError as exc:  # pragma: no cover - depende del entorno
             raise ErrorProveedor("El SDK de Anthropic no está instalado.") from exc
 
-        cliente = anthropic.Anthropic(api_key=self._api_key)
+        cliente = anthropic.Anthropic(api_key=self._api_key, timeout=TIMEOUT_TRADUCCION_SEG)
         try:
             respuesta = cliente.messages.create(
                 model=MODELO_ANTHROPIC,
@@ -181,7 +189,9 @@ class ProveedorDeepSeek:
         except ImportError as exc:  # pragma: no cover - depende del entorno
             raise ErrorProveedor("El SDK de OpenAI (para DeepSeek) no está instalado.") from exc
 
-        cliente = OpenAI(api_key=self._api_key, base_url=URL_BASE_DEEPSEEK)
+        cliente = OpenAI(
+            api_key=self._api_key, base_url=URL_BASE_DEEPSEEK, timeout=TIMEOUT_TRADUCCION_SEG
+        )
         try:
             respuesta = cliente.chat.completions.create(
                 model=MODELO_DEEPSEEK,
@@ -346,7 +356,16 @@ TEMPERATURA_CHAT_POR_DEFECTO = 0.2
 MAX_TOKENS_CHAT = 512
 # Timeout HTTP para la llamada al proveedor de chat. Corto: el usuario espera
 # en pantalla; si el proveedor tarda más, es mejor devolver `escalar` que colgar.
+# Dimensionado para `MAX_TOKENS_CHAT` = 512; NO sirve para generaciones largas.
 TIMEOUT_CHAT_SEG = 30.0
+
+# Timeout HTTP para generaciones largas que reutilizan el mismo proveedor de chat
+# (hoy, el borrador de sugerencia con `MAX_TOKENS_SUGERENCIA` = 2048). Cuadruplicar
+# los tokens de salida cuadruplica el tiempo de generación: con los 30 s del chat,
+# la llamada moría por timeout de forma sistemática y salía como un 502 opaco.
+# Aquí nadie espera en pantalla en una pestaña pública: lo dispara una persona
+# editora desde el panel y bajo demanda.
+TIMEOUT_GENERACION_SEG = 120.0
 
 
 class ProveedorChat(Protocol):
@@ -357,7 +376,8 @@ class ProveedorChat(Protocol):
     contenido del primer choice como string. `response_format_json=True` fuerza
     salida JSON cuando el proveedor lo soporta. `temperature` y `max_tokens`
     son parámetros por llamada porque el clasificador de scope y la generación
-    usan distintos valores.
+    usan distintos valores. `timeout` acompaña a `max_tokens` por la misma razón:
+    una llamada de 2048 tokens no cabe en el presupuesto de una de 512.
     """
 
     def completar(
@@ -367,6 +387,7 @@ class ProveedorChat(Protocol):
         response_format_json: bool,
         temperature: float,
         max_tokens: int,
+        timeout: float = TIMEOUT_CHAT_SEG,
     ) -> str: ...
 
 
@@ -387,6 +408,7 @@ class ProveedorChatDeepSeek:
         response_format_json: bool,
         temperature: float,
         max_tokens: int,
+        timeout: float = TIMEOUT_CHAT_SEG,
     ) -> str:
         try:
             from openai import OpenAI
@@ -396,7 +418,7 @@ class ProveedorChatDeepSeek:
         cliente = OpenAI(
             api_key=self._api_key,
             base_url=URL_BASE_DEEPSEEK,
-            timeout=TIMEOUT_CHAT_SEG,
+            timeout=timeout,
         )
         kwargs: dict = {
             "model": self._modelo,
@@ -463,8 +485,116 @@ def _validar_claves_items(lista: object, esperadas: set[str], mensaje: str) -> N
     if not isinstance(lista, list):
         return  # forma ya delatada por la comprobación de longitud, que sí es -1 aquí
     for item in lista:
-        if not isinstance(item, dict) or set(item.keys()) != esperadas:
+        if not isinstance(item, dict):
             raise ErrorProveedor(mensaje)
+        if set(item.keys()) != esperadas:
+            # Nombrar las claves sobrantes convierte el siguiente caso de este fallo
+            # en una línea nueva de `_ALIAS_CLAVES` en vez de una sesión de depuración.
+            sobrantes = ", ".join(sorted(set(item.keys()) - esperadas)) or "(ninguna)"
+            faltantes = ", ".join(sorted(esperadas - set(item.keys()))) or "(ninguna)"
+            raise ErrorProveedor(
+                f"{mensaje} Claves inesperadas: {sobrantes}. Faltan: {faltantes}."
+            )
+
+
+# Claves que los modelos traducen pese a que el prompt lo prohíbe, mapeadas a su
+# forma canónica (siempre la española, que es la del contrato `TraduccionArticuloIn`).
+#
+# El prompt de sistema ya enumera las claves literales y `_ESQUELETO_CLAVES` se las
+# da como ejemplo de forma; aun así `deepseek-chat` sigue traduciéndolas al portugués,
+# donde los cognados están a un carácter de distancia (`pregunta` -> `pergunta`). Como
+# insistir por prompt está agotado, se repara de forma determinista antes de validar.
+#
+# El fallo es unidireccional: traduciendo pt->es el modelo lleva las claves hacia el
+# español, que ya es la forma canónica; solo es->pt las aleja.
+_ALIAS_CLAVES: dict[str, str] = {
+    # es -> pt
+    "pergunta": "pregunta",
+    "resposta": "respuesta",
+    "descricao": "descripcion",
+    "passos": "pasos",
+    "paragrafos": "parrafos",
+    "conteudo": "contenido",
+    "nome": "nombre",
+    "observacao": "nota",
+    # Variantes en inglés que aparecen cuando el modelo "normaliza" a JSON genérico.
+    "question": "pregunta",
+    "answer": "respuesta",
+    "description": "descripcion",
+    "steps": "pasos",
+    "title": "titulo",
+    "paragraphs": "parrafos",
+    "name": "nombre",
+    "note": "nota",
+}
+
+
+def _sin_acentos(texto: str) -> str:
+    """Minúsculas sin diacríticos, para que `descrição` y `descricao` sean la misma
+    entrada del mapa de alias (el modelo alterna entre ambas formas)."""
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", texto.lower()) if not unicodedata.combining(c)
+    )
+
+
+def _canonizar_claves(dato: object, esperadas: set[str]) -> object:
+    """Devuelve `dato` con las claves traducidas revertidas a su forma canónica.
+
+    Solo renombra cuando la reparación es inequívoca: la clave no es ya canónica, su
+    alias está en el mapa, el destino se espera aquí y no está ya presente. Cualquier
+    clave desconocida se deja intacta para que `_validar_estructura` la rechace: esto
+    repara un artefacto conocido del modelo, NO relaja el guardarraíl. La forma
+    (número de claves, longitud de las listas) se sigue exigiendo idéntica después.
+    """
+    if not isinstance(dato, dict):
+        return dato
+    salida: dict = {}
+    for clave, valor in dato.items():
+        destino = clave
+        if clave not in esperadas:
+            candidato = _ALIAS_CLAVES.get(_sin_acentos(clave))
+            if candidato is not None and candidato in esperadas and candidato not in dato:
+                destino = candidato
+        salida[destino] = valor
+    return salida
+
+
+def _canonizar_contenido(entrada: dict, traducido: dict) -> dict:
+    """Aplica `_canonizar_claves` al documento completo, tomando como conjunto de
+    claves esperadas el de la entrada (nivel superior, `howTo`, y cada ítem de
+    `faq` y de `howTo.pasos`)."""
+    resultado = _canonizar_claves(traducido, set(entrada.keys()))
+    if not isinstance(resultado, dict):  # pragma: no cover - `traducido` ya es dict
+        return traducido
+
+    def _items(lista: object, plantilla: object) -> object:
+        """Canoniza cada ítem de una lista de dicts usando el primer ítem de la
+        entrada como plantilla de claves esperadas."""
+        if not isinstance(lista, list) or not isinstance(plantilla, list) or not plantilla:
+            return lista
+        if not isinstance(plantilla[0], dict):
+            return lista
+        esperadas = set(plantilla[0].keys())
+        return [_canonizar_claves(item, esperadas) for item in lista]
+
+    # Se canoniza solo lo que la entrada realmente tiene. Una categoría
+    # (`TraduccionCategoriaIn`) no lleva `faq` ni `howTo`: tocarlos aquí insertaría
+    # claves que la entrada no tiene, o borraría las que el modelo inventó —y esas
+    # le toca rechazarlas a `_validar_estructura`, no ocultarlas a esta función.
+    if "faq" in entrada and "faq" in resultado:
+        resultado["faq"] = _items(resultado["faq"], entrada["faq"])
+
+    if "howTo" in entrada:
+        howto_entrada = entrada["howTo"]
+        howto = resultado.get("howTo")
+        if isinstance(howto, dict) and isinstance(howto_entrada, dict):
+            howto = _canonizar_claves(howto, set(howto_entrada.keys()))
+            assert isinstance(howto, dict)
+            if "pasos" in howto and "pasos" in howto_entrada:
+                howto["pasos"] = _items(howto["pasos"], howto_entrada["pasos"])
+            resultado["howTo"] = howto
+
+    return resultado
 
 
 def _validar_estructura(entrada: dict, traducido: dict) -> None:
@@ -472,7 +602,12 @@ def _validar_estructura(entrada: dict, traducido: dict) -> None:
     divergente delata una alucinación o una inyección de prompt exitosa: se rechaza de
     forma controlada en lugar de propagar una salida manipulada."""
     if set(traducido.keys()) != set(entrada.keys()):
-        raise ErrorProveedor("La traducción cambió el conjunto de claves del artículo.")
+        sobrantes = ", ".join(sorted(set(traducido.keys()) - set(entrada.keys()))) or "(ninguna)"
+        faltantes = ", ".join(sorted(set(entrada.keys()) - set(traducido.keys()))) or "(ninguna)"
+        raise ErrorProveedor(
+            "La traducción cambió el conjunto de claves del artículo. "
+            f"Claves inesperadas: {sobrantes}. Faltan: {faltantes}."
+        )
     if _longitud_lista(traducido.get("parrafos")) != _longitud_lista(entrada.get("parrafos")):
         raise ErrorProveedor("La traducción cambió el número de párrafos.")
     if _longitud_lista(traducido.get("faq")) != _longitud_lista(entrada.get("faq")):
@@ -511,6 +646,10 @@ def traducir_contenido(
     traducido = traductor.traducir(origen, destino, entrada)
     if not isinstance(traducido, dict):
         raise ErrorProveedor("La traducción no tiene la forma esperada.")
+    # Revierte las claves que el modelo tradujo pese al prompt (p. ej. `pregunta` ->
+    # `pergunta`). Va ANTES de validar y de fijar el slug: repara un artefacto conocido
+    # del proveedor sin tocar los valores ni relajar las comprobaciones de forma.
+    traducido = _canonizar_contenido(entrada, traducido)
     # El slug no se traduce: se conserva el del contenido de origen como punto de
     # partida editable; el formulario ya lo deriva del título por idioma. Se fija antes
     # de validar para que el modelo no pueda alterar el conjunto de claves por el slug.

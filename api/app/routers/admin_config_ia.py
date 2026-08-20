@@ -30,11 +30,14 @@ from app.cifrado import CifradoNoConfigurado, cifrar, descifrar
 from app.database import get_db
 from app.deps import requiere_nivel
 from app.models import ConfigIA, ConfigIAClave, NivelAcceso
+from app.salud_ia import comprobar_todos
 from app.schemas import (
     ConfigIAIn,
     ConfigIAOut,
     ProveedorEstado,
     RolesSoportadosOut,
+    SaludIAOut,
+    SaludRolOut,
 )
 from app.servicios_ia import (
     CONFIG_IA_ID,
@@ -124,6 +127,32 @@ def _rol_que_usa(config: ConfigIA | None, datos: ConfigIAIn, proveedor: str) -> 
 @router.get("", response_model=ConfigIAOut)
 def obtener(db: Session = Depends(get_db)) -> ConfigIAOut:
     return _a_salida(db.get(ConfigIA, CONFIG_IA_ID), _tokens_por_proveedor(db))
+
+
+@router.get("/salud", response_model=SaludIAOut)
+def salud(db: Session = Depends(get_db)) -> SaludIAOut:
+    """Sondea cada rol contra su proveedor y devuelve un estado clasificado.
+
+    Existe para que un fallo de proveedor (clave revocada, cuenta sin saldo, caída)
+    sea visible desde el panel en vez de solo desde los logs: el chat degrada a
+    `escalar` en silencio y las sugerencias devuelven un 502 genérico, así que
+    ninguna de las dos superficies delataba la causa.
+
+    Es una llamada saliente real, así que va **bajo demanda** (un botón), con
+    timeout corto y caché en proceso; ver `app.salud_ia`.
+    """
+    return SaludIAOut(
+        roles=[
+            SaludRolOut(
+                rol=r.rol,
+                proveedor=r.proveedor,
+                estado=r.estado,
+                detalle=r.detalle,
+                comprobadoEn=r.comprobado_en,
+            )
+            for r in comprobar_todos(db)
+        ]
+    )
 
 
 @router.put("", response_model=ConfigIAOut)
