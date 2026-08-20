@@ -87,6 +87,29 @@ cambio; el de cada ampliación, en el `design.md` del cambio correspondiente (ar
   (default) o cualquier proveedor OpenAI-compatible (p. ej. OpenAI). SuperAdmin configura cada rol
   por separado en el panel; los selectores se filtran contra `rolesSoportados` que expone el
   backend, y el `PUT` rechaza con 422 cualquier asignación de rol → proveedor sin motor real.
+- **Observabilidad y salud de los proveedores de IA:** todo fallo de proveedor (`ErrorProveedor`)
+  se registra con su mensaje real y un `codigo` de correlación corto que también viaja en el cuerpo
+  de la respuesta; al cliente se le da un texto genérico (el mensaje del proveedor puede llevar
+  datos de cuenta). Antes ese texto se descartaba en `main.py` y la causa era irrecuperable.
+  `app/sugerencias.py` etiqueta la etapa (`redaccion` / `traduccion`) porque ambas levantan el mismo
+  error y daban el mismo 502. **Cada llamada saliente tiene timeout explícito y dimensionado por
+  tamaño de salida** (`servicios_ia.py`): `TIMEOUT_CHAT_SEG`=30 s para los 512 tokens del chat,
+  `TIMEOUT_GENERACION_SEG`=120 s para los 2048 de un borrador de sugerencia —reutilizar el del chat
+  hacía fallar la generación por timeout de forma sistemática— y `TIMEOUT_TRADUCCION_SEG`=90 s en
+  ambos traductores (sin él regía el default de 600 s de los SDK). El BFF acota además su `fetch`
+  y devuelve 504 en vez de dejar escapar la excepción. `GET /api/admin/config-ia/salud`
+  (SuperAdmin, `app/salud_ia.py`) sondea cada rol bajo demanda y separa `credenciales` (clave
+  revocada) de `saldo` (cuenta sin fondos), que producen el mismo 502 pero se arreglan distinto;
+  con caché en proceso de 60 s y sin devolver nunca el texto crudo del proveedor.
+- **Claves de JSON traducidas por el proveedor:** `deepseek-chat` traduce al portugués las
+  *claves* del JSON de traducción (`pregunta`/`respuesta` → `pergunta`/`resposta`,
+  `descripcion` → `descricao`, `pasos` → `passos`) pese a que el prompt de sistema las enumera
+  como literales y `_ESQUELETO_CLAVES` se las da como ejemplo de forma. Insistir por prompt está
+  agotado: `_canonizar_contenido` (`servicios_ia.py`) las revierte de forma determinista con el
+  mapa `_ALIAS_CLAVES` **antes** de `_validar_estructura`. La reparación es deliberadamente
+  estrecha —solo renombra si el alias es conocido, la clave se espera ahí y la canónica no está ya
+  presente— así que **no relaja el guardarraíl**: una clave inventada sigue cortando con
+  `ErrorProveedor`, y ahora el mensaje nombra las claves sobrantes y las que faltan.
 - **Brevedad, supervisión y evals del chat** (cambio OpenSpec `chat-evals-brevedad-supervision`):
   el identificador público del chat pasa a llamarse `chat_id` (alias entrante `session_id` mientras
   dure la transición) y cada interacción queda persistida en la tabla `chat_interaccion`

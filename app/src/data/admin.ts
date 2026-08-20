@@ -447,3 +447,33 @@ export function obtenerConfigIA(): Promise<Response> {
 export function guardarConfigIA(payload: ConfigIAPayload): Promise<Response> {
   return apiFetch('/api/admin/config-ia', { method: 'PUT', body: JSON.stringify(payload) })
 }
+
+/**
+ * Estado de un rol tras sondear su proveedor (`GET /api/admin/config-ia/salud`).
+ *
+ * `credenciales` (clave revocada) y `saldo` (cuenta sin fondos) se distinguen a
+ * propósito: los dos se ven como un 502 genérico en el panel, pero uno se arregla
+ * rotando la clave y el otro recargando la cuenta.
+ */
+export type EstadoSaludIA = 'ok' | 'sin_clave' | 'credenciales' | 'saldo' | 'timeout' | 'error'
+
+export interface SaludRolIA {
+  rol: 'chat' | 'traduccion' | 'embeddings'
+  proveedor: string
+  estado: EstadoSaludIA
+  /** Texto redactado por el backend; nunca el mensaje crudo del proveedor. */
+  detalle: string
+  comprobadoEn: string
+}
+
+export interface SaludIA {
+  roles: SaludRolIA[]
+}
+
+/**
+ * Sondea los tres roles contra sus proveedores. Hace llamadas salientes reales,
+ * así que se invoca **bajo demanda** (botón «Comprobar»), nunca al montar el panel.
+ */
+export function comprobarSaludIA(): Promise<Response> {
+  return apiFetch('/api/admin/config-ia/salud')
+}

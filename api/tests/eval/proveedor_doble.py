@@ -151,6 +151,7 @@ class ProveedorChatDoble:
         response_format_json: bool,
         temperature: float,
         max_tokens: int,
+        timeout: float | None = None,
     ) -> str:
         consulta = self._extraer_consulta(messages)
         self.llamadas.append(

@@ -95,8 +95,11 @@ def recuperar(
         embedder = crear_embedder(db)
         vectores = embedder.embeber([consulta])
     except ErrorTraduccion as exc:
-        # Base común de `ErrorProveedor` y `ProveedorNoConfigurado`. Sin detalles.
-        logger.warning("Recuperador: fallo del embedder (%s)", type(exc).__name__)
+        # Base común de `ErrorProveedor` y `ProveedorNoConfigurado`. El detalle del
+        # proveedor va al log (no a la respuesta): un embebedor caído degrada en
+        # silencio a `sin_resultados` en el chat y a "redactar sin contexto" en las
+        # sugerencias, así que sin esto no queda rastro de la causa.
+        logger.warning("Recuperador: fallo del embedder (%s): %s", type(exc).__name__, exc)
         return ResultadoRecuperacion(fragmentos=[], veredicto="error_proveedor", detalle="embedder")
 
     if not vectores or not vectores[0]:

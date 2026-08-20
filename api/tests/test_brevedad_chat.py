@@ -39,6 +39,7 @@ class _ChatDoble:
         response_format_json: bool,
         temperature: float,
         max_tokens: int,
+        timeout: float | None = None,
     ) -> str:
         self.llamadas.append(
             {

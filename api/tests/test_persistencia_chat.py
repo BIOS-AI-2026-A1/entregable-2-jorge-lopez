@@ -38,7 +38,7 @@ class _ChatDoble:
     def __init__(self, respuestas: list[str]) -> None:
         self._respuestas = list(respuestas)
 
-    def completar(self, messages, *, response_format_json, temperature, max_tokens):  # noqa: ANN001
+    def completar(self, messages, *, response_format_json, temperature, max_tokens, timeout=None):  # noqa: ANN001
         if not self._respuestas:
             raise RuntimeError("Se llamó al chat más veces de las previstas por el test")
         return self._respuestas.pop(0)

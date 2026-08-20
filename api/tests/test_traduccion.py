@@ -288,3 +288,107 @@ def test_contenido_con_instrucciones_se_trata_como_dato():
     contenido = TraduccionArticuloIn(**contenido_dict)
     resultado = traducir_contenido(ProveedorFalso(), "es", contenido)
     assert len(resultado["parrafos"]) == 2
+
+
+# --- Claves traducidas por el proveedor (reparación determinista) --------------
+#
+# Regresión real: `deepseek-chat` traduce al portugués las CLAVES del JSON pese a
+# que el prompt de sistema las enumera como literales y `_ESQUELETO_CLAVES` se las
+# da como ejemplo. Se observó `pregunta`/`respuesta` -> `pergunta`/`resposta` (502
+# en «Generar borrador con IA») y antes `descripcion` -> `descricao`. Como el
+# prompt ya está agotado como vía, se repara de forma determinista antes de validar.
+
+
+class _ProveedorQueTraduceLasClaves:
+    """Traduce correctamente los valores, pero lleva las claves al portugués."""
+
+    def traducir(self, origen: str, destino: str, contenido: dict) -> dict:
+        return {
+            "slug": contenido["slug"],
+            "titulo": f"[{destino}] {contenido['titulo']}",
+            "parrafos": [f"[{destino}] {p}" for p in contenido["parrafos"]],
+            "howTo": {
+                "titulo": contenido["howTo"]["titulo"],
+                "passos": [
+                    {"titulo": p["titulo"], "descricao": p["descripcion"]}
+                    for p in contenido["howTo"]["pasos"]
+                ],
+            },
+            "nota": contenido["nota"],
+            "faq": [
+                {"pergunta": f["pregunta"], "resposta": f["respuesta"]}
+                for f in contenido["faq"]
+            ],
+        }
+
+
+def test_claves_traducidas_al_portugues_se_reparan():
+    """El fallo exacto del panel: la traducción llega con `pergunta`/`resposta` y
+    `passos`/`descricao`. Se canoniza en vez de tirar la generación entera."""
+    resultado = traducir_contenido(
+        _ProveedorQueTraduceLasClaves(), "es", TraduccionArticuloIn(**CONTENIDO_ES)
+    )
+
+    assert set(resultado.keys()) == set(CONTENIDO_ES.keys())
+    assert set(resultado["faq"][0].keys()) == {"pregunta", "respuesta"}
+    assert set(resultado["howTo"].keys()) == {"titulo", "pasos"}
+    assert set(resultado["howTo"]["pasos"][0].keys()) == {"titulo", "descripcion"}
+    # Los VALORES no se tocan: solo se renombra la clave.
+    assert resultado["faq"][0]["pregunta"] == "¿Y?"
+    assert resultado["faq"][0]["respuesta"] == "Pues eso."
+    assert resultado["howTo"]["pasos"][0]["descripcion"] == "Hazlo."
+    # El resultado sigue validando contra el contrato que consume el endpoint.
+    TraduccionArticuloIn(**resultado)
+
+
+def test_la_reparacion_no_relaja_el_guardarrail():
+    """Canonizar alias conocidos NO convierte la validación en «acepta cualquier
+    forma»: una clave inventada sigue cortando con `ErrorProveedor`."""
+
+    class _ProveedorConClaveInventada:
+        def traducir(self, origen: str, destino: str, contenido: dict) -> dict:
+            salida = dict(contenido)
+            salida["faq"] = [{"pregunta": "¿Y?", "respuesta": "Pues eso.", "extra": "x"}]
+            return salida
+
+    with pytest.raises(ErrorProveedor) as exc:
+        traducir_contenido(
+            _ProveedorConClaveInventada(), "es", TraduccionArticuloIn(**CONTENIDO_ES)
+        )
+    # El mensaje nombra la clave culpable: el siguiente caso es una línea de
+    # `_ALIAS_CLAVES`, no una sesión de depuración a ciegas.
+    assert "extra" in str(exc.value)
+
+
+def test_la_reparacion_no_pisa_una_clave_canonica_ya_presente():
+    """Si conviven la canónica y su alias, renombrar destruiría un valor. Se deja
+    intacto y la validación lo rechaza."""
+
+    class _ProveedorConAmbas:
+        def traducir(self, origen: str, destino: str, contenido: dict) -> dict:
+            salida = dict(contenido)
+            salida["faq"] = [
+                {"pregunta": "canónica", "pergunta": "alias", "respuesta": "r"}
+            ]
+            return salida
+
+    with pytest.raises(ErrorProveedor):
+        traducir_contenido(_ProveedorConAmbas(), "es", TraduccionArticuloIn(**CONTENIDO_ES))
+
+
+def test_la_reparacion_tolera_acentos_en_la_clave():
+    """El modelo alterna entre `descricao` y `descrição`; ambas son el mismo alias."""
+
+    class _ProveedorConAcento:
+        def traducir(self, origen: str, destino: str, contenido: dict) -> dict:
+            salida = dict(contenido)
+            salida["howTo"] = {
+                "titulo": "Passos",
+                "pasos": [{"titulo": "Paso 1", "descrição": "Faz."}],
+            }
+            return salida
+
+    resultado = traducir_contenido(
+        _ProveedorConAcento(), "es", TraduccionArticuloIn(**CONTENIDO_ES)
+    )
+    assert resultado["howTo"]["pasos"][0]["descripcion"] == "Faz."

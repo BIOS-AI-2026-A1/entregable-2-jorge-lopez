@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 import secrets
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -50,6 +52,8 @@ from app.servicios_ia import (
     MODELO_CHAT_POR_DEFECTO,
     PROVEEDOR_CHAT_POR_DEFECTO,
     PROVEEDOR_TRADUCCION_POR_DEFECTO,
+    TIMEOUT_GENERACION_SEG,
+    ErrorTraduccion,
     ProveedorChat,
     ProveedorTraduccion,
     crear_chat,
@@ -57,6 +61,8 @@ from app.servicios_ia import (
     traducir_contenido,
 )
 from app.texto import normalizar_slug
+
+logger = logging.getLogger(__name__)
 
 FuenteSugerencia = Literal["chat_escalado", "pregunta_sin_resolver", "documentacion_rag"]
 
@@ -81,6 +87,31 @@ IDIOMA_REDACCION = "es"
 
 class ErrorGeneracionSugerencia(RuntimeError):
     """La salida del LLM no fue JSON válido ni tuvo la forma esperada del borrador."""
+
+
+@contextmanager
+def _etapa(nombre: str, candidato: "Candidato", portal_id: str) -> Iterator[None]:
+    """Registra a qué etapa del pipeline pertenece un fallo del proveedor y deja que
+    la excepción siga su curso hacia el manejador global de `app.main`.
+
+    `generar_borrador` llama al proveedor dos veces —redacción y traducción— y ambas
+    levantan el mismo `ErrorProveedor`, así que el 502 resultante era idéntico y no
+    decía cuál de las dos había fallado. Aquí solo se anota; no se traga ni se
+    reenvuelve el error, para no alterar el mapeo HTTP existente.
+    """
+    try:
+        yield
+    except ErrorTraduccion as exc:
+        logger.warning(
+            "Sugerencias: fallo del proveedor en etapa=%s (portal=%s fuente=%s referencia=%s): %s: %s",
+            nombre,
+            portal_id,
+            candidato.fuente,
+            candidato.referencia,
+            type(exc).__name__,
+            exc,
+        )
+        raise
 
 
 @dataclass
@@ -556,6 +587,17 @@ def generar_borrador(
     """
     resultado = recuperar(candidato.titulo_sugerido, IDIOMA_REDACCION, portal_id, db)
     fragmentos = resultado.fragmentos if resultado.veredicto == "ok" else []
+    if resultado.veredicto != "ok":
+        # Degradación silenciosa histórica: sin fragmentos el prompt pide "el borrador
+        # más breve que sí puedas fundamentar", que suele salir degenerado y morir en
+        # `_parsear_borrador`. Un embebedor caído se manifestaba como un 502 sin pista.
+        logger.warning(
+            "Sugerencias: recuperación sin fragmentos (veredicto=%s) para portal=%s "
+            "candidato=%s; se redacta sin contexto",
+            resultado.veredicto,
+            portal_id,
+            candidato.referencia,
+        )
 
     proveedor_chat = _fabrica_chat(db)
     delimitador = _nuevo_delimitador()
@@ -563,12 +605,17 @@ def generar_borrador(
         {"role": "system", "content": _prompt_sistema_generacion(delimitador)},
         {"role": "user", "content": _prompt_usuario_generacion(candidato.titulo_sugerido, fragmentos, delimitador)},
     ]
-    crudo = proveedor_chat.completar(
-        mensajes,
-        response_format_json=True,
-        temperature=TEMPERATURA_SUGERENCIA,
-        max_tokens=MAX_TOKENS_SUGERENCIA,
-    )
+    with _etapa("redaccion", candidato, portal_id):
+        crudo = proveedor_chat.completar(
+            mensajes,
+            response_format_json=True,
+            temperature=TEMPERATURA_SUGERENCIA,
+            max_tokens=MAX_TOKENS_SUGERENCIA,
+            # `MAX_TOKENS_SUGERENCIA` cuadruplica el techo del chat, así que el
+            # timeout del chat (30 s, dimensionado para 512 tokens) no sirve aquí:
+            # reutilizarlo hacía fallar la generación por timeout de forma sistemática.
+            timeout=TIMEOUT_GENERACION_SEG,
+        )
     borrador = _parsear_borrador(crudo)
     if borrador is None:
         raise ErrorGeneracionSugerencia("El proveedor no devolvió un borrador con la forma esperada.")
@@ -589,7 +636,8 @@ def generar_borrador(
     }
 
     traductor = _fabrica_traductor(db)
-    contenido_pt = traducir_contenido(traductor, "es", TraduccionArticuloIn(**contenido_es))
+    with _etapa("traduccion", candidato, portal_id):
+        contenido_pt = traducir_contenido(traductor, "es", TraduccionArticuloIn(**contenido_es))
 
     proveedor_chat_nombre, modelo = _resolver_proveedor_modelo_chat(db)
     proveedor_traduccion_nombre = _resolver_proveedor_traduccion(db)

@@ -50,6 +50,7 @@ class _ChatDoble:
         response_format_json: bool,
         temperature: float,
         max_tokens: int,
+        timeout: float | None = None,
     ) -> str:
         self.llamadas.append({"response_format_json": response_format_json})
         if not self._respuestas:

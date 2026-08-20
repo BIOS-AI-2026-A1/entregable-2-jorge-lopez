@@ -8,6 +8,7 @@ cruce de citas contra fragmentos y portal.
 
 from __future__ import annotations
 
+import logging
 import re
 
 import pytest
@@ -16,6 +17,7 @@ from app import sugerencias as sug_mod
 from app.models import SugerenciaArticulo
 from app.recuperador import FragmentoRecuperado, ResultadoRecuperacion
 from app.servicios import PORTAL_DEFECTO_UUID
+from app.servicios_ia import TIMEOUT_CHAT_SEG, TIMEOUT_GENERACION_SEG, ErrorProveedor
 from app.sugerencias import Candidato, ErrorGeneracionSugerencia, generar_borrador
 
 PORTAL_A = str(PORTAL_DEFECTO_UUID)
@@ -27,13 +29,14 @@ class _ChatDoble:
         self._respuesta = respuesta
         self.llamadas: list[dict] = []
 
-    def completar(self, messages, *, response_format_json, temperature, max_tokens):
+    def completar(self, messages, *, response_format_json, temperature, max_tokens, timeout=None):
         self.llamadas.append(
             {
                 "messages": list(messages),
                 "response_format_json": response_format_json,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "timeout": timeout,
             }
         )
         return self._respuesta
@@ -249,3 +252,90 @@ def test_titulo_sin_alfanumericos_cae_a_slug_de_emergencia(
     sugerencia = generar_borrador(_candidato(), PORTAL_A, "editor@test.local", db_session)
 
     assert sugerencia.contenido["es"]["slug"] == "borrador-sugerido"
+
+
+# --- Timeout y atribución de etapa -------------------------------------------
+#
+# Regresión del 502 en «Generar borrador con IA»: la generación reutilizaba el
+# cliente del chat con su timeout de 30 s (dimensionado para 512 tokens) pese a
+# pedir `MAX_TOKENS_SUGERENCIA` = 2048, así que moría por timeout de forma
+# sistemática y salía como un 502 indistinguible de un bug propio.
+
+
+def test_la_generacion_pide_timeout_holgado_no_el_del_chat(
+    db_session, con_chat, con_traductor, con_recuperador
+):
+    """El techo de tokens y el timeout tienen que ir de la mano: pedir 2048 tokens
+    con el presupuesto de 30 s del chat es lo que provocaba el 502."""
+    doble = con_chat(_JSON_VALIDO)
+    con_traductor()
+    con_recuperador(ResultadoRecuperacion(fragmentos=[_fragmento()], veredicto="ok"))
+
+    generar_borrador(_candidato(), PORTAL_A, "editor@test.local", db_session)
+
+    llamada = doble.llamadas[0]
+    assert llamada["max_tokens"] == sug_mod.MAX_TOKENS_SUGERENCIA
+    assert llamada["timeout"] == TIMEOUT_GENERACION_SEG
+    assert llamada["timeout"] > TIMEOUT_CHAT_SEG
+
+
+def test_fallo_del_proveedor_al_redactar_identifica_la_etapa(
+    db_session, con_chat, con_traductor, con_recuperador, caplog
+):
+    """Redacción y traducción levantan el MISMO `ErrorProveedor` y dan el mismo
+    502, así que sin la etapa en el log no se sabe cuál de las dos falló."""
+    class _ChatQueFalla:
+        def completar(self, *a, **kw):
+            raise ErrorProveedor("402 Insufficient Balance")
+
+    sug_mod.inyectar_chat_factory(lambda _db: _ChatQueFalla())
+    con_traductor()
+    con_recuperador(ResultadoRecuperacion(fragmentos=[_fragmento()], veredicto="ok"))
+
+    with caplog.at_level(logging.WARNING, logger="app.sugerencias"):
+        with pytest.raises(ErrorProveedor):
+            generar_borrador(_candidato(), PORTAL_A, "editor@test.local", db_session)
+
+    assert "etapa=redaccion" in caplog.text
+    # El mensaje real del proveedor tiene que sobrevivir hasta el log: es la única
+    # copia (el manejador de `app.main` responde un texto genérico al cliente).
+    assert "402 Insufficient Balance" in caplog.text
+
+
+def test_fallo_del_proveedor_al_traducir_identifica_la_etapa(
+    db_session, con_chat, con_recuperador, caplog
+):
+    con_chat(_JSON_VALIDO)
+    con_recuperador(ResultadoRecuperacion(fragmentos=[_fragmento()], veredicto="ok"))
+
+    class _TraductorQueFalla:
+        def traducir(self, origen, destino, contenido):
+            raise ErrorProveedor("La traducción cambió las claves de howTo.")
+
+    sug_mod.inyectar_traductor_factory(lambda _db: _TraductorQueFalla())
+
+    with caplog.at_level(logging.WARNING, logger="app.sugerencias"):
+        with pytest.raises(ErrorProveedor):
+            generar_borrador(_candidato(), PORTAL_A, "editor@test.local", db_session)
+
+    assert "etapa=traduccion" in caplog.text
+    # Nada se persiste si la mitad portuguesa falla: el artículo es bilingüe atómico.
+    assert db_session.query(SugerenciaArticulo).count() == 0
+
+
+def test_recuperacion_fallida_deja_rastro_en_el_log(
+    db_session, con_chat, con_traductor, con_recuperador, caplog
+):
+    """Un embebedor caído degradaba a «redactar sin contexto» en silencio, y el
+    borrador degenerado resultante moría luego como un 502 sin pista de la causa."""
+    con_chat(_JSON_VALIDO)
+    con_traductor()
+    con_recuperador(
+        ResultadoRecuperacion(fragmentos=[], veredicto="error_proveedor", detalle="embedder")
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.sugerencias"):
+        generar_borrador(_candidato(), PORTAL_A, "editor@test.local", db_session)
+
+    assert "veredicto=error_proveedor" in caplog.text
+    assert "sin contexto" in caplog.text

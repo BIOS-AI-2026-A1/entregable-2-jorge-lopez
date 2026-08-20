@@ -417,7 +417,7 @@ def _ejecutar_pipeline(
     try:
         proveedor = _fabrica_chat(db)
     except ErrorTraduccion as exc:
-        logger.warning("Chat: proveedor no disponible al crear (%s)", type(exc).__name__)
+        logger.warning("Chat: proveedor no disponible al crear (%s): %s", type(exc).__name__, exc)
         return _resultado_error(sesion, idioma)
 
     # Delimitador con nonce aleatorio por petición: si el atacante quiere
@@ -484,7 +484,10 @@ def _ejecutar_pipeline(
             max_tokens=MAX_TOKENS_CHAT,
         )
     except ErrorTraduccion as exc:
-        logger.warning("Chat: fallo del proveedor en generación (%s)", type(exc).__name__)
+        # El chat degrada a `escalar` a propósito (no rompe la pantalla del usuario
+        # final), así que este log es el ÚNICO rastro de un proveedor caído: sin el
+        # mensaje real, una clave revocada o sin saldo pasaba desapercibida.
+        logger.warning("Chat: fallo del proveedor en generación (%s): %s", type(exc).__name__, exc)
         return _resultado_error(sesion, idioma)
 
     salida = _parsear_salida(crudo)
@@ -548,7 +551,7 @@ def _clasificar_scope(
             max_tokens=5,
         )
     except ErrorTraduccion as exc:
-        logger.warning("Chat: clasificador falló (%s); asumo en_scope", type(exc).__name__)
+        logger.warning("Chat: clasificador falló (%s: %s); asumo en_scope", type(exc).__name__, exc)
         return "en_scope"
     etiqueta = (salida or "").strip().upper()
     if "FUERA_DE_SCOPE" in etiqueta:

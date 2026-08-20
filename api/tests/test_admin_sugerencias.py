@@ -50,7 +50,7 @@ class _ChatDoble:
         self._respuesta = respuesta
         self.llamadas = 0
 
-    def completar(self, messages, *, response_format_json, temperature, max_tokens):
+    def completar(self, messages, *, response_format_json, temperature, max_tokens, timeout=None):
         self.llamadas += 1
         return self._respuesta
 

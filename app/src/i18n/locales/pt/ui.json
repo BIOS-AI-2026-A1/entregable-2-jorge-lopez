@@ -571,6 +571,20 @@
       "deepseek": "DeepSeek",
       "voyage": "Voyage AI",
       "openai": "OpenAI"
+    },
+    "salud": {
+      "comprobar": "Verificar provedores",
+      "comprobando": "A verificar…",
+      "ayuda": "Verifica se cada provedor responde. Usa-o quando o chat ou a geração de rascunhos falharem, para saber se o problema é do provedor ou da aplicação.",
+      "error": "Não foi possível verificar o estado dos provedores.",
+      "estados": {
+        "ok": "Responde corretamente",
+        "sin_clave": "Sem chave configurada",
+        "credenciales": "Chave rejeitada",
+        "saldo": "Sem saldo",
+        "timeout": "Não responde a tempo",
+        "error": "Erro do provedor"
+      }
     }
   }
 }
