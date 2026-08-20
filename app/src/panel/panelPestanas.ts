@@ -5,10 +5,10 @@
  * nunca se alcanza pidiéndola directamente si la sesión no es Administrador.
  */
 
-export type PestanaId = 'sinResolver' | 'gestion' | 'chats' | 'categorias' | 'admin'
+export type PestanaId = 'sinResolver' | 'gestion' | 'chats' | 'sugerencias' | 'categorias' | 'admin'
 
 /** Orden en que se muestran las pestañas; la primera es el valor por defecto. */
-export const PESTANAS: readonly PestanaId[] = ['sinResolver', 'gestion', 'chats', 'categorias', 'admin']
+export const PESTANAS: readonly PestanaId[] = ['sinResolver', 'gestion', 'chats', 'sugerencias', 'categorias', 'admin']
 
 const POR_DEFECTO: PestanaId = 'sinResolver'
 
@@ -17,6 +17,7 @@ function esPestanaId(valor: string | null): valor is PestanaId {
     valor === 'sinResolver' ||
     valor === 'gestion' ||
     valor === 'chats' ||
+    valor === 'sugerencias' ||
     valor === 'categorias' ||
     valor === 'admin'
   )

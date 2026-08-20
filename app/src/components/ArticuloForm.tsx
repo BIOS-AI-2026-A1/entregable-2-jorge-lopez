@@ -26,6 +26,8 @@ type Props = {
   modo: 'crear' | 'editar'
   inicial?: ArticuloAdmin
   preguntaId?: number
+  /** Sugerencia de IA que se está aceptando (spec `sugerencia-articulos-ia`): el guardado va a `.../aceptar` en vez de crear un artículo suelto. */
+  sugerenciaId?: string
   onCerrar: () => void
   onGuardado: () => void
 }
@@ -72,7 +74,7 @@ function tradAdminADraft(t: TraduccionAdmin, slug: string): TradDraft {
   }
 }
 
-export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, onGuardado }: Props) {
+export function ArticuloForm({ categorias, modo, inicial, preguntaId, sugerenciaId, onCerrar, onGuardado }: Props) {
   const { t, i18n } = useTranslation()
   // Idioma de la interfaz (segmento de ruta): decide la pestaña activa por defecto.
   const idiomaInterfaz: Idioma = i18n.language === 'pt' ? 'pt' : 'es'
@@ -222,11 +224,13 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
     setEnviando(true)
     try {
       const destino: DestinoArticulo =
-        preguntaId !== undefined
-          ? { tipo: 'desdePregunta', preguntaId }
-          : modo === 'crear'
-            ? { tipo: 'crear' }
-            : { tipo: 'editar', articuloId: inicial!.id }
+        sugerenciaId !== undefined
+          ? { tipo: 'desdeSugerencia', sugerenciaId }
+          : preguntaId !== undefined
+            ? { tipo: 'desdePregunta', preguntaId }
+            : modo === 'crear'
+              ? { tipo: 'crear' }
+              : { tipo: 'editar', articuloId: inicial!.id }
 
       // Los minutos y la fecha los fija el sistema, no el formulario.
       const payload = aPayload({ ...draft, minutosLectura: minutos, actualizado: hoy })
@@ -244,11 +248,13 @@ export function ArticuloForm({ categorias, modo, inicial, preguntaId, onCerrar, 
   }
 
   const titulo =
-    preguntaId !== undefined
-      ? t('panelGestion.crearDesdePregunta')
-      : modo === 'crear'
-        ? t('panelGestion.nuevo')
-        : t('panelGestion.editar')
+    sugerenciaId !== undefined
+      ? t('panelGestion.crearDesdeSugerencia')
+      : preguntaId !== undefined
+        ? t('panelGestion.crearDesdePregunta')
+        : modo === 'crear'
+          ? t('panelGestion.nuevo')
+          : t('panelGestion.editar')
 
   return (
     <section aria-labelledby="form-articulo-h" className="rounded-2xl border border-[var(--acento-claro)] bg-white p-5 sm:p-6 shadow-xl">

@@ -586,6 +586,57 @@ class ChatInteraccion(Base):
     )
 
 
+class SugerenciaArticulo(Base):
+    """Borrador de artículo generado por IA a partir de una señal (chat escalado,
+    pregunta sin resolver o hueco de documentación RAG), pendiente de revisión
+    humana (spec `sugerencia-articulos-ia`).
+
+    `contenido` guarda `{"es": {...}, "pt": {...}}` con la misma forma que
+    consume el formulario de artículo (`TraduccionArticuloIn`: slug, titulo,
+    parrafos, howTo, nota, faq); NO incluye id/categoria/relacionados —esos los
+    decide la persona editora al aceptar. `citas` es una lista de
+    `{n, tipo, titulo, slug}` (mismo shape que `ChatInteraccion.citas`),
+    fragmentos/artículos que sustentan el borrador, ya cruzados contra el
+    portal. `articulo_id` queda `NULL` hasta que se acepta; entonces guarda el
+    id del artículo real creado por el alta existente. `(fuente, referencia)`
+    identifica el candidato de origen: sirve para no regenerar mientras exista
+    una sugerencia `pendiente` para el mismo candidato (idempotencia).
+
+    Nunca se publica ni se indexa por sí sola: mientras el estado sea
+    `pendiente` o `descartada`, el contenido no aparece en el centro de ayuda
+    público ni en el chat/RAG (no hay ningún router de lectura pública que
+    consulte esta tabla).
+    """
+
+    __tablename__ = "sugerencia_articulo"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    portal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portales.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # `chat_escalado` | `pregunta_sin_resolver` | `documentacion_rag`.
+    fuente: Mapped[str] = mapped_column(String, nullable=False)
+    # Identificador estable del candidato dentro de su fuente (ver `app.sugerencias`).
+    referencia: Mapped[str] = mapped_column(String, nullable=False)
+    # `pendiente` | `aceptada` | `descartada`.
+    estado: Mapped[str] = mapped_column(String, nullable=False, default="pendiente")
+    contenido: Mapped[dict] = mapped_column(JsonType, nullable=False)
+    citas: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    proveedor_chat: Mapped[str] = mapped_column(String, nullable=False)
+    proveedor_traduccion: Mapped[str] = mapped_column(String, nullable=False)
+    modelo: Mapped[str] = mapped_column(String, nullable=False)
+    # Id del artículo creado al aceptar. Sin FK a `articulos` (PK compuesta por
+    # portal): la referencia es informativa, no de integridad; el artículo real
+    # es la fuente de la verdad tras aceptar, y borrar la sugerencia después no
+    # debe arrastrar al artículo (ni viceversa).
+    articulo_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    creado_por: Mapped[str] = mapped_column(String, nullable=False)
+    creado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    resuelto_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ConfigIAClave(Base):
     """Clave de API cifrada de un proveedor. Global a la instalación (no por portal).
 

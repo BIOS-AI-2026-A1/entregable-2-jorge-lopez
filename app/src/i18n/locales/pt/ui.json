@@ -158,6 +158,7 @@
     "editarAria": "Editar o artigo: {{titulo}}",
     "eliminarAria": "Excluir o artigo: {{titulo}}",
     "crearDesdePregunta": "Criar artigo a partir da pergunta",
+    "crearDesdeSugerencia": "Aceitar sugestão de artigo",
     "guardar": "Salvar",
     "cancelar": "Cancelar",
     "guardado": "Alterações salvas.",
@@ -266,6 +267,56 @@
       "fuera_de_scope": "Fora de escopo",
       "escalar": "Escalar ao suporte"
     }
+  },
+  "panelSugerencias": {
+    "titulo": "Sugestões",
+    "subtitulo": "Rascunhos de artigo gerados por IA a partir de chats escalados, perguntas sem resposta e lacunas de documentação. Nunca são publicados sozinhos: revise-os antes de aceitá-los.",
+    "candidatosTitulo": "Candidatos",
+    "filtroFuente": "Filtrar por fonte:",
+    "filtroTodas": "Todas",
+    "fuentes": {
+      "chat_escalado": "Chat escalado",
+      "pregunta_sin_resolver": "Pergunta sem resposta",
+      "documentacion_rag": "Lacuna de documentação"
+    },
+    "tablaCandidatosAria": "Candidatos a novo artigo",
+    "columnasCandidatos": {
+      "fuente": "Fonte",
+      "titulo": "Título sugerido",
+      "idioma": "Idioma",
+      "prioridad": "Prioridade",
+      "accion": "Ação"
+    },
+    "generarBoton": "Gerar rascunho com IA",
+    "generandoBoton": "Gerando…",
+    "generando": "Gerando o rascunho de «{{titulo}}»…",
+    "generado": "Rascunho de «{{titulo}}» pronto. Abra-o na fila de sugestões.",
+    "yaGenerada": "Já gerado",
+    "errorCandidatoObsoleto": "Este candidato não está mais disponível. A lista foi atualizada.",
+    "errorGenerar": "Não foi possível gerar o rascunho. Tente novamente.",
+    "errorCargarCandidatos": "Não foi possível carregar a lista de candidatos. Tente novamente.",
+    "vacioCandidatos": "Não há candidatos a novo artigo no momento.",
+    "colaTitulo": "Sugestões pendentes",
+    "tablaColaAria": "Sugestões pendentes de revisão",
+    "columnasCola": {
+      "titulo": "Título",
+      "fuente": "Fonte",
+      "creado": "Gerado",
+      "acciones": "Ações"
+    },
+    "abrir": "Abrir",
+    "abrirAria": "Abrir a sugestão: {{titulo}}",
+    "descartar": "Descartar",
+    "descartarAria": "Descartar a sugestão: {{titulo}}",
+    "confirmarDescartar": "Descartar a sugestão «{{titulo}}»? Nenhum artigo será publicado e esta ação não pode ser desfeita.",
+    "descartada": "Sugestão descartada.",
+    "aceptada": "Artigo criado a partir da sugestão.",
+    "errorAbrir": "Não foi possível abrir a sugestão. Tente novamente.",
+    "errorDescartar": "Não foi possível descartar a sugestão. Tente novamente.",
+    "errorCargarCola": "Não foi possível carregar a fila de sugestões. Tente novamente.",
+    "errorRed": "Não foi possível conectar ao servidor.",
+    "vacioCola": "Não há sugestões pendentes de revisão.",
+    "cargando": "Carregando…"
   },
   "panelCategorias": {
     "titulo": "Categorias",

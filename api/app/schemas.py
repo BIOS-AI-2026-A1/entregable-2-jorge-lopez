@@ -666,6 +666,78 @@ class ChatDetalleOut(BaseModel):
     interacciones: list[ChatInteraccionOut]
 
 
+# --- Panel: sugerencias de artículo con IA (spec `sugerencia-articulos-ia`) --
+
+FuenteSugerencia = Literal["chat_escalado", "pregunta_sin_resolver", "documentacion_rag"]
+EstadoSugerencia = Literal["pendiente", "aceptada", "descartada"]
+
+
+class CandidatoOut(BaseModel):
+    """Candidato a artículo agregado de una fuente, para la lista del panel."""
+
+    fuente: FuenteSugerencia
+    referencia: str
+    titulo_sugerido: str
+    idioma: str
+    prioridad: int
+    ya_generada: bool
+
+
+class CandidatosListaOut(BaseModel):
+    items: list[CandidatoOut]
+
+
+class GenerarSugerenciaIn(BaseModel):
+    """Candidato elegido para generar su borrador (`POST .../generar`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fuente: FuenteSugerencia
+    referencia: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+
+
+class CitaSugerenciaOut(BaseModel):
+    n: int
+    tipo: Literal["articulo", "documento"]
+    titulo: str
+    slug: str = ""
+
+
+class SugerenciaOut(BaseModel):
+    """Borrador completo, para el detalle que precarga el formulario de artículo."""
+
+    id: str
+    portal_id: str
+    fuente: FuenteSugerencia
+    referencia: str
+    estado: EstadoSugerencia
+    es: TraduccionArticuloIn
+    pt: TraduccionArticuloIn
+    citas: list[CitaSugerenciaOut]
+    proveedor_chat: str
+    proveedor_traduccion: str
+    modelo: str
+    articulo_id: str | None = None
+    creado_por: str
+    creado_en: str
+    resuelto_en: str | None = None
+
+
+class SugerenciaItemOut(BaseModel):
+    """Fila de la cola de pendientes (sin el contenido bilingüe completo)."""
+
+    id: str
+    fuente: FuenteSugerencia
+    referencia: str
+    titulo: str
+    estado: EstadoSugerencia
+    creado_en: str
+
+
+class SugerenciasListaOut(BaseModel):
+    items: list[SugerenciaItemOut]
+
+
 class ChatMetricasOut(BaseModel):
     """Métricas agregadas del chat para el rango consultado.
 

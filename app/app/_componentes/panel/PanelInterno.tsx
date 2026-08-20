@@ -35,6 +35,7 @@ import { Modal } from '@/components/Modal'
 import { Tabs, type Pestana } from '@/components/Tabs'
 import { resolverPestana, type PestanaId } from '@/panel/panelPestanas'
 import { PanelChats } from './PanelChats'
+import { PanelSugerencias } from './PanelSugerencias'
 
 const ICONO_METRICA = {
   sinResolver: { icono: <Ic.HelpCircle size={22} className="text-[var(--acento)]" />, fondo: 'bg-[var(--acento-claro)]' },
@@ -996,10 +997,17 @@ export function PanelInterno({
   // que se renderiza incluso si el resto del panel no lo necesita.
   const contenidoChats = <PanelChats idioma={idioma} />
 
+  // Igual que «Chats»: monta su propio Client Component con fetch al BFF
+  // (`/api/admin/sugerencias*`); necesita las categorías para precargar el
+  // `ArticuloForm` al abrir una sugerencia con la misma categoría por defecto
+  // que «Nuevo artículo».
+  const contenidoSugerencias = <PanelSugerencias idioma={idioma} categorias={contenido.categorias} />
+
   const pestanas: Pestana<PestanaId>[] = [
     { id: 'sinResolver', etiqueta: t('panel.titulo'), contenido: contenidoSinResolver },
     { id: 'gestion', etiqueta: t('panelGestion.titulo'), contenido: contenidoGestion },
     { id: 'chats', etiqueta: t('panelChats.titulo'), contenido: contenidoChats },
+    { id: 'sugerencias', etiqueta: t('panelSugerencias.titulo'), contenido: contenidoSugerencias },
     { id: 'categorias', etiqueta: t('panelCategorias.titulo'), contenido: contenidoCategorias },
   ]
   if (puedeAdministrar) {
