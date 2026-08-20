@@ -48,9 +48,11 @@ def test_la_categoria_se_traduce_manteniendo_el_id(client):
     assert es["id"] == pt["id"] == "cuenta"
     assert es["slug"] == "cuenta" and pt["slug"] == "conta"
     assert es["nombre"] == "Cuenta" and pt["nombre"] == "Conta"
-    # Las clases de color no dependen del idioma.
-    assert es["fondo"] == pt["fondo"]
+    # El icono es presentación, no depende del idioma; ya no lleva color propio
+    # (se deriva del acento del portal).
     assert es["icono"] == pt["icono"]
+    assert "fondo" not in es and "fondo" not in pt
+    assert "texto" not in es and "texto" not in pt
 
 
 def test_el_articulo_sale_con_el_slug_de_cada_idioma(client, auth):

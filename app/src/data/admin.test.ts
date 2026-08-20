@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   peticionCategoria,
   peticionGuardado,
   peticionUsuario,
+  traducirCategoria,
   type ArticuloAdmin,
   type CategoriaAdmin,
 } from './admin'
@@ -107,9 +108,7 @@ describe('peticionGuardado', () => {
 function categoria(): CategoriaAdmin {
   return {
     id: 'facturacion',
-    icono: 'recibo',
-    fondo: 'bg-emerald-50',
-    texto: 'text-emerald-700',
+    icono: 'documento',
     orden: 3,
     es: { slug: 'facturacion', nombre: 'Facturación' },
     pt: { slug: 'faturacao', nombre: 'Faturação' },
@@ -147,9 +146,31 @@ describe('peticionCategoria', () => {
       CategoriaAdmin,
       'id'
     >
-    expect(Object.keys(cuerpo).sort()).toEqual(['es', 'fondo', 'icono', 'orden', 'pt', 'texto'].sort())
+    expect(Object.keys(cuerpo).sort()).toEqual(['es', 'icono', 'orden', 'pt'].sort())
     expect(cuerpo.es.nombre).toBe('Facturación')
     expect(cuerpo.pt.nombre).toBe('Faturação')
+  })
+})
+
+describe('traducirCategoria', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('pide la traducción del nombre al endpoint de categorías', async () => {
+    const fetchFalso = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+    vi.stubGlobal('fetch', fetchFalso)
+
+    await traducirCategoria('es', { slug: 'facturacion', nombre: 'Facturación' })
+
+    expect(fetchFalso).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchFalso.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/admin/categorias/traducir')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({
+      origen: 'es',
+      contenido: { slug: 'facturacion', nombre: 'Facturación' },
+    })
   })
 })
 

@@ -27,13 +27,18 @@ TextoLargo = Annotated[str, Field(max_length=MAX_TEXTO_LARGO)]
 
 # --- Bloques de contenido ---------------------------------------------------
 
+# Conjunto cerrado de iconos que el frontend sabe renderizar (`app/src/components/
+# iconos.tsx`, tipo `NombreIcono` en `app/src/types.ts`). El servidor rechaza con 422
+# cualquier valor fuera de este conjunto: antes era texto libre y un valor sin
+# componente asociado rompía el render público.
+IconoCategoria = Literal["usuario", "tarjeta", "paquete", "devolver", "escudo", "documento"]
+
+
 class CategoriaOut(BaseModel):
     id: str
     slug: str
     nombre: str
     icono: str
-    fondo: str
-    texto: str
 
 
 class PasoHowTo(BaseModel):
@@ -186,15 +191,15 @@ class CategoriaIn(BaseModel):
     """Categoría bilingüe: `es` y `pt` son obligatorios (paridad de idiomas).
 
     Espejo de `Categoria`/`CategoriaTraduccion`: la entidad estable lleva la
-    presentación (icono, fondo, texto, orden) y cada idioma su nombre y slug.
+    presentación (icono, orden) y cada idioma su nombre y slug. La categoría NO
+    lleva color propio: su presentación en el contenido público se deriva siempre
+    del acento del portal (ver `personalizacion-paleta`).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    icono: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
-    fondo: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
-    texto: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    icono: IconoCategoria
     orden: int = Field(default=0, ge=0)
     es: TraduccionCategoriaIn
     pt: TraduccionCategoriaIn
@@ -205,9 +210,7 @@ class CategoriaUpdateIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    icono: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
-    fondo: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
-    texto: str = Field(min_length=1, max_length=MAX_TEXTO_CORTO)
+    icono: IconoCategoria
     orden: int = Field(default=0, ge=0)
     es: TraduccionCategoriaIn
     pt: TraduccionCategoriaIn
@@ -222,8 +225,6 @@ class CategoriaAdminOut(BaseModel):
 
     id: str
     icono: str
-    fondo: str
-    texto: str
     orden: int
     es: TraduccionCategoriaIn
     pt: TraduccionCategoriaIn
@@ -491,6 +492,16 @@ class TraduccionPeticionIn(BaseModel):
 
     origen: Idioma
     contenido: TraduccionArticuloIn
+
+
+class TraduccionPeticionCategoriaIn(BaseModel):
+    """Pide traducir el nombre de una categoría de un idioma al otro. No persiste
+    nada; espejo de `TraduccionPeticionIn` acotado al contenido de categoría."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    origen: Idioma
+    contenido: TraduccionCategoriaIn
 
 
 # --- Chat con RAG (endpoint público) ----------------------------------------

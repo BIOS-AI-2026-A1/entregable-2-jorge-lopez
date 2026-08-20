@@ -27,7 +27,7 @@ from app.cifrado import CifradoNoConfigurado, descifrar
 from app.database import get_db
 from app.models import ConfigIA, ConfigIAClave
 from app.rag import EMBEDDING_MODELO, URL_BASE_EMBEDDINGS
-from app.schemas import TraduccionArticuloIn
+from app.schemas import TraduccionArticuloIn, TraduccionCategoriaIn
 
 # Proveedor por defecto de cada rol. Se aplica solo cuando `ConfigIA` no existe
 # todavía o el campo del rol es NULL (instalación limpia o SuperAdmin sin elegir
@@ -83,6 +83,19 @@ def _otro_idioma(idioma: str) -> str:
     return "pt" if idioma == "es" else "es"
 
 
+
+# Esqueleto de las claves del JSON, literal e invariable con el idioma: se muestra al
+# modelo como ejemplo de forma para que no las traduzca (visto en producción: DeepSeek
+# tradujo "pasos" -> "passos" y "descripcion" -> "descricao" al traducir es->pt, lo que
+# rompía `_validar_estructura` con un 502 pese a que la regla en prosa ya lo prohibía).
+_ESQUELETO_CLAVES = (
+    '{"slug": "...", "titulo": "...", "parrafos": ["...", "..."], '
+    '"howTo": {"titulo": "...", "pasos": [{"titulo": "...", "descripcion": "..."}]}, '
+    '"nota": "..." | null, '
+    '"faq": [{"pregunta": "...", "respuesta": "..."}]}'
+)
+
+
 def _prompt_sistema(origen: str, destino: str) -> str:
     """Reglas de traducción (prompt de sistema). No contiene contenido del artículo:
     la separación instrucción/dato es la primera defensa contra inyección de prompts."""
@@ -92,6 +105,10 @@ def _prompt_sistema(origen: str, destino: str) -> str:
         "Reglas:\n"
         "- Conserva EXACTAMENTE la misma estructura JSON: las mismas claves y el mismo "
         "número de elementos en las listas (parrafos, howTo.pasos, faq).\n"
+        "- Las claves del JSON (nombres de campo, no su contenido) son identificadores "
+        "fijos del sistema, NUNCA palabras a traducir, sin importar el idioma destino. "
+        f"Debes devolver EXACTAMENTE esta forma, con estas claves literales: "
+        f"{_ESQUELETO_CLAVES}\n"
         "- Traduce solo los valores de texto; no traduzcas ni cambies el campo `slug`.\n"
         "- Mantén sin traducir los nombres de marca y el literal [Empresa] si aparecen.\n"
         "- Registro formal y vocabulario de soporte, natural en el idioma destino.\n"
@@ -435,6 +452,21 @@ def _pasos_howto(contenido: dict) -> object:
     return howto.get("pasos") if isinstance(howto, dict) else None
 
 
+def _validar_claves_items(lista: object, esperadas: set[str], mensaje: str) -> None:
+    """Verifica que cada elemento de `lista` sea un dict con exactamente las claves
+    `esperadas`. Complementa la comprobación de longitud: un proveedor puede devolver
+    el número correcto de elementos pero con las claves internas traducidas (visto en
+    producción con DeepSeek: `descripcion` -> `descricao`, `pregunta`/`respuesta` ->
+    `pergunta`/`resposta`). Sin esto, el dict pasa `_validar_estructura` con una clave
+    requerida ausente y revienta más tarde como `ResponseValidationError` sin capturar
+    (500), en vez del 502 controlado que da `ErrorProveedor`."""
+    if not isinstance(lista, list):
+        return  # forma ya delatada por la comprobación de longitud, que sí es -1 aquí
+    for item in lista:
+        if not isinstance(item, dict) or set(item.keys()) != esperadas:
+            raise ErrorProveedor(mensaje)
+
+
 def _validar_estructura(entrada: dict, traducido: dict) -> None:
     """Verifica que la traducción conserva la forma de la entrada. Una estructura
     divergente delata una alucinación o una inyección de prompt exitosa: se rechaza de
@@ -445,15 +477,35 @@ def _validar_estructura(entrada: dict, traducido: dict) -> None:
         raise ErrorProveedor("La traducción cambió el número de párrafos.")
     if _longitud_lista(traducido.get("faq")) != _longitud_lista(entrada.get("faq")):
         raise ErrorProveedor("La traducción cambió el número de preguntas frecuentes.")
+    _validar_claves_items(
+        traducido.get("faq"),
+        {"pregunta", "respuesta"},
+        "La traducción cambió las claves de una pregunta frecuente.",
+    )
+    howto_traducido = traducido.get("howTo")
+    if isinstance(howto_traducido, dict) and set(howto_traducido.keys()) != {"titulo", "pasos"}:
+        raise ErrorProveedor("La traducción cambió las claves de howTo.")
     if _longitud_lista(_pasos_howto(traducido)) != _longitud_lista(_pasos_howto(entrada)):
         raise ErrorProveedor("La traducción cambió el número de pasos de howTo.")
+    _validar_claves_items(
+        _pasos_howto(traducido),
+        {"titulo", "descripcion"},
+        "La traducción cambió las claves de un paso de howTo.",
+    )
 
 
 def traducir_contenido(
-    traductor: ProveedorTraduccion, origen: str, contenido: TraduccionArticuloIn
+    traductor: ProveedorTraduccion,
+    origen: str,
+    contenido: TraduccionArticuloIn | TraduccionCategoriaIn,
 ) -> dict:
     """Traduce `contenido` del idioma `origen` al otro. Preserva el slug de origen
-    (la traducción no debe inventar un slug: cada idioma tiene el suyo)."""
+    (la traducción no debe inventar un slug: cada idioma tiene el suyo).
+
+    Genérica sobre la forma del contenido: `_validar_estructura` solo compara las
+    claves presentes y, para las que un `TraduccionCategoriaIn` no tiene
+    (`parrafos`/`faq`/`howTo`), sus comprobaciones son no-op (ambos lados valen -1).
+    """
     destino = _otro_idioma(origen)
     entrada = contenido.model_dump()
     traducido = traductor.traducir(origen, destino, entrada)

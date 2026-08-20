@@ -59,7 +59,7 @@ def _articulo(db, articulo_id: str, *, orden: int = 0, idiomas=("es", "pt")) -> 
 
 
 def _categoria(db, categoria_id: str, *, orden: int = 0, idiomas=("es", "pt")) -> None:
-    db.add(Categoria(id=categoria_id, portal_id=P, icono="i", fondo="bg", texto="tx", orden=orden))
+    db.add(Categoria(id=categoria_id, portal_id=P, icono="usuario", orden=orden))
     for idioma in idiomas:
         db.add(
             CategoriaTraduccion(

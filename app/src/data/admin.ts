@@ -10,7 +10,7 @@
  */
 
 import { apiFetch } from '@/bff/apiFetch'
-import type { EstadoKcs, Idioma } from '@/types'
+import type { EstadoKcs, Idioma, NombreIcono } from '@/types'
 
 /** Forma del artículo con sus dos idiomas que devuelve/acepta la API admin. */
 export interface TraduccionAdmin {
@@ -111,9 +111,7 @@ export interface TraduccionCategoriaAdmin {
 /** Categoría con sus dos idiomas que devuelve/acepta la API admin. */
 export interface CategoriaAdmin {
   id: string
-  icono: string
-  fondo: string
-  texto: string
+  icono: NombreIcono
   orden: number
   es: TraduccionCategoriaAdmin
   pt: TraduccionCategoriaAdmin
@@ -365,6 +363,20 @@ export function eliminarDocumento(id: number): Promise<Response> {
  */
 export function traducirArticulo(origen: Idioma, contenido: TraduccionAdmin): Promise<Response> {
   return apiFetch('/api/admin/articulos/traducir', {
+    method: 'POST',
+    body: JSON.stringify({ origen, contenido }),
+  })
+}
+
+/**
+ * Pide al backend traducir el nombre (y slug) de una categoría de un idioma al
+ * otro. Espejo de `traducirArticulo`, acotado al contenido de categoría.
+ */
+export function traducirCategoria(
+  origen: Idioma,
+  contenido: TraduccionCategoriaAdmin,
+): Promise<Response> {
+  return apiFetch('/api/admin/categorias/traducir', {
     method: 'POST',
     body: JSON.stringify({ origen, contenido }),
   })

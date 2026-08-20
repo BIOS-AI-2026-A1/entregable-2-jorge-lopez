@@ -292,10 +292,10 @@ describe('paridad es/pt (portal default)', () => {
     expect(forma(pt)).toEqual(forma(es))
   })
 
-  it('declara las mismas categorías con la misma presentación visual', () => {
-    // El color y el icono son presentación, no idioma: deben coincidir.
-    const presentacion = (contenido: ContenidoIdioma) =>
-      contenido.categorias.map(c => [c.id, c.icono, c.fondo, c.texto])
+  it('declara las mismas categorías con el mismo icono', () => {
+    // El icono es presentación, no idioma: debe coincidir. El color ya no es un
+    // atributo de la categoría (se deriva del acento del portal).
+    const presentacion = (contenido: ContenidoIdioma) => contenido.categorias.map(c => [c.id, c.icono])
     expect(presentacion(pt)).toEqual(presentacion(es))
   })
 

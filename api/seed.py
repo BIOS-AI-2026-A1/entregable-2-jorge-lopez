@@ -93,8 +93,6 @@ def _sembrar_categorias(db, datos: dict[str, dict]) -> None:
                 id=cat["id"],
                 portal_id=PORTAL_DEFECTO_UUID,
                 icono=cat["icono"],
-                fondo=cat["fondo"],
-                texto=cat["texto"],
                 orden=orden,
             )
         )

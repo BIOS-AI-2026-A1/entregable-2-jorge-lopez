@@ -38,9 +38,6 @@ export interface Categoria {
   slug: string
   nombre: string
   icono: NombreIcono
-  /** Clases de color de la tarjeta; el color nunca es el único canal. */
-  fondo: string
-  texto: string
 }
 
 export interface PasoHowTo {

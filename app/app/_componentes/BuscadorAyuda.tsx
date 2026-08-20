@@ -147,7 +147,7 @@ export function BuscadorAyuda({ idioma, contenido }: { idioma: Idioma; contenido
                       className="w-full group flex flex-col items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 hover:border-[var(--acento)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acento-foco)] focus-visible:ring-offset-2 transition-all cursor-pointer min-h-[120px] justify-center"
                       aria-label={t('inicio.categoriaAria', { nombre: categoria.nombre, count: total })}
                     >
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${categoria.fondo} ${categoria.texto} transition-transform group-hover:scale-110`}>
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--acento-claro)] text-[var(--acento)] transition-transform group-hover:scale-110">
                         <Icono nombre={categoria.icono} size={22} />
                       </div>
                       <div className="text-center">

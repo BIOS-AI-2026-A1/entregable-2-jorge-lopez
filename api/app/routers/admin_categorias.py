@@ -18,8 +18,15 @@ from app.routers.comun import (
     exigir_categoria_sin_articulos,
     obtener_categoria_o_404,
 )
-from app.schemas import CategoriaAdminOut, CategoriaIn, CategoriaUpdateIn
+from app.schemas import (
+    CategoriaAdminOut,
+    CategoriaIn,
+    CategoriaUpdateIn,
+    TraduccionCategoriaIn,
+    TraduccionPeticionCategoriaIn,
+)
 from app.servicios import aplicar_datos_categoria, categoria_a_admin_dict
+from app.servicios_ia import ProveedorTraduccion, obtener_traductor, traducir_contenido
 from app.texto import normalizar_slug
 
 router = APIRouter(
@@ -49,6 +56,19 @@ def obtener(
     portal: Portal = Depends(portal_actual),
 ) -> dict:
     return categoria_a_admin_dict(obtener_categoria_o_404(db, portal.id, categoria_id))
+
+
+@router.post("/traducir", response_model=TraduccionCategoriaIn)
+def traducir(
+    datos: TraduccionPeticionCategoriaIn,
+    traductor: ProveedorTraduccion = Depends(obtener_traductor),
+) -> dict:
+    """Traduce el nombre de una categoría de un idioma al otro con el proveedor
+    configurado. No persiste nada: el frontend vuelca el resultado como borrador
+    editable. Espejo de `admin_articulos.traducir`, acotado al contenido de
+    categoría (sin párrafos, pasos ni FAQ que traducir_contenido pueda comparar).
+    """
+    return traducir_contenido(traductor, datos.origen, datos.contenido)
 
 
 @router.post("", response_model=CategoriaAdminOut, status_code=status.HTTP_201_CREATED)
