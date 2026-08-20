@@ -9,8 +9,11 @@ react-router) en el cambio OpenSpec `migrar-frontend-nextjs`.
 - **Contenido público en servidor** (Server Components): inicio y artículo llegan en el HTML inicial; solo
   son islas de cliente los componentes con estado.
 - **Sesión de administrador en cookies `httpOnly` (patrón BFF)**: el token JWT nunca llega al navegador; lo
-  custodian los Route Handlers de `app/api/*`, que reenvían al backend con `Authorization: Bearer` y renuevan
-  con un refresh token opaco y rotatorio. Las guardias del panel se resuelven en servidor.
+  custodian los Route Handlers de `app/api/*`, apoyados en `app/_bff/` (llamadas server-only al backend),
+  que reenvían al backend con `Authorization: Bearer` y renuevan con un refresh token opaco y rotatorio. Las
+  guardias del panel se resuelven en servidor.
+- **Multi-tenant por portal**: el `portal_id` se resuelve del host de la petición (`proxy.ts` + `src/bff/portal.ts`),
+  nunca del cliente; cada portal tiene su propia marca (logo, acento, nombre de empresa).
 
 ## Comandos
 
@@ -24,20 +27,26 @@ npm run test:watch # tests en modo continuo
 ```
 
 En desarrollo hacen falta los tres procesos: `docker compose up -d` (Postgres, en la raíz), `uvicorn` en
-`api/` y `npm run dev` aquí. Next reescribe `/api/(es|pt)/*` al backend (`127.0.0.1:8000`); el panel usa el
-BFF. El origen del backend se configura con `BACKEND_ORIGIN`.
+`api/` y `npm run dev` aquí. Sin rewrites: todo `/api/*` (contenido público, marca, auth y panel) lo
+atienden Route Handlers de Next que reenvían al backend (`127.0.0.1:8000`) con el host del portal, necesario
+para que el backend resuelva el tenant. El origen del backend se configura con `BACKEND_ORIGIN`.
 
 ## Estructura
 
 ```
-app/[idioma]/       Rutas por idioma: inicio, artículo, login, panel, usuarios, error y 404
-app/api/            Route Handlers del BFF (auth + proxy de /api/admin/* con la cookie)
-app/_componentes/   Componentes de servidor y cliente de las pantallas
-proxy.ts            Guardia del panel en el borde + CSP con nonce
+app/[idioma]/       Rutas por idioma: inicio, artículo, login, panel (con usuarios, portales —SuperAdmin—
+                    y documentos), error y 404
+app/api/            Route Handlers del BFF: auth, proxy de /api/admin/* y /api/marca/* con la cookie, y
+                    BFF Anonymous del contenido público y del chat (reenvían X-Forwarded-Host)
+app/_bff/           Llamadas server-only al backend (login/refresh con reenvío de host) y sesionServidor()
+                    para las guardias del panel; usado solo por los Route Handlers, nunca por el cliente
+app/_componentes/   Componentes de servidor y cliente de las pantallas (incl. ChatWidget, GestionPortales,
+                    panel/PanelSugerencias)
+proxy.ts            Guardia del panel en el borde + resolución de portal por host + CSP con nonce
 src/components/     Componentes reutilizados (Tabs, Modal, formularios, chips, iconos, acordeón)
-src/bff/            Cookies httpOnly y cliente del panel (apiFetch)
+src/bff/            Cookies httpOnly, cliente del panel (apiFetch) y resolución de portal por host (portal.ts)
 src/seguridad/      Construcción de la Content-Security-Policy
-src/data/{es,pt}/   Contenido tipado por idioma (alimenta el seed y los tests de paridad)
+src/data/{es,pt}/   Contenido tipado por idioma (alimenta el seed y los tests de paridad, por portal)
 src/i18n/           i18next: traductor isomórfico (getFixedT), traducciones y rutas
 src/types.ts        Contrato de datos compartido con la API
 ```

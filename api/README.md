@@ -24,11 +24,12 @@ cd api
 uvicorn app.main:app --reload           # 3. API en http://localhost:8000  (docs en /docs)
 ```
 
-En otra terminal, el frontend (proxya `/api` al backend):
+En otra terminal, el frontend (sus Route Handlers reenvían `/api/*` al backend, sin rewrite, para poder
+adjuntar el host del portal):
 
 ```powershell
 cd app
-npm run dev                             # http://localhost:5173
+npm run dev                             # http://localhost:3000
 ```
 
 Para parar al final del día: `Ctrl+C` en cada terminal y, si se quiere, `docker compose stop`.
@@ -86,8 +87,8 @@ python reindexar_articulos.py
 ```
 
 Recorre todos los portales y todos sus artículos y regenera fragmentos e
-embeddings usando el proveedor configurado en `ConfigIA` (OpenAI, que
-SuperAdmin ha de haber configurado por el panel de IA). Es **idempotente**:
+embeddings usando el proveedor configurado en `ConfigIA` (Voyage AI por
+defecto, u OpenAI si SuperAdmin lo reconfiguró desde el panel de IA). Es **idempotente**:
 volver a correrlo no duplica nada. También sirve como operación de
 mantenimiento si se cambia el modelo de embeddings (`EMBEDDING_DIM`).
 
@@ -335,18 +336,21 @@ app/
                      cruce de citas por portal)
   routers/           contenido, comun, marca, auth, admin_articulos, admin_categorias, admin_usuarios,
                      admin_ajustes, admin_config_ia, admin_panel, admin_portales (gestión SuperAdmin),
-                     admin_documentos (ingesta RAG por portal), admin_sugerencias (candidatos/generar/
+                     admin_documentos (ingesta RAG por portal), admin_chats (supervisión: GET
+                     /api/admin/chats, /{chat_id}, /metricas), admin_sugerencias (candidatos/generar/
                      listar/detalle/aceptar/descartar) y chat (POST /api/{idioma}/chat/consultar,
                      Anonymous, rate limit por IP con allow-list de proxies confiables)
-alembic/             Migraciones (0001…0013: la 0008 crea las tablas del RAG, la 0009 añade modelo_chat
-                     y temperatura_chat a config_ia, la 0012 hace UUID el id de portal y la 0013 crea
-                     sugerencia_articulo)
+alembic/             Migraciones (0001…0014: la 0008 crea las tablas del RAG, la 0009 añade modelo_chat
+                     y temperatura_chat a config_ia, la 0012 hace UUID el id de portal, la 0013 crea
+                     sugerencia_articulo y la 0014 quita `fondo`/`texto` de categorias)
 seed.py              Carga seed_data/*.json bajo el portal `default` y siembra su Administrador
 reindexar_articulos.py  Reindexa el RAG de artículos existentes (idempotente)
-tests/               pytest (contenido, auth, CRUD, aislamiento, portales, chat_endpoint,
-                     chat_pipeline, chat_recuperador, chat_admin, brevedad_chat, cache_chat,
-                     persistencia_chat, config_ia, traducción, troceo, security,
-                     sugerencias_agregadores, sugerencias_pipeline, admin_sugerencias)
+tests/               pytest (contenido, auth, refresh, niveles, CRUD de artículos/categorías/usuarios,
+                     ajustes, marca, aislamiento, portales, portales_gestion, chat_endpoint,
+                     chat_pipeline, chat_recuperador, admin_chats, brevedad_chat, cache_chat,
+                     persistencia_chat, config_ia, traducción (artículos y categorías), troceo,
+                     contraste, security, sugerencias_agregadores, sugerencias_pipeline,
+                     admin_sugerencias, admin_documentos, admin_panel)
 tests/eval/          Harness EDD del chat con RAG: dataset `casos_{es,pt}.jsonl`, proveedor doble,
                      `test_eval_chat.py` (marker `eval`, modos `ci` y `real`), `baseline.json` con
                      los umbrales del gate y `reports/last.json` (última corrida)

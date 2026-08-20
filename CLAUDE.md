@@ -22,9 +22,10 @@ El frontend vive en `app/`:
 - **Contenido público renderizado en servidor** (Server Components): inicio y artículo llegan en el HTML
   inicial; solo son islas de cliente los componentes con estado.
 - **Sesión de administrador en cookies `httpOnly` (patrón BFF).** El token JWT nunca llega al navegador:
-  lo custodian los Route Handlers de `app/app/api/*`, que reenvían al backend con `Authorization: Bearer`.
-  Un refresh token opaco y rotatorio renueva el acceso. Las guardias del panel se resuelven en servidor
-  (`app/proxy.ts` en el borde + `sesionActual()` en las páginas).
+  lo custodian los Route Handlers de `app/app/api/*`, apoyados en `app/app/_bff/` (llamadas server-only al
+  backend con reenvío de `X-Forwarded-Host` y el helper de sesión de servidor), que reenvían al backend con
+  `Authorization: Bearer`. Un refresh token opaco y rotatorio renueva el acceso. Las guardias del panel se
+  resuelven en servidor (`app/proxy.ts` en el borde + `sesionActual()` en las páginas).
 - **Traducción isomórfica** con i18next (`src/i18n/traducir.ts`, `getFixedT`), sin idioma global mutable;
   funciona igual en Server y Client Components. react-i18next se conserva solo para los componentes
   reutilizados del panel (`PanelI18n` fija el idioma antes de renderizarlos).
@@ -39,14 +40,17 @@ y guardias en servidor). El razonamiento del prototipo original, con las alterna
 
 El `.zip` de `design/` sigue siendo **referencia visual**; no se edita ni se descomprime dentro del repo.
 
-### Backend (implementado y validado en `api/`, pendiente de integrar por PR)
+### Backend (`api/`, integrado)
 
-Backend del cambio OpenSpec `backend-cms-autenticacion`, escrito en `api/` (modelos, routers, auth, seed
-y tests) y **validado localmente**: migraciones (incluida `0002`), seed y `pytest` en verde. Pendiente solo
-de integrar por PR. El razonamiento completo con alternativas está en el `design.md` de ese cambio.
+Backend originado en el cambio OpenSpec `backend-cms-autenticacion` (modelos, routers, auth, seed y tests),
+ya integrado en `main` y ampliado desde entonces por los cambios listados abajo (multi-tenant, RAG, chat,
+proveedores de IA, sugerencias). El razonamiento original con alternativas está en el `design.md` de ese
+cambio; el de cada ampliación, en el `design.md` del cambio correspondiente (archivado tras su PR).
 
 - **FastAPI + Python** (Pydantic + SQLAlchemy + Alembic). Se eligió Python por el RAG futuro; los esquemas
-  Pydantic reproducen `src/types.ts` campo a campo y Next reescribe `/api/(es|pt)/*` al backend en desarrollo.
+  Pydantic reproducen `src/types.ts` campo a campo. Sin rewrites de Next: todo `/api/*` lo atienden Route
+  Handlers que reenvían al backend el host del portal (`X-Forwarded-Host`), imprescindible en multi-tenant
+  para resolver el portal por host (un rewrite no puede fijar esa cabecera).
 - **PostgreSQL + pgvector** como única base de datos (RAG-ready desde la primera migración), levantada con
   Docker Compose. Modelo bilingüe entidad estable + traducciones por idioma; `parrafos`/`how_to`/`faq` en
   JSONB; métricas del panel derivadas por consulta.
@@ -189,6 +193,8 @@ app/                  Frontend Next.js (App Router)
   app/api/            Route Handlers del BFF: auth, proxy de /api/admin/* con la cookie, y BFF Anonymous
                       del chat público en app/api/[idioma]/chat/consultar/route.ts (reenvía X-Forwarded-Host
                       + X-Forwarded-For sin adjuntar cookie)
+  app/_bff/           Llamadas server-only al backend (login/refresh con reenvío de host) y sesionServidor()
+                      para las guardias del panel; usado solo por los Route Handlers, nunca por el cliente
   app/_componentes/   Componentes de servidor y cliente de las pantallas de Next (incl. ChatWidget,
                       GestionPortales, panel/PanelSugerencias)
   proxy.ts            Guardia del panel en el borde + resolución de portal por host + CSP con nonce (antes middleware.ts)
@@ -207,8 +213,10 @@ api/                  Backend FastAPI (modelos, routers, portales.py, admin_port
                       proveedor doble y baseline; sugerencias de artículo con IA en app/sugerencias.py +
                       app/routers/admin_sugerencias.py; ver api/README.md)
 docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
-.claude/agents/       Subagentes del proyecto (vacío, reservado)
-.claude/skills/       Skills del proyecto: crear-pr (flujo de PR) y los de OpenSpec
+.claude/agents/       Subagentes del proyecto: refactor-agent, security-reviewer, prompt-injection-reviewer,
+                      test-writer
+.claude/skills/       Skills del proyecto: crear-pr (flujo de PR), auditar-accesibilidad, paridad-i18n
+                      y los de OpenSpec
 design/               Prototipo visual de referencia (Figma Make, .zip)
 docs/architecture/    Diagramas C4: contexto (nivel 1) y contenedores (nivel 2)
 docs/plans/           Planes de implementación (frontend, backend, RAG, infraestructura)
@@ -253,8 +261,9 @@ npm test           # tests con Vitest (una pasada)
 npm run test:watch # tests en modo continuo
 ```
 
-Se usa **npm**, no pnpm: pnpm no está instalado en la máquina de desarrollo. No hay linter. En desarrollo
-Next reescribe `/api/(es|pt)/*` al backend (`127.0.0.1:8000`); el panel usa los Route Handlers del BFF.
+Se usa **npm**, no pnpm: pnpm no está instalado en la máquina de desarrollo. No hay linter. Todo `/api/*`
+(contenido público, marca, auth y panel) lo atienden Route Handlers de Next que reenvían al backend
+(`127.0.0.1:8000`) con el host del portal; no hay rewrites.
 
 **Tests del frontend: Vitest, solo lógica pura.** Corren en entorno `node`, sin DOM: cubren `src/data/`,
 `src/i18n/`, `src/types.ts`, `src/auth/nivel.ts`, `src/bff/cookies.ts`, `src/seguridad/csp.ts` y
