@@ -55,11 +55,12 @@ export function eliminarArticulo(id: string): Promise<Response> {
   return apiFetch(`/api/admin/articulos/${id}`, { method: 'DELETE' })
 }
 
-/** A dónde va un guardado: artículo nuevo, edición o alta desde una pregunta. */
+/** A dónde va un guardado: artículo nuevo, edición, alta desde pregunta o desde sugerencia de IA. */
 export type DestinoArticulo =
   | { tipo: 'crear' }
   | { tipo: 'editar'; articuloId: string }
   | { tipo: 'desdePregunta'; preguntaId: number }
+  | { tipo: 'desdeSugerencia'; sugerenciaId: string }
 
 /**
  * Dirección, método y cuerpo de un guardado. Función pura: no toca la red, así
@@ -72,6 +73,16 @@ export function peticionGuardado(
   if (destino.tipo === 'desdePregunta') {
     return {
       url: `/api/admin/preguntas-sin-resolver/${destino.preguntaId}/crear-articulo`,
+      metodo: 'POST',
+      cuerpo: payload,
+    }
+  }
+  if (destino.tipo === 'desdeSugerencia') {
+    // "Aceptar" reutiliza el alta de artículo (bilingüe atómico + re-indexado)
+    // con el contenido editado por la persona revisora; marca la sugerencia
+    // `aceptada` en el mismo commit (`admin_sugerencias.aceptar`).
+    return {
+      url: `/api/admin/sugerencias/${encodeURIComponent(destino.sugerenciaId)}/aceptar`,
       metodo: 'POST',
       cuerpo: payload,
     }

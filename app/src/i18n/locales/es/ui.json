@@ -158,6 +158,7 @@
     "editarAria": "Editar el artículo: {{titulo}}",
     "eliminarAria": "Eliminar el artículo: {{titulo}}",
     "crearDesdePregunta": "Crear artículo desde la pregunta",
+    "crearDesdeSugerencia": "Aceptar sugerencia de artículo",
     "guardar": "Guardar",
     "cancelar": "Cancelar",
     "guardado": "Cambios guardados.",
@@ -266,6 +267,56 @@
       "fuera_de_scope": "Fuera de scope",
       "escalar": "Escalar a soporte"
     }
+  },
+  "panelSugerencias": {
+    "titulo": "Sugerencias",
+    "subtitulo": "Borradores de artículo generados por IA a partir de chats escalados, preguntas sin resolver y huecos de documentación. Nunca se publican solas: revísalas antes de aceptarlas.",
+    "candidatosTitulo": "Candidatos",
+    "filtroFuente": "Filtrar por fuente:",
+    "filtroTodas": "Todas",
+    "fuentes": {
+      "chat_escalado": "Chat escalado",
+      "pregunta_sin_resolver": "Pregunta sin resolver",
+      "documentacion_rag": "Hueco de documentación"
+    },
+    "tablaCandidatosAria": "Candidatos a nuevo artículo",
+    "columnasCandidatos": {
+      "fuente": "Fuente",
+      "titulo": "Título sugerido",
+      "idioma": "Idioma",
+      "prioridad": "Prioridad",
+      "accion": "Acción"
+    },
+    "generarBoton": "Generar borrador con IA",
+    "generandoBoton": "Generando…",
+    "generando": "Generando el borrador de «{{titulo}}»…",
+    "generado": "Borrador de «{{titulo}}» listo. Ábrelo desde la cola de sugerencias.",
+    "yaGenerada": "Ya generado",
+    "errorCandidatoObsoleto": "Este candidato ya no está disponible. La lista se actualizó.",
+    "errorGenerar": "No se pudo generar el borrador. Inténtalo de nuevo.",
+    "errorCargarCandidatos": "No se pudo cargar la lista de candidatos. Inténtalo de nuevo.",
+    "vacioCandidatos": "No hay candidatos a nuevo artículo por ahora.",
+    "colaTitulo": "Sugerencias pendientes",
+    "tablaColaAria": "Sugerencias pendientes de revisión",
+    "columnasCola": {
+      "titulo": "Título",
+      "fuente": "Fuente",
+      "creado": "Generado",
+      "acciones": "Acciones"
+    },
+    "abrir": "Abrir",
+    "abrirAria": "Abrir la sugerencia: {{titulo}}",
+    "descartar": "Descartar",
+    "descartarAria": "Descartar la sugerencia: {{titulo}}",
+    "confirmarDescartar": "¿Descartar la sugerencia «{{titulo}}»? No se publicará ningún artículo y no se puede deshacer.",
+    "descartada": "Sugerencia descartada.",
+    "aceptada": "Artículo creado a partir de la sugerencia.",
+    "errorAbrir": "No se pudo abrir la sugerencia. Inténtalo de nuevo.",
+    "errorDescartar": "No se pudo descartar la sugerencia. Inténtalo de nuevo.",
+    "errorCargarCola": "No se pudo cargar la cola de sugerencias. Inténtalo de nuevo.",
+    "errorRed": "No se pudo conectar con el servidor.",
+    "vacioCola": "No hay sugerencias pendientes de revisión.",
+    "cargando": "Cargando…"
   },
   "panelCategorias": {
     "titulo": "Categorías",

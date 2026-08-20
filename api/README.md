@@ -1,8 +1,10 @@
 # Backend — Centro de Ayuda API
 
 FastAPI + PostgreSQL (pgvector). Sirve el contenido bilingüe, el CRUD de artículos, la autenticación del
-panel interno, la ingesta RAG por portal y el **chat generativo con RAG por portal** (cambio OpenSpec
-`chat-rag-portal`). Es **multi-tenant por portal** (cambio OpenSpec `multi-tenant-portales`): una sola
+panel interno, la ingesta RAG por portal, el **chat generativo con RAG por portal** (cambio OpenSpec
+`chat-rag-portal`) y la **generación asistida por IA de borradores de artículo** a partir de chats
+escalados, preguntas sin resolver y huecos de documentación RAG (cambio OpenSpec `sugerir-articulos-ia`).
+Es **multi-tenant por portal** (cambio OpenSpec `multi-tenant-portales`): una sola
 instalación sirve a varios clientes discriminando todos los datos por `portal_id`, y el portal se resuelve
 **del host de la petición** (ver "Resolución de portal y proxy de confianza"). El control de acceso tiene
 cuatro niveles jerárquicos `SUPERADMIN=4 > ADMINISTRADOR=3 > EDITOR=2 > ANONIMO=1`; `requiere_nivel` exige
@@ -149,6 +151,44 @@ selectores se filtran contra el mapa `rolesSoportados` que devuelve el propio ba
 con 422 cualquier asignación de rol → proveedor sin motor real). Borrar la clave de un proveedor en uso
 por algún rol responde 409. Ver cambio OpenSpec `separar-proveedores-ia`.
 
+## Sugerencias de artículo asistidas por IA
+
+Router `app/routers/admin_sugerencias.py`, pipeline `app/sugerencias.py` (spec OpenSpec
+`sugerir-articulos-ia`). Todos los endpoints exigen `requiere_nivel(EDITOR)` y filtran por el `portal_id`
+del host; acceso cruzado por id → 404.
+
+- **Tres agregadores por portal** (`app/sugerencias.py`), cada uno produce candidatos `Candidato` con
+  `fuente`, `referencia`, `titulo_sugerido`, `idioma`, `prioridad` y `ya_generada`:
+  1. `chat_escalado`: agrupa `chat_interaccion` con `veredicto=escalar` por consulta normalizada;
+     prioridad = nº de escalados.
+  2. `pregunta_sin_resolver`: une `preguntas_sin_resolver` con las interacciones `veredicto=sin_resultados`;
+     prioridad por frecuencia.
+  3. `documentacion_rag`: fragmentos de documentos `listo` sin artículo que los cubra (recuperación
+     inversa con umbral de distancia); prioridad = tamaño del hueco.
+- **Generación bajo demanda, no en lote:** cada candidato se genera solo cuando la persona editora lo pide
+  explícitamente; controla el gasto de IA. `generar_borrador()` recupera fragmentos del portal
+  (`app/recuperador.py`), redacta en español con `proveedor_chat` (JSON estricto, Pydantic `extra="forbid"`),
+  completa el portugués con `proveedor_traduccion` (reutiliza `app/servicios.py`), y cruza las citas contra
+  los fragmentos recuperados **y** el `portal_id` del host — mismos guardarraíles de separación
+  instrucción/dato y nonce por petición que el chat (ver sección anterior). No se añaden roles nuevos a
+  `ConfigIA`: reutiliza `proveedor_chat` y `proveedor_traduccion` ya configurados.
+- **La sugerencia nunca es pública:** se persiste en `sugerencia_articulo` (migración `0013`) en estado
+  `pendiente`, con `contenido` bilingüe, `citas`, proveedores y modelo usados. No crea artículo, no entra
+  al índice RAG, no aparece en el centro de ayuda ni en el chat.
+- **Endpoints:**
+  - `GET /api/admin/sugerencias/candidatos?fuente=` — candidatos agregados del portal (fuente opcional).
+  - `POST /api/admin/sugerencias/generar` (`{fuente, referencia}`) — dispara el pipeline; idempotente si
+    ya existe una sugerencia `pendiente` para ese `(portal_id, fuente, referencia)` (devuelve la existente
+    sin gastar IA de nuevo).
+  - `GET /api/admin/sugerencias` — cola de sugerencias `pendiente`.
+  - `GET /api/admin/sugerencias/{id}` — detalle bilingüe para precargar el formulario.
+  - `POST /api/admin/sugerencias/{id}/aceptar` (contenido editable) — crea el artículo por el alta
+    existente (bilingüe atómico + re-indexado RAG) y marca `aceptada` con `articulo_id`; contenido
+    incompleto → 422 sin marcar `aceptada`.
+  - `POST /api/admin/sugerencias/{id}/descartar` — marca `descartada` sin crear artículo.
+- **Frontend:** pestaña "Sugerencias" del panel interno (nivel ≥ Editor), entre "Chats" y "Categorías";
+  reutiliza el modal de formulario de artículo existente para la revisión y el alta.
+
 ## Resolución de portal y proxy de confianza (multi-tenant)
 
 El backend es **multi-tenant por host**: cada petición se atribuye a un portal (tenant) resolviendo su
@@ -290,17 +330,23 @@ app/
   ingesta.py         Ingesta RAG: troceo → embedding → escritura de articulo_chunks/documento_chunks
   troceo.py          Trocea contenido de artículo/documento en fragmentos con solape controlado
   rag.py             Constantes del RAG (dimensión, modelo, URL base de embeddings)
+  sugerencias.py     Pipeline de sugerencias de artículo con IA: los tres agregadores (chat_escalado,
+                     pregunta_sin_resolver, documentacion_rag) y generar_borrador() (redacción bilingüe +
+                     cruce de citas por portal)
   routers/           contenido, comun, marca, auth, admin_articulos, admin_categorias, admin_usuarios,
                      admin_ajustes, admin_config_ia, admin_panel, admin_portales (gestión SuperAdmin),
-                     admin_documentos (ingesta RAG por portal) y chat (POST /api/{idioma}/chat/consultar,
+                     admin_documentos (ingesta RAG por portal), admin_sugerencias (candidatos/generar/
+                     listar/detalle/aceptar/descartar) y chat (POST /api/{idioma}/chat/consultar,
                      Anonymous, rate limit por IP con allow-list de proxies confiables)
-alembic/             Migraciones (0001…0009: la 0008 crea las tablas del RAG y la 0009 añade modelo_chat
-                     y temperatura_chat a config_ia)
+alembic/             Migraciones (0001…0013: la 0008 crea las tablas del RAG, la 0009 añade modelo_chat
+                     y temperatura_chat a config_ia, la 0012 hace UUID el id de portal y la 0013 crea
+                     sugerencia_articulo)
 seed.py              Carga seed_data/*.json bajo el portal `default` y siembra su Administrador
 reindexar_articulos.py  Reindexa el RAG de artículos existentes (idempotente)
 tests/               pytest (contenido, auth, CRUD, aislamiento, portales, chat_endpoint,
                      chat_pipeline, chat_recuperador, chat_admin, brevedad_chat, cache_chat,
-                     persistencia_chat, config_ia, traducción, troceo, security)
+                     persistencia_chat, config_ia, traducción, troceo, security,
+                     sugerencias_agregadores, sugerencias_pipeline, admin_sugerencias)
 tests/eval/          Harness EDD del chat con RAG: dataset `casos_{es,pt}.jsonl`, proveedor doble,
                      `test_eval_chat.py` (marker `eval`, modos `ci` y `real`), `baseline.json` con
                      los umbrales del gate y `reports/last.json` (última corrida)

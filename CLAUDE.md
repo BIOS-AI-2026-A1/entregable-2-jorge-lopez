@@ -106,10 +106,26 @@ de integrar por PR. El razonamiento completo con alternativas está en el `desig
   (`exactitud_veredicto`, `precision_citas`, `recall_citas`, `longitud_media`,
   `pasos_en_formato_correcto`, `latencia_media_ms`, `coste_total_usd_estimado`) comparadas contra
   `baseline.json` — el gate falla el test si alguna cae bajo su umbral con el margen configurado.
+- **Sugerencias de artículo asistidas por IA** (cambio OpenSpec `sugerir-articulos-ia`): tres
+  agregadores por portal (`app/sugerencias.py`) convierten en "candidatos" los chats escalados
+  (`chat_interaccion` con `veredicto=escalar`), las preguntas sin resolver y los huecos de
+  documentación RAG (fragmentos indexados sin artículo que los cubra). La persona editora dispara
+  la generación **bajo demanda** (nunca en lote) desde el panel; el pipeline redacta el borrador en
+  español con `proveedor_chat` y lo completa en portugués con `proveedor_traduccion` (bilingüe
+  atómico, sin roles nuevos en `ConfigIA`), reutilizando los guardarraíles del chat (separación
+  instrucción/dato con nonce, JSON estricto, citas cruzadas contra el `portal_id`). El borrador se
+  persiste como `SugerenciaArticulo` en estado `pendiente` — **nunca** público ni indexado — hasta
+  que la editora lo revisa en el modal de formulario de artículo existente: "Aceptar" crea el
+  artículo real por el alta ya existente (re-indexa RAG) y "Descartar" lo archiva sin publicar
+  nada. Endpoints en `api/app/routers/admin_sugerencias.py` (nivel ≥ Editor, filtrados por portal):
+  `GET /api/admin/sugerencias/candidatos`, `POST /api/admin/sugerencias/generar` (idempotente por
+  candidato pendiente), `GET /api/admin/sugerencias`, `GET/POST /api/admin/sugerencias/{id}` y
+  `POST /api/admin/sugerencias/{id}/aceptar|descartar`. Pestaña "Sugerencias" en el panel interno,
+  entre "Chats" y "Categorías".
 - **Alcance:** API de contenido + CRUD de artículos + auth + control de acceso por niveles, gestión de
   usuarios (Administrador), marca por portal, resolución de portal por host, gestión de portales
-  (SuperAdmin), ingesta RAG por portal, chat con RAG por portal, **supervisión de chats y harness
-  EDD** ahora.
+  (SuperAdmin), ingesta RAG por portal, chat con RAG por portal, supervisión de chats y harness
+  EDD, **sugerencias de artículo asistidas por IA** ahora.
 
 ## Convenciones
 
@@ -173,7 +189,8 @@ app/                  Frontend Next.js (App Router)
   app/api/            Route Handlers del BFF: auth, proxy de /api/admin/* con la cookie, y BFF Anonymous
                       del chat público en app/api/[idioma]/chat/consultar/route.ts (reenvía X-Forwarded-Host
                       + X-Forwarded-For sin adjuntar cookie)
-  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next (incl. ChatWidget, GestionPortales)
+  app/_componentes/   Componentes de servidor y cliente de las pantallas de Next (incl. ChatWidget,
+                      GestionPortales, panel/PanelSugerencias)
   proxy.ts            Guardia del panel en el borde + resolución de portal por host + CSP con nonce (antes middleware.ts)
   src/components/     Componentes reutilizados (Tabs, Modal, formularios, chips, iconos, acordeón)
   src/bff/            Cookies httpOnly, cliente del panel (apiFetch) y resolución de portal por host (portal.ts)
@@ -187,7 +204,8 @@ api/                  Backend FastAPI (modelos, routers, portales.py, admin_port
                       pipeline de chat en app/chat.py + app/recuperador.py + app/sesiones_chat.py +
                       app/cache_chat.py + app/persistencia_chat.py + app/routers/chat.py +
                       app/routers/admin_chats.py; harness EDD en tests/eval/ con dataset por idioma,
-                      proveedor doble y baseline; ver api/README.md)
+                      proveedor doble y baseline; sugerencias de artículo con IA en app/sugerencias.py +
+                      app/routers/admin_sugerencias.py; ver api/README.md)
 docker-compose.yml    PostgreSQL + pgvector (levanta la base de datos)
 .claude/agents/       Subagentes del proyecto (vacío, reservado)
 .claude/skills/       Skills del proyecto: crear-pr (flujo de PR) y los de OpenSpec

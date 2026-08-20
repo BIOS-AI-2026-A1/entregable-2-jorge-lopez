@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { PESTANAS, resolverPestana } from './panelPestanas'
 
 describe('PESTANAS', () => {
-  it('orden final incluye chats entre gestion y categorias', () => {
-    expect(PESTANAS).toEqual(['sinResolver', 'gestion', 'chats', 'categorias', 'admin'])
+  it('orden final incluye chats y sugerencias entre gestion y categorias', () => {
+    expect(PESTANAS).toEqual(['sinResolver', 'gestion', 'chats', 'sugerencias', 'categorias', 'admin'])
   })
 })
 
@@ -31,6 +31,11 @@ describe('resolverPestana', () => {
   it('chats está disponible para Editor y para Administrador', () => {
     expect(resolverPestana('chats', false)).toBe('chats')
     expect(resolverPestana('chats', true)).toBe('chats')
+  })
+
+  it('sugerencias está disponible para Editor y para Administrador', () => {
+    expect(resolverPestana('sugerencias', false)).toBe('sugerencias')
+    expect(resolverPestana('sugerencias', true)).toBe('sugerencias')
   })
 
   it('admin solo se resuelve cuando la sesión es Administrador', () => {
