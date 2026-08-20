@@ -13,9 +13,9 @@ import {
 // --- Fixtures ---------------------------------------------------------------
 
 const categorias: Categoria[] = [
-  { id: 'cuenta', slug: 'cuenta', nombre: 'Cuenta', icono: 'usuario', fondo: 'bg-indigo-50', texto: 'text-indigo-700' },
-  { id: 'envios', slug: 'envios', nombre: 'Envíos', icono: 'paquete', fondo: 'bg-emerald-50', texto: 'text-emerald-700' },
-  { id: 'pagos', slug: 'pagos', nombre: 'Pagos', icono: 'tarjeta', fondo: 'bg-purple-50', texto: 'text-purple-700' },
+  { id: 'cuenta', slug: 'cuenta', nombre: 'Cuenta', icono: 'usuario' },
+  { id: 'envios', slug: 'envios', nombre: 'Envíos', icono: 'paquete' },
+  { id: 'pagos', slug: 'pagos', nombre: 'Pagos', icono: 'tarjeta' },
 ]
 
 function articulo(

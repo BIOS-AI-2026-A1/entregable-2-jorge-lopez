@@ -149,9 +149,7 @@ def ensamblar_contenido(db: Session, idioma: str, portal_id: str) -> dict:
         tr = _traduccion(c, idioma)
         if tr is None:
             continue
-        categorias.append(
-            {"id": c.id, "slug": tr.slug, "nombre": tr.nombre, "icono": c.icono, "fondo": c.fondo, "texto": c.texto}
-        )
+        categorias.append({"id": c.id, "slug": tr.slug, "nombre": tr.nombre, "icono": c.icono})
 
     articulos = []
     for a in db.query(Articulo).filter(Articulo.portal_id == portal_id).order_by(Articulo.orden).all():
@@ -267,8 +265,6 @@ def categoria_a_admin_dict(c: Categoria) -> dict:
     return {
         "id": c.id,
         "icono": c.icono,
-        "fondo": c.fondo,
-        "texto": c.texto,
         "orden": c.orden,
         "es": trad_dict("es"),
         "pt": trad_dict("pt"),
@@ -287,8 +283,6 @@ def aplicar_datos_categoria(c: Categoria, datos, *, incluir_id: bool, portal_id:
         c.id = normalizar_slug(datos.id)
     c.portal_id = portal_id
     c.icono = datos.icono
-    c.fondo = datos.fondo
-    c.texto = datos.texto
     c.orden = datos.orden
 
     c.traducciones = []

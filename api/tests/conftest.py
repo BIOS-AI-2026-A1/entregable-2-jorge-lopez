@@ -95,12 +95,7 @@ def _sembrar_minimo(db) -> None:
     )
     db.add(Dominio(host=PORTAL_DEFECTO_HOST, portal_id=PORTAL_DEFECTO_UUID, principal=True))
     db.flush()
-    db.add(
-        Categoria(
-            id="cuenta", portal_id=PORTAL_DEFECTO_UUID, icono="usuario",
-            fondo="bg-indigo-50", texto="text-indigo-700", orden=0,
-        )
-    )
+    db.add(Categoria(id="cuenta", portal_id=PORTAL_DEFECTO_UUID, icono="usuario", orden=0))
     db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=PORTAL_DEFECTO_UUID, idioma="es", slug="cuenta", nombre="Cuenta"))
     db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=PORTAL_DEFECTO_UUID, idioma="pt", slug="conta", nombre="Conta"))
     db.add(
@@ -239,12 +234,7 @@ def sembrar_portal_secundario(db) -> None:
     # tenant real donde su Administrador puede crear artículos —la FK compuesta exige que
     # la categoría sea de ESTE portal, no la del `default`— y se prueba de paso que dos
     # portales reusan el mismo id/slug de categoría sin colisionar.
-    db.add(
-        Categoria(
-            id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, icono="usuario",
-            fondo="bg-teal-50", texto="text-teal-700", orden=0,
-        )
-    )
+    db.add(Categoria(id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, icono="usuario", orden=0))
     db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, idioma="es", slug="cuenta", nombre="Cuenta B"))
     db.add(CategoriaTraduccion(categoria_id="cuenta", portal_id=SEGUNDO_PORTAL_UUID, idioma="pt", slug="conta", nombre="Conta B"))
     db.commit()
@@ -310,9 +300,7 @@ def categoria_valida(categoria_id: str = "facturacion") -> dict:
     """Payload de categoría bilingüe completo para los tests."""
     return {
         "id": categoria_id,
-        "icono": "recibo",
-        "fondo": "bg-emerald-50",
-        "texto": "text-emerald-700",
+        "icono": "documento",
         "orden": 3,
         "es": {"slug": "facturacion", "nombre": "Facturación"},
         "pt": {"slug": "faturacao", "nombre": "Faturação"},

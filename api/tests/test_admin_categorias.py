@@ -2,7 +2,37 @@
 
 from __future__ import annotations
 
+from app.models import Categoria
 from tests.conftest import articulo_valido, categoria_valida
+
+
+# --- Esquema tras la migración `0014_categorias_sin_color` -------------------
+
+
+def test_categoria_no_tiene_columnas_fondo_ni_texto():
+    """Fija la semántica del `upgrade` de la migración `0014_categorias_sin_color`
+    a nivel de modelo (los tests construyen el esquema desde `models.py` con
+    `Base.metadata.create_all`, no ejecutando Alembic): la tabla `categorias` ya
+    no declara `fondo` ni `texto`, y conserva el resto de columnas intactas."""
+    columnas = set(Categoria.__table__.columns.keys())
+    assert "fondo" not in columnas
+    assert "texto" not in columnas
+    assert {"id", "portal_id", "icono", "orden"} <= columnas
+
+
+def test_categoria_sembrada_conserva_sus_demas_campos(client, auth):
+    """La categoría sembrada `cuenta` (creada antes de este cambio en el fixture de
+    seed) sigue teniendo nombre, slug, icono y orden tras quitar fondo/texto del
+    modelo: la migración no debe tocar esas columnas ni las filas existentes."""
+    cuerpo = client.get("/api/admin/categorias/cuenta", headers=auth).json()
+    assert cuerpo["icono"] == "usuario"
+    assert cuerpo["orden"] == 0
+    assert cuerpo["es"]["slug"] == "cuenta"
+    assert cuerpo["es"]["nombre"] == "Cuenta"
+    assert cuerpo["pt"]["slug"] == "conta"
+    assert cuerpo["pt"]["nombre"] == "Conta"
+    assert "fondo" not in cuerpo
+    assert "texto" not in cuerpo
 
 
 # --- Alta bilingüe ----------------------------------------------------------
@@ -26,6 +56,25 @@ def test_crear_con_nombre_vacio_rechazado(client, auth):
     payload = categoria_valida()
     payload["es"]["nombre"] = ""
     assert client.post("/api/admin/categorias", json=payload, headers=auth).status_code == 422
+
+
+def test_crear_con_icono_fuera_del_conjunto_cerrado_es_422(client, auth):
+    payload = categoria_valida()
+    payload["icono"] = "no-existe"
+    r = client.post("/api/admin/categorias", json=payload, headers=auth)
+    assert r.status_code == 422
+    assert client.get("/api/admin/categorias/facturacion", headers=auth).status_code == 404
+
+
+def test_editar_con_icono_fuera_del_conjunto_cerrado_es_422(client, auth):
+    client.post("/api/admin/categorias", json=categoria_valida(), headers=auth)
+    cambio = categoria_valida()
+    del cambio["id"]
+    cambio["icono"] = "no-existe"
+    r = client.put("/api/admin/categorias/facturacion", json=cambio, headers=auth)
+    assert r.status_code == 422
+    # No se modificó: el icono sigue siendo el original.
+    assert client.get("/api/admin/categorias/facturacion", headers=auth).json()["icono"] == "documento"
 
 
 def test_crear_con_id_duplicado_es_409(client, auth):

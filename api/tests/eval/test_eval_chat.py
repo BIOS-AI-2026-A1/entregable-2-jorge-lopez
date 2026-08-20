@@ -169,12 +169,7 @@ def db_eval(casos, corpus_vectores):
     )
     db.add(Dominio(host=PORTAL_HOST, portal_id=PORTAL_EVAL_UUID, principal=True))
     db.flush()
-    db.add(
-        Categoria(
-            id="cuenta", portal_id=PORTAL_EVAL_UUID, icono="usuario",
-            fondo="bg-indigo-50", texto="text-indigo-700", orden=0,
-        )
-    )
+    db.add(Categoria(id="cuenta", portal_id=PORTAL_EVAL_UUID, icono="usuario", orden=0))
     for idioma, slug, nombre in (("es", "cuenta", "Cuenta"), ("pt", "conta", "Conta")):
         db.add(CategoriaTraduccion(
             categoria_id="cuenta", portal_id=PORTAL_EVAL_UUID,

@@ -139,8 +139,6 @@ class Categoria(Base):
         ForeignKey("portales.id"), nullable=False, index=True
     )
     icono: Mapped[str] = mapped_column(String)
-    fondo: Mapped[str] = mapped_column(String)
-    texto: Mapped[str] = mapped_column(String)
     orden: Mapped[int] = mapped_column(Integer, default=0)
 
     traducciones: Mapped[list[CategoriaTraduccion]] = relationship(
