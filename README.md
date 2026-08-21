@@ -25,13 +25,17 @@ El **backend** (FastAPI + PostgreSQL/pgvector) está implementado en `api/`: art
 el Panel Interno tras un login de administrador, con el RAG dejado preparado para el futuro. Los pasos para
 arrancarlo (configuración inicial y arranque diario) están en **`api/README.md`**.
 
-```bash
-cd app
-npm install
-npm run dev
-```
+Para no repetir esos comandos en tres ventanas de PowerShell distintas, `levantar-entorno.ps1` (en la
+raíz del repo) automatiza el arranque diario: abre dos ventanas nuevas y en cada una corre uno de estos
+scripts, también en la raíz:
 
-Y abrir http://localhost:5173.
+- `dockernpm.ps1` — `docker compose up -d` (Postgres) y luego `cd app; npm run dev` (frontend).
+- `uvicorn.ps1` — activa `api/.venv` y corre `uvicorn app.main:app --reload` (backend).
+
+```powershell
+# Desde la raíz del repo
+.\levantar-entorno.ps1
+```
 
 Qué funciona: buscador con filtrado real, acordeón de preguntas frecuentes, valoración de artículos, tabla
 del panel interno con filtros, chat con citas que enlazan a artículos existentes, y todo el contenido en
